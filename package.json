@@ -1,0 +1,48 @@
+{
+  "name": "viralmind-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "pwd && export NODE_OPTIONS=--openssl-legacy-provider && nodemon",
+    "build": "node esbuild.js",
+    "start": "export NODE_OPTIONS=--openssl-legacy-provider && node build/server.js",
+    "tsc": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52",
+    "@aws-sdk/client-s3": "^3.732.0",
+    "@aws-sdk/client-sesv2": "^3.821.0",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.95.8",
+    "@toondepauw/node-zstd": "^1.2.0",
+    "axios": "^1.7.8",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5",
+    "esbuild": "^0.25.1",
+    "express": "^5.1.0",
+    "mongoose": "^8.2.1",
+    "multer": "^2.0",
+    "node-ssh": "^13.2.0",
+    "nodemailer": "^7.0",
+    "openai": "^5.0",
+    "random-words": "^2.0.1",
+    "tweetnacl": "^1.0.3",
+    "unzipper": "^0.12.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/mongoose": "^5.11",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22",
+    "@types/nodemailer": "^6.4.17",
+    "@types/unzipper": "^0.10.10",
+    "nodemon": "^3.1.9",
+    "tsx": "^4.19.3",
+    "typescript": "^5.0.0"
+  }
+}
