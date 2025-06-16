@@ -119,8 +119,7 @@ export async function generateAppsForPool(poolId: string, skills: string): Promi
         }
         console.log(`Successfully generated apps for pool ${poolId}`);
         await webhook.sendText(
-          `✅ Generated ${apps.length} apps for gym "${collectionName}" in pool "${
-            pool.name
+          `✅ Generated ${apps.length} apps for gym "${collectionName}" in pool "${pool.name
           }" (${poolId})\n${apps.map((a: { name: string }) => `- ${a.name}`).join('\n')}`
         );
       } else {

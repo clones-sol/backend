@@ -12,7 +12,6 @@ import {
   getAssociatedTokenAddressSync,
   getOrCreateAssociatedTokenAccount
 } from '@solana/spl-token';
-import DatabaseService from '../db/index.ts';
 import axios from 'axios';
 
 class BlockchainService {
@@ -31,11 +30,6 @@ class BlockchainService {
     let defaultSolPrice = 230;
 
     try {
-      const tokenPage = await DatabaseService.getPages({ name: 'viral-token' });
-      if (tokenPage && tokenPage[0]?.content?.sol_price) {
-        defaultSolPrice = tokenPage[0].content.sol_price;
-      }
-
       try {
         const response = await fetch(
           'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd'

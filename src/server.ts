@@ -58,18 +58,14 @@ app.use('/api/screenshots', express.static(path.join(__dirname, 'public', 'scree
 app.use('/api/recordings', express.static(path.join(__dirname, 'public', 'recordings')));
 
 // api v1 endpoints
-import { settingsApi } from './api/settings.ts';
 import { gymApi } from './api/gym.ts';
 import { forgeApi } from './api/forge/index.ts';
-import { forgeUploadApi } from './api/forge-upload.ts';
 import { walletApi } from './api/wallet.ts';
 import { errorHandler } from './middleware/errorHandler.ts';
 import { startRefreshInterval } from './services/forge/pools.ts';
 
-app.use('/api/v1/settings', settingsApi);
 app.use('/api/v1/gym', gymApi);
 app.use('/api/v1/forge', forgeApi);
-app.use('/api/v1/forge/upload', forgeUploadApi);
 app.use('/api/v1/wallet', walletApi);
 
 // error handling

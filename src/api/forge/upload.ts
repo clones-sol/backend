@@ -5,31 +5,31 @@ import { mkdir, unlink, copyFile, stat, writeFile, readFile } from 'fs/promises'
 import * as path from 'path';
 import { Extract } from 'unzipper';
 import { createHash } from 'crypto';
-import { AWSS3Service } from '../services/aws/index.ts';
-import { ForgeAppModel, ForgeRaceSubmission } from '../models/Models.ts';
-import { TrainingPoolModel } from '../models/TrainingPool.ts';
-import BlockchainService from '../services/blockchain/index.ts';
+import { AWSS3Service } from '../../services/aws/index.ts';
+import { ForgeAppModel, ForgeRaceSubmission } from '../../models/Models.ts';
+import { TrainingPoolModel } from '../../models/TrainingPool.ts';
+import BlockchainService from '../../services/blockchain/index.ts';
 import {
   DBForgeRaceSubmission,
   ForgeSubmissionProcessingStatus,
   TrainingPoolStatus,
   UploadLimitType,
   UploadSession
-} from '../types/index.ts';
+} from '../../types/index.ts';
 import {
   addToProcessingQueue,
   cleanupSession,
   startUploadInterval
-} from '../services/forge/index.ts';
-import { validateBody, validateParams } from '../middleware/validator.ts';
+} from '../../services/forge/index.ts';
+import { validateBody, validateParams } from '../../middleware/validator.ts';
 import {
   initUploadSchema,
   uploadChunkSchema,
   uploadIdParamSchema
-} from './schemas/forge-upload.ts';
-import { errorHandlerAsync } from '../middleware/errorHandler.ts';
-import { ApiError, successResponse } from '../middleware/types/errors.ts';
-import { requireWalletAddress } from '../middleware/auth.ts';
+} from '../schemas/forge-upload.ts';
+import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
+import { ApiError, successResponse } from '../../middleware/types/errors.ts';
+import { requireWalletAddress } from '../../middleware/auth.ts';
 
 // Initialize blockchain service
 const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
@@ -137,12 +137,12 @@ router.post(
     const checksum = req.body.checksum;
 
     if (isNaN(chunkIndex) || chunkIndex < 0 || chunkIndex >= session.totalChunks) {
-      await unlink(req.file.path).catch(() => {});
+      await unlink(req.file.path).catch(() => { });
       throw ApiError.badRequest('Invalid chunk index');
     }
 
     if (!checksum) {
-      await unlink(req.file.path).catch(() => {});
+      await unlink(req.file.path).catch(() => { });
       throw ApiError.badRequest('Checksum is required');
     }
 
@@ -151,7 +151,7 @@ router.post(
     const calculatedChecksum = createHash('sha256').update(fileBuffer).digest('hex');
 
     if (calculatedChecksum !== checksum) {
-      await unlink(req.file.path).catch(() => {});
+      await unlink(req.file.path).catch(() => { });
       throw ApiError.badRequest('Checksum verification failed', {
         expected: checksum,
         calculated: calculatedChecksum
@@ -281,8 +281,7 @@ router.post(
     for (let i = 0; i < sortedChunks.length; i++) {
       const chunk = sortedChunks[i];
       console.log(
-        `[UPLOAD] Writing chunk ${i + 1}/${sortedChunks.length} (index: ${
-          chunk.chunkIndex
+        `[UPLOAD] Writing chunk ${i + 1}/${sortedChunks.length} (index: ${chunk.chunkIndex
         }, size: ${chunk.size} bytes)`
       );
       await new Promise<void>((resolve, reject) => {

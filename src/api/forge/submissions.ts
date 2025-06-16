@@ -1,19 +1,11 @@
 const router: Router = express.Router();
 import express, { Request, Response, Router } from 'express';
 import { requireWalletAddress } from '../../middleware/auth.ts';
-import multer from 'multer';
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
 import { ApiError, successResponse } from '../../middleware/types/errors.ts';
 import { ForgeRaceSubmission, TrainingPoolModel } from '../../models/Models.ts';
 import { validateParams, ValidationRules } from '../../middleware/validator.ts';
 export { router as forgeSubmissionsApi };
-
-const upload = multer({
-  dest: 'uploads/',
-  limits: {
-    fileSize: 15 * 1024 * 1024 * 1024 // 15GB limit for /upload-race endpoint
-  }
-});
 
 // Get submissions for authenticated user
 router.get(
