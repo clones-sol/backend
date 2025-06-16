@@ -1,0 +1,84 @@
+# Production
+services:
+  # Development Services
+  mongodb:
+    image: mongo:8.0.4
+    container_name: mongodb
+    networks:
+      - node-network
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=dev
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+    volumes:
+      - mongodb_data:/data/db
+
+  localstack:
+    image: localstack/localstack
+    container_name: localstack
+    networks:
+      - node-network
+    ports:
+      - "4566:4566"
+    environment:
+      # - DEBUG=1
+      - SERVICES=s3
+      - TRIES=30
+      - BUCKET_NAMES=training-gym
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      - ./localstack/s3.sh:/etc/localstack/init/ready.d/s3.sh
+      - ./localstack:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  backend-dev:
+    build: 
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: backend
+    working_dir: /app
+    networks:
+      - node-network
+    tty: true
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./src:/app/src
+      # training data output
+      - ./public/screenshots:/app/backend/public/screenshots
+    environment:
+      - RPC_URL=https://api.devnet.solana.com/
+      - DB_URI=mongodb://mongodb:27017
+      - DB_NAME=dev
+      - DB_USER=admin
+      - DB_PASSWORD=admin
+      - IPC_SECRET=
+      - GYM_SECRET=
+      - AX_PARSER_SECRET=
+      - FEEDBACK_WEBHOOK=
+      - GYM_TREASURY_WEBHOOK=
+      - AWS_ACCESS_KEY=test
+      - AWS_SECRET_KEY=test
+      - AWS_ENDPOINT=http://localstack:4566
+      - AWS_REGION=us-east-1
+      - PIPELINE_PATH=/app/pipeline
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - VIRAL_TOKEN=${VIRAL_TOKEN}
+      - GYM_FORGE_WEBHOOK=${GYM_FORGE_WEBHOOK}
+    depends_on:
+      - mongodb
+      - localstack
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "deb.debian.org:host-gateway"
+
+networks:
+  node-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:

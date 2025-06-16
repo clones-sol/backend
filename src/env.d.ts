@@ -5,11 +5,16 @@ declare namespace NodeJS {
     // Database Configuration
     DB_URI: string;
     DB_NAME: string;
+    DB_USER: string;
+    DB_PASSWORD: string;
+    DB_REPLICASET: string;
 
     // API Keys
     OPENAI_API_KEY: string;
-    OPEN_AI_SECRET: string;
     ANTHROPIC_API_KEY: string;
+
+    // Files path
+    PIPELINE_PATH: string;
 
     // Blockchain Configuration
     RPC_URL: string;

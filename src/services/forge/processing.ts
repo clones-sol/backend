@@ -87,7 +87,7 @@ export async function processNextInQueue() {
       console.log('Directory contents:', files);
 
       await new Promise<void>((resolve, reject) => {
-        const process = spawn('/usr/src/app/pipeline/pipeline', [
+        const pipeline = spawn(process.env.PIPELINE_PATH, [
           '-f',
           'desktop',
           '-i',
@@ -98,17 +98,17 @@ export async function processNextInQueue() {
         let stdout = '';
         let stderr = '';
 
-        process.stdout.on('data', (data) => {
+        pipeline.stdout.on('data', (data) => {
           stdout += data;
           console.log('Pipeline stdout:', data.toString());
         });
 
-        process.stderr.on('data', (data) => {
+        pipeline.stderr.on('data', (data) => {
           stderr += data;
           console.error('Pipeline stderr:', data.toString());
         });
 
-        process.on('close', (code: number) => {
+        pipeline.on('close', (code: number) => {
           if (code === 0) {
             resolve();
           } else {
@@ -118,7 +118,7 @@ export async function processNextInQueue() {
           }
         });
 
-        process.on('error', (err) => {
+        pipeline.on('error', (err) => {
           console.error('Pipeline spawn error:', err);
           reject(err);
         });

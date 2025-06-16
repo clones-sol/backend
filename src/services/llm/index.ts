@@ -15,7 +15,7 @@ export class LLMService implements ILLMService {
 
     let apiKey: string;
     if (model.startsWith('gpt-')) {
-      apiKey = process.env.OPEN_AI_SECRET || '';
+      apiKey = process.env.OPENAI_API_KEY || '';
       if (!apiKey) throw new Error('OpenAI API key is required');
     } else if (model.startsWith('claude-')) {
       apiKey = process.env.ANTHROPIC_API_KEY || '';

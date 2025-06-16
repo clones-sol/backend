@@ -1,98 +1,9 @@
 import { Types } from 'mongoose';
 import {
   TrainingPoolStatus,
-  IDL,
   UploadLimitType,
-  VPSRegion,
   ForgeSubmissionProcessingStatus
 } from './index.ts';
-
-export interface DBChallenge {
-  _id?: string;
-  title?: string;
-  name?: string;
-  description?: string;
-  image?: string;
-  pfp?: string;
-  task?: string;
-  label?: string;
-  level?: string;
-  status: string;
-  model?: string;
-  system_message?: string;
-  deployed?: boolean;
-  tournamentPDA?: string;
-  idl?: IDL;
-  entryFee?: number;
-  characterLimit?: number;
-  charactersPerWord?: number;
-  contextLimit?: number;
-  chatLimit?: number;
-  max_actions?: number;
-  expiry?: Date;
-  initial_pool_size?: number;
-  developer_fee?: number;
-  tools?: Array<any>;
-  fee_multiplier?: number;
-  prize?: number;
-  usdPrize?: number;
-  winning_message?: string;
-  phrase?: string;
-  winning_prize?: number;
-  tools_description?: string;
-  custom_rules?: string;
-  disable: any[];
-  success_function?: string;
-  fail_function?: string;
-  tool_choice?: string;
-  start_date?: Date;
-  expiry_logic?: 'score' | 'time';
-  scores?: Array<{
-    account?: string;
-    address?: string;
-    score?: number;
-    timestamp: Date;
-  }>;
-  game?: string;
-  game_ip?: string;
-  stream_src?: string;
-  whitelist?: Array<{
-    username?: string;
-    address?: string;
-    viral_balance?: number;
-    signature?: string;
-  }>;
-}
-
-export interface DBChat {
-  _id?: Types.ObjectId;
-  challenge: string;
-  model?: string;
-  role: string;
-  content: string;
-  tool_calls?: object;
-  address: string;
-  display_name?: string;
-  txn?: string;
-  verified?: boolean;
-  date?: Date;
-  screenshot?: {
-    url: string;
-  };
-}
-
-export interface DBPage {
-  _id?: Types.ObjectId;
-  name: string;
-  content: any;
-}
-
-export interface DBUser {
-  _id?: Types.ObjectId;
-  api_key: string;
-  address: string;
-  date_created: Date;
-}
 
 export interface DBForgeApp {
   _id?: Types.ObjectId;
@@ -107,17 +18,6 @@ export interface DBForgeApp {
     uploadLimit?: number;
     rewardLimit?: number;
   }[];
-}
-
-export interface DBForgeRace {
-  _id?: Types.ObjectId;
-  title: string;
-  description: string;
-  category: string;
-  icon: string;
-  skills: string;
-  agent_prompt: string;
-  pool_id: Types.ObjectId;
 }
 
 export interface DBForgeRaceSubmission {
@@ -159,36 +59,6 @@ export interface DBGymSession {
   updated_at: Date;
 }
 
-export interface DBGymVps {
-  _id?: Types.ObjectId;
-  id: string;
-  ip: string;
-  region: string;
-  username: string;
-  ssh_keypair: {
-    public: string;
-    private: string;
-  };
-  users: {
-    username: string;
-    password: string;
-  }[];
-}
-
-export interface DBRace {
-  _id?: Types.ObjectId;
-  id: string;
-  title: string;
-  description: string;
-  category: 'creative' | 'mouse' | 'slacker' | 'gaming' | 'wildcard';
-  icon: string;
-  colorScheme?: 'pink' | 'blue' | 'purple' | 'orange' | 'indigo' | 'emerald';
-  prompt: string;
-  reward: number;
-  buttonText: string;
-  stakeRequired?: number;
-}
-
 export interface DBTrainingPool {
   _id?: Types.ObjectId;
   id: string;
@@ -212,46 +82,20 @@ export interface DBTrainingPool {
     limitType: UploadLimitType;
   };
 }
-export interface DBRaceSession {
-  _id?: Types.ObjectId;
-  address: string;
-  challenge: string;
-  prompt: string;
-  category: 'creative' | 'mouse' | 'slacker' | 'gaming' | 'wildcard';
-  vm_ip: string;
-  vm_port: number;
-  vm_password: string;
-  vm_region: VPSRegion;
-  vm_credentials: {
-    guacToken?: string;
-    guacConnectionId?: string;
-    guacClientId?: string;
-    username: string;
-    password: string;
-  };
-  status?: 'active' | 'completed' | 'expired';
-  video_path?: string;
-  preview?: string; // Base64 encoded screenshot
-  created_at?: Date;
-  updated_at?: Date;
-  transaction_signature?: string;
-  stream_id?: string;
-}
-
 export interface DBTrainingEvent {
   _id?: Types.ObjectId;
   session: Types.ObjectId | string;
   type:
-    | 'task'
-    | 'mouse'
-    | 'keyboard'
-    | 'scroll'
-    | 'system'
-    | 'hint'
-    | 'quest'
-    | 'error'
-    | 'reasoning'
-    | 'reward';
+  | 'task'
+  | 'mouse'
+  | 'keyboard'
+  | 'scroll'
+  | 'system'
+  | 'hint'
+  | 'quest'
+  | 'error'
+  | 'reasoning'
+  | 'reward';
   message: string;
   frame: number;
   timestamp: number; // Milliseconds since session start

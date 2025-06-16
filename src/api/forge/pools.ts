@@ -20,15 +20,12 @@ import {
   UpdatePoolBody
 } from '../../types/index.ts';
 import { Keypair } from '@solana/web3.js';
-import BlockchainService from '../../services/blockchain/index.ts';
 import { Webhook } from '../../services/webhook/index.ts';
 import { sendEmail } from '../../services/email/index.ts';
 
 // set up the discord webhook
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
 const webhook = new Webhook(FORGE_WEBHOOK);
-
-const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
 
 // Refresh pool balance
 router.post(
@@ -102,19 +99,6 @@ router.get(
     );
 
     res.status(200).json(successResponse(poolsWithDemos));
-  })
-);
-
-// Get available forge pools (non-sensitive information)
-router.get(
-  '/all',
-  errorHandlerAsync(async (_req: Request, res: Response) => {
-    // Only return live pools with non-sensitive information
-    const pools = await TrainingPoolModel.find({ status: TrainingPoolStatus.live })
-      .select('_id name pricePerDemo')
-      .lean();
-
-    res.status(200).json(successResponse(pools));
   })
 );
 
