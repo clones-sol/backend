@@ -1,0 +1,43 @@
+FROM node:lts
+
+# Set development environment
+ENV NODE_ENV="development"
+
+WORKDIR /app
+ADD https://github.com/viralmind-ai/vm-pipeline/releases/latest/download/pipeline-linux-x64 ./pipeline
+RUN chmod +x pipeline
+
+COPY . .
+
+# Install packages needed to build node modules
+RUN apt-get update -qq && \
+  apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3 ffmpeg
+
+# RUN apt-get update && \
+#   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+#   build-essential \
+#   python3 \
+#   ffmpeg \
+#   libcairo2-dev \
+#   libjpeg62-turbo-dev \
+#   libpng-dev \
+#   libossp-uuid-dev \
+#   libavcodec-dev \
+#   libavformat-dev \
+#   libavutil-dev \
+#   libswscale-dev \
+#   freerdp2-dev \
+#   libpango1.0-dev \
+#   libssh2-1-dev \
+#   libtelnet-dev \
+#   libwebsockets-dev \
+#   libpulse-dev \
+#   libssl-dev \
+#   libvorbis-dev \
+#   libwebp-dev && \
+#   apt-get autoremove -y
+
+RUN npm install
+# RUN npm install --global tsx
+
+EXPOSE 8001
