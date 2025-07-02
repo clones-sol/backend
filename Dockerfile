@@ -1,47 +1,48 @@
-FROM node:21.4.0-bookworm
+FROM node:lts AS base
 
-WORKDIR /usr/src/app/aws
-# pull the aws documentdb cert and pipeline binary
-ADD https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem ./aws-global-bundle.pem
+LABEL fly_launch_runtime="Node.js"
 
-WORKDIR /usr/src/app/pipeline
-ADD https://github.com/viralmind-ai/vm-pipeline/releases/latest/download/pipeline-linux-x64 ./pipeline
-RUN chmod +x pipeline
+# Node.js app lives here
+WORKDIR /app
 
-WORKDIR /usr/src/app/backend/
+# Set production environment
+ENV NODE_ENV="production"
 
-COPY package*.json ./
+# Throw-away build stage to reduce size of final image
+FROM base AS build
 
-# Install dependencies including build requirements
-RUN apt-get update && \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-  build-essential \
-  python3 \
-  ffmpeg \
-  libcairo2-dev \
-  libjpeg62-turbo-dev \
-  libpng-dev \
-  libossp-uuid-dev \
-  libavcodec-dev \
-  libavformat-dev \
-  libavutil-dev \
-  libswscale-dev \
-  freerdp2-dev \
-  libpango1.0-dev \
-  libssh2-1-dev \
-  libtelnet-dev \
-  libwebsockets-dev \
-  libpulse-dev \
-  libssl-dev \
-  libvorbis-dev \
-  libwebp-dev && \
-  apt-get autoremove -y
+# Install packages needed to build node modules
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
 
-RUN npm ci
-RUN npm install --global tsx
+# Install node modules
+COPY package-lock.json package.json ./
+RUN npm ci --include=dev
 
+# Copy application code
 COPY . .
 
+# Build application
 RUN npm run build
 
+# Remove development dependencies
+RUN npm prune --omit=dev
+
+# Final stage for app image
+FROM base
+
+ADD https://github.com/viralmind-ai/vm-pipeline/releases/latest/download/pipeline-linux-x64 /app/pipeline
+RUN chmod +x /app/pipeline
+
+# Install packages needed to build node modules
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y ffmpeg
+
+# Copy built application
+COPY --from=build /app/build /app/build
+COPY --from=build /app/node_modules /app/node_modules
+COPY --from=build /app/package.json /app
+
+# Start the server by default, this can be overwritten at runtime
 EXPOSE 8001
+CMD [ "node", "./build/server.js" ]

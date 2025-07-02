@@ -37,7 +37,7 @@ services:
   backend-dev:
     build: 
       context: .
-      dockerfile: ./Dockerfile
+      dockerfile: ./Dockerfile.dev
     container_name: backend
     working_dir: /app
     networks:
