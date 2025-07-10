@@ -388,11 +388,30 @@ router.post(
 
         // Upload each file to Object Storage
         console.log(`[UPLOAD] Starting object storage upload for ${requiredFiles.length} files`);
+        const {
+            STORAGE_ACCESS_KEY,
+            STORAGE_SECRET_KEY,
+            STORAGE_ENDPOINT,
+            STORAGE_REGION,
+            STORAGE_BUCKET
+        } = process.env;
+
+        if (
+            !STORAGE_ACCESS_KEY ||
+            !STORAGE_SECRET_KEY ||
+            !STORAGE_ENDPOINT ||
+            !STORAGE_REGION ||
+            !STORAGE_BUCKET
+        ) {
+            throw new Error('Storage service environment variables are not properly configured.');
+        }
+
         const storageService = new ObjectStorageService(
-            process.env.STORAGE_ACCESS_KEY,
-            process.env.STORAGE_SECRET_KEY,
-            process.env.STORAGE_ENDPOINT,
-            process.env.STORAGE_REGION
+            STORAGE_ACCESS_KEY,
+            STORAGE_SECRET_KEY,
+            STORAGE_ENDPOINT,
+            STORAGE_REGION,
+            STORAGE_BUCKET
         );
         const uploads = await Promise.all(
             requiredFiles.map(async (file) => {
@@ -405,11 +424,10 @@ router.post(
                 );
 
                 await storageService.saveItem({
-                    bucket: process.env.STORAGE_BUCKET || 'training-gym',
                     file: filePath,
                     name: storageKey
                 });
-                console.log(`[UPLOAD] Successfully uploaded ${file} to object storage`);
+                console.log(`[UPLOAD] Successfully uploaded ${file} to object storage with key ${storageKey}`);
 
                 return { file, storageKey, size: fileStats.size };
             })
