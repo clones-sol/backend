@@ -21,7 +21,7 @@ const __dirname = path.dirname(__filename);
 app.use(express.json({ limit: '15gb' }));
 app.use(express.urlencoded());
 // Add headers
-app.use(function(req, res, next) {
+app.use(function (req, res, next) {
   // Origin to allow
   const allowedOrigins = [
     'tauri://localhost',
@@ -32,6 +32,7 @@ app.use(function(req, res, next) {
     'http://localhost:8001',
     'http://18.157.122.205',
     'https://viralmind.ai',
+    'https://clones.sol',
     'https://viralmind-web-testnet.fly.dev'
   ];
 
@@ -102,7 +103,7 @@ async function connectToDatabase() {
 }
 
 httpServer.listen(port, async () => {
-  console.log(`Viralmind backend listening on port ${port}`);
+  console.log(`Clones backend listening on port ${port}`);
   await connectToDatabase().catch(console.dir);
   // refresh pool status
   startRefreshInterval();
