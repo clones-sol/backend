@@ -14,7 +14,7 @@ export const forgeRaceSubmissionSchema = new mongoose.Schema<DBForgeRaceSubmissi
     files: [
       {
         file: String,
-        s3Key: String,
+        storageKey: String,
         size: Number
       }
     ],
