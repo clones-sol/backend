@@ -13,7 +13,9 @@ FROM base AS build
 
 # Install packages needed to build node modules
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
+    apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install node modules
 COPY package-lock.json package.json ./
@@ -34,9 +36,11 @@ FROM base
 ADD https://github.com/clones-sol/vm-pipeline/releases/latest/download/pipeline-linux-x64 /app/pipeline
 RUN chmod +x /app/pipeline
 
-# Install packages needed to build node modules
+# Install runtime dependencies
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y ffmpeg
+    apt-get install --no-install-recommends -y ffmpeg && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy built application
 COPY --from=build /app/build /app/build

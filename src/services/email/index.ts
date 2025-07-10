@@ -13,7 +13,7 @@ let transporter = nodemailer.createTransport({
 });
 
 export const sendEmail = async (options: SendMailOptions) => {
-  // default ot noreply@clones.sol
+  // default to noreply@clones.sol
   if (!options.from) {
     options.from = {
       name: 'Clones',
