@@ -3,11 +3,21 @@ import { promises as fs } from 'fs';
 
 export class ObjectStorageService {
   private client: S3Client;
-  constructor(accessKeyId?: string, secretAccessKey?: string, endpoint?: string, region?: string) {
-    if (!accessKeyId) throw Error('Cannot initialize object storage client. Access key not provided.');
-    if (!secretAccessKey) throw Error('Cannot initialize object storage client. Secret key not provided.');
+  private bucket: string;
+  constructor(
+    accessKeyId: string,
+    secretAccessKey: string,
+    endpoint: string,
+    region: string,
+    bucket: string
+  ) {
+    if (!accessKeyId)
+      throw Error('Cannot initialize object storage client. Access key not provided.');
+    if (!secretAccessKey)
+      throw Error('Cannot initialize object storage client. Secret key not provided.');
     if (!endpoint) throw Error('Cannot initialize object storage client. Endpoint not provided.');
     if (!region) throw Error('Cannot initialize object storage client. Region not provided.');
+    if (!bucket) throw Error('Cannot initialize object storage client. Bucket not provided.');
 
     this.client = new S3Client({
       endpoint,
@@ -15,6 +25,7 @@ export class ObjectStorageService {
       credentials: { accessKeyId, secretAccessKey },
       region
     });
+    this.bucket = bucket;
   }
 
   async saveItem(options: { name: string; file: Buffer | string; bucket?: string }) {
@@ -27,7 +38,7 @@ export class ObjectStorageService {
       data = options.file;
     }
     const command = new PutObjectCommand({
-      Bucket: options.bucket || process.env.STORAGE_BUCKET || 'training-gym',
+      Bucket: options.bucket || this.bucket,
       Body: data,
       Key: options.name
     });
