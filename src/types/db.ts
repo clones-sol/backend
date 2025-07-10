@@ -27,7 +27,7 @@ export interface DBForgeRaceSubmission {
   status?: ForgeSubmissionProcessingStatus;
   files?: Array<{
     file?: string;
-    s3Key?: string;
+    storageKey?: string;
     size?: number;
   }>;
   grade_result?: {

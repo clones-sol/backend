@@ -62,10 +62,11 @@ services:
       - AX_PARSER_SECRET=
       - FEEDBACK_WEBHOOK=
       - GYM_TREASURY_WEBHOOK=
-      - AWS_ACCESS_KEY=test
-      - AWS_SECRET_KEY=test
-      - AWS_ENDPOINT=http://localstack:4566
-      - AWS_REGION=us-east-1
+      - STORAGE_ACCESS_KEY=test
+      - STORAGE_SECRET_KEY=test
+      - STORAGE_ENDPOINT=http://localstack:4566
+      - STORAGE_REGION=us-east-1
+      - STORAGE_BUCKET=training-gym
       - PIPELINE_PATH=/app/pipeline
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
