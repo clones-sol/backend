@@ -4,7 +4,7 @@ FROM node:lts
 ENV NODE_ENV="development"
 
 WORKDIR /app
-ADD https://github.com/viralmind-ai/vm-pipeline/releases/latest/download/pipeline-linux-x64 ./pipeline
+ADD https://github.com/clones-sol/vm-pipeline/releases/latest/download/pipeline-linux-x64 ./pipeline
 RUN chmod +x pipeline
 
 COPY . .
@@ -36,6 +36,7 @@ RUN apt-get update -qq && \
 #   libvorbis-dev \
 #   libwebp-dev && \
 #   apt-get autoremove -y
+
 
 RUN npm install
 # RUN npm install --global tsx
