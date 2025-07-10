@@ -31,7 +31,6 @@ app.use(function (req, res, next) {
     'http://localhost:5173',
     'http://localhost:8001',
     'http://18.157.122.205',
-    'https://viralmind.ai',
     'https://clones.sol',
     'https://viralmind-web-testnet.fly.dev'
   ];
