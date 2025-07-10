@@ -1,5 +1,5 @@
 {
-  "name": "viralmind-backend",
+  "name": "clones-backend",
   "version": "1.0.0",
   "description": "",
   "main": "src/server.js",
@@ -34,7 +34,7 @@
     "@types/express": "^5.0.0",
     "@types/mongoose": "^5.11",
     "@types/multer": "^1.4.12",
-    "@types/node": "^22",
+    "@types/node": "^22.16.2",
     "@types/nodemailer": "^6.4.17",
     "@types/unzipper": "^0.10.10",
     "nodemon": "^3.1.9",

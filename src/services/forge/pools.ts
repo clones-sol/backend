@@ -183,24 +183,24 @@ export async function updatePoolStatus(
     if (pool.status === TrainingPoolStatus.noGas) {
       sendEmail({
         to: pool.ownerEmail,
-        subject: `Viralmind Forge '${pool.name}' Out of Gas`,
-        text: `The wallet for your forge ${pool.name} does not have enough SOL to pay the gas for $VIRAL transactions.\nPlease send some SOL to your forge via the Viralmind App.\n\nThank you for contributing to open computer use data!\n - The Viralmind Team`
+        subject: `Clones Forge '${pool.name}' Out of Gas`,
+        text: `The wallet for your forge ${pool.name} does not have enough SOL to pay the gas for $VIRAL transactions.\nPlease send some SOL to your forge via the Clones App.\n\nThank you for contributing to open computer use data!\n - The Clones Team`
       }).catch((e) => {
         console.log(e);
       });
     } else if (pool.status === TrainingPoolStatus.noFunds) {
       sendEmail({
         to: pool.ownerEmail,
-        subject: `Viralmind Forge '${pool.name}' Out of Funds`,
-        text: `The wallet for your forge ${pool.name} does not have enough $VIRAL to send rewards for successful task completions.\nPlease deposit more $VIRAL to your forge via the Viralmind App.\n\nThank you for contributing to open computer use data!\n - The Viralmind Team`
+        subject: `Clones Forge '${pool.name}' Out of Funds`,
+        text: `The wallet for your forge ${pool.name} does not have enough $VIRAL to send rewards for successful task completions.\nPlease deposit more $VIRAL to your forge via the Clones App.\n\nThank you for contributing to open computer use data!\n - The Clones Team`
       }).catch((e) => {
         console.log(e);
       });
     } else if (pool.status === TrainingPoolStatus.paused) {
       sendEmail({
         to: pool.ownerEmail,
-        subject: `Viralmind Forge '${pool.name}' Successfully Funded`,
-        text: `The wallet for your forge ${pool.name} has been successfully funded. Your tasks will now appear in the desktop app.\n\nThank you for contributing to open computer use data!\n - The Viralmind Team`
+        subject: `Clones Forge '${pool.name}' Successfully Funded`,
+        text: `The wallet for your forge ${pool.name} has been successfully funded. Your tasks will now appear in the desktop app.\n\nThank you for contributing to open computer use data!\n - The Clones Team`
       }).catch((e) => {
         console.log(e);
       });

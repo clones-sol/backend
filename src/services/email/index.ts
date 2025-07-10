@@ -13,11 +13,11 @@ let transporter = nodemailer.createTransport({
 });
 
 export const sendEmail = async (options: SendMailOptions) => {
-  // default ot noreply@viralmind.ai
+  // default ot noreply@clones.sol
   if (!options.from) {
     options.from = {
-      name: 'Viralmind',
-      address: 'noreply@viralmind.ai'
+      name: 'Clones',
+      address: 'noreply@clones.sol'
     };
   }
   const emailRes = await transporter.sendMail(options).catch((e) => {
