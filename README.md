@@ -1,6 +1,6 @@
 # Backend Server
 
-This is the backend server for ViralMind. It handles database operations and API endpoints through a Docker container.
+This is the backend server for Clones. It handles database operations and API endpoints through a Docker container.
 
 ## Development
 

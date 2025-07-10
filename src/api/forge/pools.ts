@@ -333,7 +333,7 @@ router.put(
     await sendEmail({
       to: email,
       subject: 'Forge Notifications Active',
-      text: 'Thank you for enabling Viralmind Forge notifications.\nThe next time your gym runs out of $VIRAL or gas you will get an email in this inbox.\n\n - The Viralmind Team'
+      text: 'Thank you for enabling Clones Forge notifications.\nThe next time your gym runs out of $VIRAL or gas you will get an email in this inbox.\n\n - The Clones Team'
     }).catch((e) => {
       console.log(e);
       throw ApiError.badRequest('There was an error verifying your email.');

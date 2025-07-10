@@ -35,7 +35,7 @@ router.post(
 
       try {
         // Create the message that was signed
-        const message = `viralmind desktop\nnonce: ${timestamp}`;
+        const message = `Clones desktop\nnonce: ${timestamp}`;
         const messageBytes = new TextEncoder().encode(message);
 
         // Convert base64 signature to Uint8Array

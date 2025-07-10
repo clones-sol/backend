@@ -56,4 +56,7 @@ pipeline-linux-x64
 pipeline
 uploads
 
-localstack
+localstack/cache
+localstack/lib
+localstack/logs
+localstack/tmp
