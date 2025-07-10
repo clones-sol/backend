@@ -30,16 +30,18 @@ services:
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
     volumes:
-      - ./localstack/s3.sh:/etc/localstack/init/ready.d/s3.sh
+      - ./localstack/init:/etc/localstack/init/ready.d
       - ./localstack:/var/lib/localstack
       - /var/run/docker.sock:/var/run/docker.sock
 
   backend-dev:
+    platform: linux/amd64
     build: 
       context: .
       dockerfile: ./Dockerfile.dev
     container_name: backend
     working_dir: /app
+    command: npm run dev
     networks:
       - node-network
     tty: true
