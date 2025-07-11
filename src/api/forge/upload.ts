@@ -391,22 +391,24 @@ router.post(
             STORAGE_BUCKET
         } = process.env;
 
-        if (
-            !STORAGE_ACCESS_KEY ||
-            !STORAGE_SECRET_KEY ||
-            !STORAGE_ENDPOINT ||
-            !STORAGE_REGION ||
-            !STORAGE_BUCKET
-        ) {
-            throw new Error('Storage service environment variables are not properly configured.');
+        const missingVariables = [];
+        if (!STORAGE_ACCESS_KEY) missingVariables.push('STORAGE_ACCESS_KEY');
+        if (!STORAGE_SECRET_KEY) missingVariables.push('STORAGE_SECRET_KEY');
+        if (!STORAGE_ENDPOINT) missingVariables.push('STORAGE_ENDPOINT');
+        if (!STORAGE_REGION) missingVariables.push('STORAGE_REGION');
+        if (!STORAGE_BUCKET) missingVariables.push('STORAGE_BUCKET');
+        if (missingVariables.length > 0) {
+            throw new Error(
+                `Storage service environment variables are not properly configured. Missing: ${missingVariables.join(', ')}`
+            );
         }
 
         const storageService = new ObjectStorageService(
-            STORAGE_ACCESS_KEY,
-            STORAGE_SECRET_KEY,
-            STORAGE_ENDPOINT,
-            STORAGE_REGION,
-            STORAGE_BUCKET
+            STORAGE_ACCESS_KEY!,
+            STORAGE_SECRET_KEY!,
+            STORAGE_ENDPOINT!,
+            STORAGE_REGION!,
+            STORAGE_BUCKET!
         );
         const uploads = await Promise.all(
             requiredFiles.map(async (file) => {
