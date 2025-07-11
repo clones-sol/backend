@@ -1,8 +1,19 @@
 /// <reference types="jest" />
 
-import { encrypt, decrypt, LATEST_KEY_VERSION } from './crypto.ts';
+// We will import these dynamically inside beforeAll
+let encrypt: (text: string) => string;
+let decrypt: (hash: string) => string;
+let LATEST_KEY_VERSION: string;
 
 describe('Crypto Service', () => {
+    beforeAll(async () => {
+        // Dynamically import the crypto module to ensure env vars are set
+        const cryptoModule = await import('./crypto.ts');
+        encrypt = cryptoModule.encrypt;
+        decrypt = cryptoModule.decrypt;
+        LATEST_KEY_VERSION = cryptoModule.LATEST_KEY_VERSION;
+    });
+
     const plaintext = 'my-very-secret-private-key';
 
     describe('encrypt', () => {

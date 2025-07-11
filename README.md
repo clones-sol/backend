@@ -33,22 +33,28 @@ The encryption is handled by the `src/services/security/crypto.ts` module, which
 
 ### Environment Variable Setup
 
-The entire security mechanism relies on a Master Encryption Key, which **must** be configured as an environment variable named `DEPOSIT_KEY_ENCRYPTION_SECRET`.
+The entire security mechanism relies on two critical environment variables:
+- `DEPOSIT_KEY_ENCRYPTION_SECRET`: The Master Encryption Key.
+- `DEPOSIT_KEY_ENCRYPTION_SALT`: A cryptographic salt used to derive the encryption key from the master key.
 
-**Never commit this key to version control.**
+**Never commit these values to version control.**
 
 #### Local Development
 
-For local development, add the secret to your `.env` file. You can generate a secure key using:
+For local development, add the secrets to your `.env` file. You can generate secure values using:
 ```bash
+# For the secret key
 openssl rand -base64 32
+
+# For the salt
+openssl rand -base64 16
 ```
 
 #### Production (Fly.io)
 
-For production environments, set the secret using the Fly.io CLI:
+For production environments, set both secrets using the Fly.io CLI:
 ```bash
-fly secrets set DEPOSIT_KEY_ENCRYPTION_SECRET="your-generated-key-here" --app <your-app-name>
+fly secrets set DEPOSIT_KEY_ENCRYPTION_SECRET="your-generated-key-here" DEPOSIT_KEY_ENCRYPTION_SALT="your-generated-salt-here" --app <your-app-name>
 ```
 
 ### Master Key Rotation Procedure

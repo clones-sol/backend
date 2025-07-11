@@ -2,7 +2,8 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypt
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
-const SALT = 'clones-forge-key-salt'; // Salt can be static as master keys are high-entropy
+const SALT = process.env.DEPOSIT_KEY_ENCRYPTION_SALT;
+const MASTER_KEY = process.env.DEPOSIT_KEY_ENCRYPTION_SECRET;
 
 // --- Key Management & Rotation ---
 
@@ -13,14 +14,18 @@ export const LATEST_KEY_VERSION = 'v1';
 const ENCRYPTION_KEYS = new Map<string, Buffer>();
 
 // Load the primary (v1) key.
-if (process.env.DEPOSIT_KEY_ENCRYPTION_SECRET) {
-    const v1Key = scryptSync(process.env.DEPOSIT_KEY_ENCRYPTION_SECRET, SALT, 32);
-    ENCRYPTION_KEYS.set('v1', v1Key);
-} else {
-    // If we are in production and the primary key is missing, we should not start.
-    if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production') {
+    if (!MASTER_KEY) {
         throw new Error('DEPOSIT_KEY_ENCRYPTION_SECRET (v1) is not set in environment variables');
     }
+    if (!SALT) {
+        throw new Error('DEPOSIT_KEY_ENCRYPTION_SALT is not set in environment variables');
+    }
+}
+
+if (MASTER_KEY && SALT) {
+    const v1Key = scryptSync(MASTER_KEY, SALT, 32);
+    ENCRYPTION_KEYS.set('v1', v1Key);
 }
 
 // Example for a future key rotation (v2).
