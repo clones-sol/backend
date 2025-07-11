@@ -12,8 +12,13 @@ import nacl from 'tweetnacl';
 import { WalletConnectionModel } from '../models/Models.ts';
 import { ConnectBody } from '../types/index.ts';
 import BlockchainService from '../services/blockchain/index.ts';
-import { checkConnectionSchema, connectWalletSchema } from './schemas/wallet.ts';
+import {
+  checkConnectionSchema,
+  connectWalletSchema,
+  getBalanceSchema
+} from './schemas/wallet.ts';
 import { requireWalletAddress } from '../middleware/auth.ts';
+import { getTokenAddress } from '../services/blockchain/tokens.ts';
 
 const router: Router = express.Router();
 const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
@@ -93,14 +98,17 @@ router.get(
   })
 );
 
-// Get $VIRAL balance for an address
+// Get token balance for an address
 router.get(
   '/balance/:address',
   validateParams({ address: { required: true, rules: [ValidationRules.isSolanaAddress()] } }),
+  validateQuery(getBalanceSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { address } = req.params;
+    const { symbol } = req.query as { symbol: string };
 
-    const balance = await blockchainService.getTokenBalance(process.env.VIRAL_TOKEN || '', address);
+    const tokenMintAddress = getTokenAddress(symbol);
+    const balance = await blockchainService.getTokenBalance(tokenMintAddress, address);
 
     res.status(200).json(successResponse({ balance }));
   })
