@@ -9,7 +9,8 @@
     "build": "node esbuild.js",
     "start": "node build/server.js",
     "tsc": "tsc",
-    "migrate:keys": "tsx src/scripts/migrate-keys.ts"
+    "migrate:keys": "tsx src/scripts/migrate-keys.ts",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "keywords": [],
   "author": "",
@@ -38,7 +39,10 @@
     "@types/node": "^22.16.2",
     "@types/nodemailer": "^6.4.17",
     "@types/unzipper": "^0.10.10",
+    "cross-env": "^7.0.3",
+    "jest": "^30.0.4",
     "nodemon": "^3.1.9",
+    "ts-jest": "^29.4.0",
     "tsx": "^4.19.3",
     "typescript": "^5.0.0"
   }
