@@ -291,8 +291,8 @@ export async function processNextInQueue() {
             reward = Math.max(0, Math.min(maxReward, (maxReward * clampedScore) / 100));
 
             // Create treasury transfer record if reward exists
+            const tokenAddress = getTokenAddress(pool.token.symbol);
             if (reward && reward > 0) {
-              const tokenAddress = getTokenAddress(pool.token.symbol);
               treasuryTransfer = {
                 tokenAddress: tokenAddress,
                 treasuryWallet: pool.depositAddress,
@@ -437,7 +437,7 @@ export async function processNextInQueue() {
                     name: pool.name,
                     token: {
                       symbol: pool.token.symbol,
-                      address: getTokenAddress(pool.token.symbol)
+                      address: tokenAddress
                     }
                   }
                 });

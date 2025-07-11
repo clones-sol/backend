@@ -23,7 +23,7 @@ import { Keypair } from '@solana/web3.js';
 import { Webhook } from '../../services/webhook/index.ts';
 import { sendEmail } from '../../services/email/index.ts';
 import { encrypt } from '../../services/security/crypto.ts';
-import { getTokenInfo, getSupportedTokenSymbols, supportedTokens } from '../../services/blockchain/tokens.ts';
+import { getSupportedTokenSymbols, supportedTokens } from '../../services/blockchain/tokens.ts';
 
 // set up the discord webhook
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;

@@ -17,9 +17,9 @@ describe('Forge API', () => {
         server.close(done);
     });
 
-    describe('GET /api/v1/forge/pools/tokens', () => {
+    describe('GET /api/v1/forge/pools/supportedTokens', () => {
         it('should return a list of supported tokens', async () => {
-            const response = await request(server).get('/api/v1/forge/pools/tokens');
+            const response = await request(server).get('/api/v1/forge/pools/supportedTokens');
 
             expect(response.status).toBe(200);
             expect(response.body.success).toBe(true);
