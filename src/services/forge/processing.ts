@@ -305,24 +305,42 @@ export async function processNextInQueue() {
               try {
                 console.log('Attempting blockchain transfer');
 
-                const encryptedPrivateKey = pool.depositPrivateKey;
-                const keyVersion = encryptedPrivateKey.split(':')[0];
+                const rawPrivateKey = pool.depositPrivateKey;
+                let decryptedPrivateKey: string;
+                let needsMigration = false;
+                let keyVersion = 'legacy';
 
-                // Decrypt the private key in memory
-                console.log(
-                  `[AUDIT] Decrypting deposit key for pool ${pool._id} for submission ${submissionId}`
-                );
-                const decryptedPrivateKey = decrypt(encryptedPrivateKey);
+                if (!rawPrivateKey.includes(':')) {
+                  decryptedPrivateKey = rawPrivateKey;
+                  needsMigration = true;
+                  console.log(
+                    `[SECURITY_MIGRATION] Detected unversioned legacy key for pool ${pool._id}.`
+                  );
+                } else {
+                  keyVersion = rawPrivateKey.split(':')[0];
+                  console.log(
+                    `[AUDIT] Decrypting deposit key for pool ${pool._id} (version ${keyVersion}) for submission ${submissionId}`
+                  );
+                  decryptedPrivateKey = decrypt(rawPrivateKey);
 
-                // LAZY MIGRATION: If the key was using an old version, re-encrypt it with the latest and save it.
-                if (keyVersion !== LATEST_KEY_VERSION) {
+                  if (keyVersion !== LATEST_KEY_VERSION) {
+                    needsMigration = true;
+                    console.log(
+                      `[SECURITY_MIGRATION] Key for pool ${pool._id} is outdated (version ${keyVersion}).`
+                    );
+                  }
+                }
+
+                if (needsMigration) {
                   console.log(
                     `[SECURITY_MIGRATION] Lazily migrating key for pool ${pool._id} from ${keyVersion} to ${LATEST_KEY_VERSION}.`
                   );
                   try {
                     pool.depositPrivateKey = encrypt(decryptedPrivateKey);
                     await pool.save();
-                    console.log(`[SECURITY_MIGRATION] Successfully migrated key for pool ${pool._id}.`);
+                    console.log(
+                      `[SECURITY_MIGRATION] Successfully migrated key for pool ${pool._id}.`
+                    );
                   } catch (migrationError) {
                     // We don't want a failed migration to stop the transaction. Log the error and continue.
                     console.error(

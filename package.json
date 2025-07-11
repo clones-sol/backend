@@ -9,7 +9,6 @@
     "build": "node esbuild.js",
     "start": "node build/server.js",
     "tsc": "tsc",
-    "migrate:keys": "tsx src/scripts/migrate-keys.ts",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "keywords": [],
