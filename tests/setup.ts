@@ -5,14 +5,11 @@ import { randomBytes } from 'crypto';
 process.env.DEPOSIT_KEY_ENCRYPTION_SECRET = randomBytes(32).toString('hex');
 process.env.DEPOSIT_KEY_ENCRYPTION_SALT = randomBytes(16).toString('hex');
 
+process.env.DB_URI = 'mongodb://admin:admin@mongodb:27017/dev?authSource=admin';
 process.env.RPC_URL = 'http://mock-rpc-url-for-tests.com';
 process.env.OPENAI_API_KEY = 'mock-openai-api-key';
 process.env.FORGE_WEBHOOK = 'mock-forge-webhook';
 process.env.GYM_FORGE_WEBHOOK = 'mock-gym-forge-webhook';
-process.env.DB_URI = 'mongodb://mongodb:27017';
-process.env.DB_NAME = 'dev';
-process.env.DB_USER = 'admin';
-process.env.DB_PASSWORD = 'admin';
 process.env.IPC_SECRET = 'mock-ipc-secret';
 process.env.GYM_SECRET = 'mock-gym-secret';
 process.env.AX_PARSER_SECRET = 'mock-ax-parser-secret';
