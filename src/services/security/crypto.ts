@@ -88,7 +88,13 @@ export function decrypt(hash: string): string {
     const decipher = createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(authTag);
 
-    const decrypted = Buffer.concat([decipher.update(encryptedText), decipher.final()]);
+    let decrypted;
+    try {
+        decrypted = Buffer.concat([decipher.update(encryptedText), decipher.final()]);
+    } catch (error) {
+        console.error(`[SECURITY_AUDIT] Decryption failed: ${(error as Error).message}`);
+        throw new Error('Decryption failed: data integrity check failed.');
+    }
 
     return decrypted.toString('utf8');
 } 
