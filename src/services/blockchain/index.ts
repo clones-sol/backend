@@ -5,7 +5,8 @@ import {
   Keypair,
   LAMPORTS_PER_SOL,
   sendAndConfirmTransaction,
-  ComputeBudgetProgram
+  ComputeBudgetProgram,
+  SystemProgram
 } from '@solana/web3.js';
 import {
   createTransferInstruction,
@@ -118,6 +119,68 @@ class BlockchainService {
       console.error('Failed to fetch QuickNode priority fees:', error);
       // Return a reasonable default if the API call fails
       return 1_000_000;
+    }
+  }
+
+  async transferSol(
+    amount: number,
+    fromWallet: Keypair,
+    toAddress: string,
+    retryCount: number = 0
+  ): Promise<string | false> {
+    try {
+      const feePercentages = [0.01, 0.1, 0.5, 1.0];
+      const currentFeePercentage = feePercentages[retryCount] || 1.0;
+
+      console.log(
+        `Attempt ${retryCount + 1
+        } for SOL transfer with ${currentFeePercentage * 100}% of base priority fee`
+      );
+
+      const basePriorityFee = await this.getQuickNodePriorityFees();
+      const adjustedPriorityFee = Math.floor(basePriorityFee * currentFeePercentage);
+
+      const transaction = new Transaction();
+      transaction.add(
+        SystemProgram.transfer({
+          fromPubkey: fromWallet.publicKey,
+          toPubkey: new PublicKey(toAddress),
+          lamports: amount * LAMPORTS_PER_SOL
+        })
+      );
+      transaction.add(
+        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: adjustedPriorityFee })
+      );
+
+      const signature = await sendAndConfirmTransaction(this.connection, transaction, [fromWallet], {
+        commitment: 'confirmed',
+        maxRetries: 5
+      });
+
+      console.log(
+        '\x1b[32m',
+        `SOL Transfer Success!🎉`,
+        `\n    https://explorer.solana.com/tx/${signature}?cluster=mainnet`
+      );
+
+      return signature;
+    } catch (error: any) {
+      if (error.message.includes('with insufficient funds for rent')) {
+        // account is out of SOL for gas
+        throw new Error('Pool SOL balance insufficient for gas.');
+      }
+      console.error('\x1b[31m', 'SOL Transfer failed:', {
+        message: error.message,
+        logs: error?.logs
+      });
+
+      // Retry with higher fee if possible
+      if (retryCount < 3) {
+        console.log(`Retrying SOL transfer with higher fee percentage...`);
+        return this.transferSol(amount, fromWallet, toAddress, retryCount + 1);
+      }
+
+      return false;
     }
   }
 
