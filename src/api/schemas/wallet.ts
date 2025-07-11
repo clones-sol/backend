@@ -19,7 +19,7 @@ export const connectWalletSchema: ValidationSchema = {
   },
   timestamp: {
     required: false,
-    rules: [ValidationRules.isNumber()]
+    rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
   }
 };
 
