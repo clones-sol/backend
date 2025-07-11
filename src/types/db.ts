@@ -68,9 +68,8 @@ export interface DBTrainingPool {
   funds: number;
   pricePerDemo: number;
   token: {
-    type: 'SOL' | 'VIRAL' | 'CUSTOM';
+    type: 'SOL' | 'SPL';
     symbol: string;
-    address: string;
   };
   skills: string;
   ownerEmail?: string;

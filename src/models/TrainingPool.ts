@@ -16,11 +16,10 @@ const trainingPoolSchema = new Schema<DBTrainingPool>(
     token: {
       type: {
         type: String,
-        enum: ['SOL', 'VIRAL', 'CUSTOM'],
+        enum: ['SOL', 'SPL'],
         required: true
       },
-      symbol: { type: String, required: true },
-      address: { type: String, required: true }
+      symbol: { type: String, required: true }
     },
     skills: { type: String, required: true },
     ownerEmail: { type: String, required: false },

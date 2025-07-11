@@ -23,10 +23,24 @@ import { Keypair } from '@solana/web3.js';
 import { Webhook } from '../../services/webhook/index.ts';
 import { sendEmail } from '../../services/email/index.ts';
 import { encrypt } from '../../services/security/crypto.ts';
+import { getTokenInfo, getSupportedTokenSymbols, supportedTokens } from '../../services/blockchain/tokens.ts';
 
 // set up the discord webhook
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
 const webhook = new Webhook(FORGE_WEBHOOK);
+
+// Get supported tokens
+router.get(
+  '/supportedTokens',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    // Return only symbol and name
+    const tokens = Object.entries(supportedTokens).map(([symbol, { name }]) => ({
+      symbol,
+      name
+    }));
+    res.status(200).json(successResponse(tokens));
+  })
+);
 
 // Refresh pool balance
 router.post(
@@ -109,10 +123,20 @@ router.post(
   requireWalletAddress,
   validateBody(createPoolSchema),
   errorHandlerAsync(async (req: Request<{}, {}, CreatePoolBody>, res: Response) => {
-    const { name, skills, token, pricePerDemo, apps } = req.body;
+    const { name, skills, tokenSymbol, pricePerDemo, apps } = req.body;
 
     // @ts-ignore - Get walletAddress from the request object
     const ownerAddress = req.walletAddress;
+
+    // Validate token symbol
+    const supportedSymbols = getSupportedTokenSymbols();
+    if (!supportedSymbols.includes(tokenSymbol)) {
+      throw ApiError.badRequest(
+        `Token symbol "${tokenSymbol}" is not supported. Supported symbols are: ${supportedSymbols.join(
+          ', '
+        )}`
+      );
+    }
 
     // Generate Solana keypair for deposit address
     const keypair = Keypair.generate();
@@ -122,7 +146,10 @@ router.post(
     const pool = new TrainingPoolModel({
       name,
       skills,
-      token,
+      token: {
+        type: 'SPL',
+        symbol: tokenSymbol
+      },
       ownerAddress,
       status: TrainingPoolStatus.noFunds,
       demonstrations: 0,

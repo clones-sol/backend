@@ -49,11 +49,7 @@ export interface ConnectBody {
 export interface CreatePoolBody {
   name: string;
   skills: string;
-  token: {
-    type: 'SOL' | 'VIRAL' | 'CUSTOM';
-    symbol: string;
-    address: string;
-  };
+  tokenSymbol: string;
   ownerAddress?: string; // Now optional since we get it from the token
   pricePerDemo?: number;
   uploadLimit?: {
