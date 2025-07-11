@@ -57,9 +57,16 @@ For production environments, set both secrets using the Fly.io CLI:
 fly secrets set DEPOSIT_KEY_ENCRYPTION_SECRET="your-generated-key-here" DEPOSIT_KEY_ENCRYPTION_SALT="your-generated-salt-here" --app <your-app-name>
 ```
 
-### Master Key Rotation Procedure
+### Automatic Key Migration (Lazy Migration)
 
-To maintain a high level of security, the Master Encryption Key should be rotated periodically (e.g., every 6-12 months). The system is designed to support this with zero downtime.
+The system is designed to handle key rotations and legacy unencrypted keys with zero downtime through a process called **lazy migration**.
+
+When a transaction is processed, the system automatically checks the status of the `depositPrivateKey`:
+1.  **Legacy Key Detected**: If an unencrypted legacy key is found, it is immediately encrypted with the latest security key version (`v1`) and saved back to the database before the transaction proceeds.
+2.  **Outdated Key Version**: In the future, if a key is encrypted with an older key version (e.g., `v1` when `v2` is the latest), the system will decrypt it using the corresponding old key and re-encrypt it with the new (`v2`) key.
+
+This ensures that all keys are progressively updated to the latest security standard without requiring manual intervention or a dedicated maintenance window.
+
 
 **Step 1: Generate and Add New Key**
 
@@ -72,13 +79,13 @@ fly secrets set DEPOSIT_KEY_ENCRYPTION_SECRET_V2="your-new-key-here" --app <your
 **Step 2: Update the Crypto Service**
 
 Modify `src/services/security/crypto.ts`:
-1.  Update the `KEY_VERSION` constant to the new version (e.g., `const KEY_VERSION = 'v2'`).
-2.  Update the logic to read both the old and new master keys from the environment variables.
-3.  Modify the `decrypt` function to use the key corresponding to the version prefix found in the encrypted string (e.g., if it sees `v1:`, it uses the old key; if `v2:`, it uses the new one).
+1.  Uncomment the `_V2` key-loading logic and add your new secret to the `ENCRYPTION_KEYS` map with the `'v2'` key.
+2.  Update the `LATEST_KEY_VERSION` constant to the new version (e.g., `export const LATEST_KEY_VERSION = 'v2'`).
 
 **Step 3: Deploy and Monitor**
 
 Deploy the updated application. The system will now:
 - Encrypt all **new** data with the `v2` key.
-- Be able to decrypt data encrypted with both `v1` and `v2` keys.
-- You should monitor logs for any decryption errors or attempts with obsolete keys.
+- Decrypt data encrypted with both `v1` and `v2` keys.
+- Automatically upgrade `v1` keys to `v2` during payment processing.
+- You should monitor logs for any decryption errors.
