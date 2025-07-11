@@ -103,9 +103,13 @@ async function connectToDatabase() {
 }
 
 const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
-httpServer.listen(port, host, async () => {
-  console.log(`Clones backend listening on port ${port}`);
-  await connectToDatabase().catch(console.dir);
-  // refresh pool status
-  startRefreshInterval();
-});
+if (process.env.NODE_ENV !== 'test') {
+  httpServer.listen(port, host, async () => {
+    console.log(`Clones backend listening on port ${port}`);
+    await connectToDatabase().catch(console.dir);
+    // refresh pool status
+    startRefreshInterval();
+  });
+}
+
+export { app };

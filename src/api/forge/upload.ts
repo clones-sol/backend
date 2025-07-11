@@ -30,6 +30,7 @@ import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
 import { ApiError, successResponse } from '../../middleware/types/errors.ts';
 import { requireWalletAddress } from '../../middleware/auth.ts';
 import { IUploadSessionDocument, UploadSessionModel } from '../../models/UploadSession.ts';
+import { getTokenAddress } from '../../services/blockchain/tokens.ts';
 
 // Initialize blockchain service
 const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
@@ -452,8 +453,9 @@ router.post(
             }
 
             // Get current token balance from blockchain to ensure it's up-to-date
+            const tokenAddress = getTokenAddress(pool.token.symbol);
             const currentBalance = await blockchainService.getTokenBalance(
-                pool.token.address,
+                tokenAddress,
                 pool.depositAddress
             );
 

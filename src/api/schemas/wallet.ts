@@ -1,4 +1,5 @@
 import { ValidationRules, ValidationSchema } from '../../middleware/validator.ts';
+import { ConnectBody } from '../../types/index.ts';
 
 /**
  * Schema for wallet connection request
@@ -18,7 +19,7 @@ export const connectWalletSchema: ValidationSchema = {
   },
   timestamp: {
     required: false,
-    rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
+    rules: [ValidationRules.isNumber()]
   }
 };
 
@@ -28,6 +29,10 @@ export const connectWalletSchema: ValidationSchema = {
 export const checkConnectionSchema: ValidationSchema = {
   token: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
+    rules: [ValidationRules.isString()]
   }
+};
+
+export const getBalanceSchema = {
+  symbol: { required: true, rules: [ValidationRules.isString()] }
 };

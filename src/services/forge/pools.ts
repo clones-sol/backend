@@ -6,6 +6,7 @@ import { Webhook } from '../webhook/index.ts';
 import { APP_TASK_GENERATION_PROMPT } from './prompts.ts';
 import { Document, Types } from 'mongoose';
 import { sendEmail } from '../email/index.ts';
+import { getTokenAddress } from '../blockchain/tokens.ts';
 
 // setup the pool refresher
 const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
@@ -150,7 +151,8 @@ export async function updatePoolStatus(
     DBTrainingPool &
     Required<{ _id: Types.ObjectId }> & { __v: number }
 ) {
-  const balance = await blockchainService.getTokenBalance(pool.token.address, pool.depositAddress);
+  const tokenMintAddress = getTokenAddress(pool.token.symbol);
+  const balance = await blockchainService.getTokenBalance(tokenMintAddress, pool.depositAddress);
   const solBalance = await blockchainService.getSolBalance(pool.depositAddress);
   const noGas = solBalance <= BlockchainService.MIN_SOL_BALANCE;
   let statusChanged = false;
@@ -184,7 +186,7 @@ export async function updatePoolStatus(
       sendEmail({
         to: pool.ownerEmail,
         subject: `Clones Forge '${pool.name}' Out of Gas`,
-        text: `The wallet for your forge ${pool.name} does not have enough SOL to pay the gas for $VIRAL transactions.\nPlease send some SOL to your forge via the Clones App.\n\nThank you for contributing to open computer use data!\n - The Clones Team`
+        text: `The wallet for your forge ${pool.name} does not have enough SOL to pay the gas for token transactions.\nPlease send some SOL to your forge via the Clones App.\n\nThank you for contributing to open computer use data!\n - The Clones Team`
       }).catch((e) => {
         console.log(e);
       });
@@ -192,7 +194,7 @@ export async function updatePoolStatus(
       sendEmail({
         to: pool.ownerEmail,
         subject: `Clones Forge '${pool.name}' Out of Funds`,
-        text: `The wallet for your forge ${pool.name} does not have enough $VIRAL to send rewards for successful task completions.\nPlease deposit more $VIRAL to your forge via the Clones App.\n\nThank you for contributing to open computer use data!\n - The Clones Team`
+        text: `The wallet for your forge ${pool.name} does not have enough ${pool.token.symbol} to send rewards for successful task completions.\nPlease deposit more ${pool.token.symbol} to your forge via the Clones App.\n\nThank you for contributing to open computer use data!\n - The Clones Team`
       }).catch((e) => {
         console.log(e);
       });

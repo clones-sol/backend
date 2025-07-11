@@ -16,6 +16,7 @@ import { Keypair } from '@solana/web3.js';
 import { spawn } from 'child_process';
 import { Webhook } from '../webhook/index.ts';
 import { decrypt, encrypt, LATEST_KEY_VERSION } from '../security/crypto.ts';
+import { getTokenAddress } from '../blockchain/tokens.ts';
 
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
 
@@ -291,8 +292,9 @@ export async function processNextInQueue() {
 
             // Create treasury transfer record if reward exists
             if (reward && reward > 0) {
+              const tokenAddress = getTokenAddress(pool.token.symbol);
               treasuryTransfer = {
-                tokenAddress: pool.token.address,
+                tokenAddress: tokenAddress,
                 treasuryWallet: pool.depositAddress,
                 amount: reward,
                 timestamp: Date.now()
@@ -360,7 +362,7 @@ export async function processNextInQueue() {
                 );
 
                 const treasuryBalance = await blockchainService.getTokenBalance(
-                  pool.token.address,
+                  tokenAddress,
                   pool.depositAddress
                 );
                 console.log('Initial treasury balance:', treasuryBalance);
@@ -368,7 +370,7 @@ export async function processNextInQueue() {
                 // Attempt blockchain transfer
                 try {
                   const result = await blockchainService.transferToken(
-                    pool.token.address,
+                    tokenAddress,
                     reward,
                     fromWallet,
                     submission.address
@@ -388,7 +390,7 @@ export async function processNextInQueue() {
 
                 // Get final treasury balance
                 const finalBalance = await blockchainService.getTokenBalance(
-                  pool.token.address,
+                  tokenAddress,
                   pool.depositAddress
                 );
                 console.log('Final treasury balance:', finalBalance);
@@ -396,7 +398,10 @@ export async function processNextInQueue() {
                 // Include pool info in webhook
                 const poolInfo = {
                   name: pool.name,
-                  token: pool.token,
+                  token: {
+                    symbol: pool.token.symbol,
+                    address: tokenAddress
+                  },
                   treasuryBalance: finalBalance
                 };
 
@@ -430,7 +435,10 @@ export async function processNextInQueue() {
                   address: submission.address,
                   pool: {
                     name: pool.name,
-                    token: pool.token
+                    token: {
+                      symbol: pool.token.symbol,
+                      address: getTokenAddress(pool.token.symbol)
+                    }
                   }
                 });
               }
@@ -474,7 +482,10 @@ export async function processNextInQueue() {
           pool: pool
             ? {
               name: pool.name,
-              token: pool.token
+              token: {
+                symbol: pool.token.symbol,
+                address: getTokenAddress(pool.token.symbol)
+              }
             }
             : undefined
         });

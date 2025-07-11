@@ -1,6 +1,6 @@
 declare namespace NodeJS {
   interface ProcessEnv {
-    NODE_ENV: 'production' | 'development';
+    NODE_ENV: 'production' | 'development' | 'test';
 
     // Database Configuration
     DB_URI: string;
@@ -24,7 +24,6 @@ declare namespace NodeJS {
     GYM_FORGE_WEBHOOK: string;
 
     // Authentication & Security
-    VIRAL_TOKEN: string;
     AX_PARSER_SECRET: string;
 
     // AWS Configuration

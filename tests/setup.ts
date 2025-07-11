@@ -25,4 +25,3 @@ process.env.STORAGE_REGION = 'us-east-1';
 process.env.STORAGE_BUCKET = 'training-gym';
 process.env.PIPELINE_PATH = '/app/pipeline';
 process.env.ANTHROPIC_API_KEY = 'mock-anthropic-api-key';
-process.env.VIRAL_TOKEN = 'mock-viral-token';
