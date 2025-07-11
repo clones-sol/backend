@@ -89,8 +89,9 @@ async function connectToDatabase() {
     console.log('Database connected!');
   } catch (err) {
     console.error('Error connecting to MongoDB:', err);
-    // Exit process with failure in case of database connection error
-    process.exit(1);
+    // Set exit code to 1 for graceful shutdown in case of database connection error
+    process.exitCode = 1;
+    return;
   }
 }
 
