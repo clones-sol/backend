@@ -141,15 +141,18 @@ class BlockchainService {
       const adjustedPriorityFee = Math.floor(basePriorityFee * currentFeePercentage);
 
       const transaction = new Transaction();
+
+      // Set compute unit price before the main instruction
+      transaction.add(
+        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: adjustedPriorityFee })
+      );
+
       transaction.add(
         SystemProgram.transfer({
           fromPubkey: fromWallet.publicKey,
           toPubkey: new PublicKey(toAddress),
           lamports: amount * LAMPORTS_PER_SOL
         })
-      );
-      transaction.add(
-        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: adjustedPriorityFee })
       );
 
       const signature = await sendAndConfirmTransaction(this.connection, transaction, [fromWallet], {
@@ -222,6 +225,13 @@ class BlockchainService {
       console.log(`Base priority fee: ${basePriorityFee}, Using: ${adjustedPriorityFee}`);
 
       const transaction = new Transaction();
+
+      // Set compute unit limits and price before the main instruction
+      transaction.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 300000 }));
+      transaction.add(
+        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: adjustedPriorityFee })
+      );
+
       const transferAmount = amount * Math.pow(10, decimals);
 
       transaction.add(
@@ -231,11 +241,6 @@ class BlockchainService {
           fromWallet.publicKey,
           transferAmount
         )
-      );
-
-      transaction.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 300000 }));
-      transaction.add(
-        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: adjustedPriorityFee })
       );
 
       const latestBlockHash = await this.connection.getLatestBlockhash('confirmed');
