@@ -52,11 +52,8 @@ services:
       # training data output
       - ./public/screenshots:/app/backend/public/screenshots
     environment:
+      - DB_URI=mongodb://admin:admin@mongodb:27017/dev?authSource=admin
       - RPC_URL=https://api.devnet.solana.com/
-      - DB_URI=mongodb://mongodb:27017
-      - DB_NAME=dev
-      - DB_USER=admin
-      - DB_PASSWORD=admin
       - IPC_SECRET=
       - GYM_SECRET=
       - AX_PARSER_SECRET=

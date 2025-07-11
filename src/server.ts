@@ -76,29 +76,21 @@ app.use(errorHandler);
 
 catchErrors();
 async function connectToDatabase() {
-  // Production configuration
   try {
     const dbURI = process.env.DB_URI;
-    if (!dbURI) throw Error('No DB URI passed to connect.');
-
-    let clientOptions: ConnectOptions = {
-      dbName: process.env.DB_NAME,
-      user: process.env.DB_USER,
-      pass: process.env.DB_PASSWORD
-    };
-    if (process.env.DB_REPLICASET) {
-      clientOptions = {
-        readPreference: 'secondaryPreferred',
-        replicaSet: process.env.DB_REPLICASET,
-        ...clientOptions
-      };
+    if (!dbURI) {
+      throw new Error('DB_URI environment variable is not set.');
     }
 
-    await mongoose.connect(dbURI, clientOptions);
+    // The clientOptions are now inferred from the connection string
+    await mongoose.connect(dbURI);
+
     await mongoose.connection.db?.admin().command({ ping: 1 });
     console.log('Database connected!');
   } catch (err) {
     console.error('Error connecting to MongoDB:', err);
+    // Exit process with failure in case of database connection error
+    process.exit(1);
   }
 }
 

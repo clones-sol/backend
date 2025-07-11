@@ -4,10 +4,6 @@ declare namespace NodeJS {
 
     // Database Configuration
     DB_URI: string;
-    DB_NAME: string;
-    DB_USER: string;
-    DB_PASSWORD: string;
-    DB_REPLICASET: string;
 
     // API Keys
     OPENAI_API_KEY: string;
