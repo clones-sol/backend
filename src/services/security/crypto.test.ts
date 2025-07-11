@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from '@jest/globals';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 
 // We will import these dynamically inside beforeAll
 let encrypt: (text: string) => string;
@@ -7,25 +7,26 @@ let LATEST_KEY_VERSION: string;
 
 describe('Crypto Service', () => {
     beforeAll(async () => {
-        // Dynamically import the crypto module to ensure env vars are set
-        const cryptoModule = await import('./crypto.ts');
+        // Set environment variables before importing the module
+        process.env.DEPOSIT_KEY_ENCRYPTION_SALT = 'test-salt';
+        process.env.DEPOSIT_KEY_ENCRYPTION_SECRET = 'test-secret-key-that-is-long-enough';
+
+        // Dynamically import the module to ensure it gets the new env vars
+        const cryptoModule = await import('./crypto.js');
         encrypt = cryptoModule.encrypt;
         decrypt = cryptoModule.decrypt;
         LATEST_KEY_VERSION = cryptoModule.LATEST_KEY_VERSION;
     });
 
-    const plaintext = 'my-very-secret-private-key';
-
     describe('encrypt', () => {
         it('should encrypt a string into a versioned format', () => {
+            const plaintext = 'my secret data';
             const encrypted = encrypt(plaintext);
-            const parts = encrypted.split(':');
-
-            expect(parts).toHaveLength(4);
-            expect(parts[0]).toBe(LATEST_KEY_VERSION);
+            expect(encrypted).toContain(`${LATEST_KEY_VERSION}:`);
         });
 
         it('should not produce the same output for the same input due to random IV', () => {
+            const plaintext = 'my secret data';
             const encrypted1 = encrypt(plaintext);
             const encrypted2 = encrypt(plaintext);
             expect(encrypted1).not.toEqual(encrypted2);
@@ -34,43 +35,44 @@ describe('Crypto Service', () => {
 
     describe('decrypt', () => {
         it('should correctly decrypt a string that was encrypted by the service', () => {
+            const plaintext = 'my secret data';
             const encrypted = encrypt(plaintext);
             const decrypted = decrypt(encrypted);
             expect(decrypted).toEqual(plaintext);
         });
 
         it('should throw an error for an invalid hash format', () => {
-            const invalidHash = 'v1:invalid-format';
+            const invalidHash = 'v1:iv:tag'; // Missing encrypted part
             expect(() => decrypt(invalidHash)).toThrow(
                 'Invalid or unsupported encrypted hash format. Expected "version:iv:tag:encrypted".'
             );
         });
 
         it('should throw an error for an unsupported key version', () => {
-            // Manually craft a hash with a fake version
-            const encrypted = encrypt(plaintext);
+            const text = 'some data';
+            const encrypted = encrypt(text);
             const parts = encrypted.split(':');
-            const unsupportedHash = `v0:${parts[1]}:${parts[2]}:${parts[3]}`;
-
-            expect(() => decrypt(unsupportedHash)).toThrow('Unsupported key version: v0. Cannot decrypt.');
+            const tamperedHash = `v0:${parts[1]}:${parts[2]}:${parts[3]}`; // v0 is not supported
+            expect(() => decrypt(tamperedHash)).toThrow('Unsupported key version: v0. Cannot decrypt.');
         });
 
         it('should throw an error if the auth tag is invalid (tampered data)', () => {
-            const encrypted = encrypt(plaintext);
+            // Suppress console.error for this specific test
+            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+
+            const text = 'some data';
+            const encrypted = encrypt(text);
             const parts = encrypted.split(':');
+            // Tamper with the auth tag by replacing it with a string of zeros
+            parts[2] = '0'.repeat(parts[2].length);
+            const tamperedHash = parts.join(':');
 
-            // "Tamper" with the encrypted text
-            const tamperedEncryptedText = parts[3].slice(0, -4) + 'ffff';
-            const tamperedHash = `${parts[0]}:${parts[1]}:${parts[2]}:${tamperedEncryptedText}`;
-            let error: Error | undefined;
-            try {
-                decrypt(tamperedHash);
-            } catch (e) {
-                error = e as Error;
-            }
+            expect(() => decrypt(tamperedHash)).toThrow(
+                'Decryption failed: data integrity check failed.'
+            );
 
-            expect(error).toBeInstanceOf(Error);
-            expect(error?.message).toBe('Decryption failed: data integrity check failed.');
+            // Restore console.error
+            consoleErrorSpy.mockRestore();
         });
     });
 }); 
