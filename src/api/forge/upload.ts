@@ -18,8 +18,7 @@ import {
 } from '../../types/index.ts';
 import {
     addToProcessingQueue,
-    cleanupSession,
-    startUploadInterval
+    cleanupSession
 } from '../../services/forge/index.ts';
 import { validateBody, validateParams } from '../../middleware/validator.ts';
 import {
@@ -30,6 +29,7 @@ import {
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
 import { ApiError, successResponse } from '../../middleware/types/errors.ts';
 import { requireWalletAddress } from '../../middleware/auth.ts';
+import { IUploadSessionDocument, UploadSessionModel } from '../../models/UploadSession.ts';
 
 // Initialize blockchain service
 const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
@@ -42,34 +42,33 @@ const upload = multer({
     }
 });
 
-// Store active upload sessions
-const activeSessions = new Map<string, UploadSession>();
+// Store active upload sessions - DEPRECATED in favor of MongoDB storage
+// const activeSessions = new Map<string, UploadSession>();
 
 const SESSION_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
-startUploadInterval(activeSessions, SESSION_EXPIRY);
+// startUploadInterval is no longer needed as MongoDB's TTL index handles session expiry
+// startUploadInterval(activeSessions, SESSION_EXPIRY);
 
 // Middleware to validate upload session
-export function requireUploadSession(req: Request, res: Response, next: NextFunction) {
-    try {
+export const requireUploadSession = errorHandlerAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
         const uploadId = req.params.uploadId || req.body.uploadId;
 
         if (!uploadId) {
             throw ApiError.badRequest('Upload ID is required');
         }
 
-        const session = activeSessions.get(uploadId);
+        const session = await UploadSessionModel.findById(uploadId);
         if (!session) {
-            throw ApiError.notFound('Upload session not found or expired');
+            throw ApiError.notFound(`Upload session not found or expired: ${uploadId}`);
         }
 
         // @ts-ignore - Add session to the request object
         req.uploadSession = session;
         next();
-    } catch (e) {
-        next(e);
     }
-}
+);
 
 const router: Router = express.Router();
 
@@ -95,19 +94,15 @@ router.post(
         // Store metadata in the temp directory
         await writeFile(path.join(tempDir, 'metadata.json'), JSON.stringify(metadata));
 
-        // Create and store the session
-        const session: UploadSession = {
-            id: uploadId,
+        // Create and store the session in MongoDB
+        const session = new UploadSessionModel({
+            _id: uploadId,
             address,
             totalChunks: Number(totalChunks),
-            receivedChunks: new Map(),
             metadata,
-            tempDir,
-            createdAt: new Date(),
-            lastUpdated: new Date()
-        };
-
-        activeSessions.set(uploadId, session);
+            tempDir
+        });
+        await session.save();
 
         res.status(200).json(
             successResponse({
@@ -132,7 +127,7 @@ router.post(
         }
 
         // @ts-ignore - Get session from the request object
-        const session: UploadSession = req.uploadSession;
+        const session: IUploadSessionDocument = req.uploadSession;
         const chunkIndex = Number(req.body.chunkIndex);
         const checksum = req.body.checksum;
 
@@ -159,15 +154,15 @@ router.post(
         }
 
         // Store chunk info
-        session.receivedChunks.set(chunkIndex, {
+        session.receivedChunks.set(chunkIndex.toString(), {
             chunkIndex,
             path: req.file.path,
             size: req.file.size,
             checksum
         });
 
-        // Update session timestamp
-        session.lastUpdated = new Date();
+        // Update session timestamp and save to DB
+        await session.save();
 
         res.status(200).json(
             successResponse({
@@ -189,7 +184,7 @@ router.get(
     validateParams(uploadIdParamSchema),
     errorHandlerAsync(async (req: Request, res: Response) => {
         // @ts-ignore - Get session from the request object
-        const session: UploadSession = req.uploadSession;
+        const session: IUploadSessionDocument = req.uploadSession;
 
         res.json(
             successResponse({
@@ -211,13 +206,13 @@ router.delete(
     requireUploadSession,
     errorHandlerAsync(async (req: Request, res: Response) => {
         // @ts-ignore - Get session from the request object
-        const session: UploadSession = req.uploadSession;
+        const session: IUploadSessionDocument = req.uploadSession;
 
         // Clean up session files
         await cleanupSession(session);
 
-        // Remove session
-        activeSessions.delete(session.id);
+        // Remove session from DB
+        await UploadSessionModel.findByIdAndDelete(session.id);
 
         res.status(200).json(successResponse('Upload cancelled successfully'));
     })
@@ -237,7 +232,7 @@ router.post(
             // Continue anyway, as the directory might already exist
         });
         // @ts-ignore - Get session from the request object
-        const session: UploadSession = req.uploadSession;
+        const session: IUploadSessionDocument = req.uploadSession;
         // @ts-ignore - Get walletAddress from the request object
         const address = req.walletAddress;
         console.log(
@@ -250,7 +245,7 @@ router.post(
                 `[UPLOAD] Incomplete upload: ${session.receivedChunks.size}/${session.totalChunks} chunks received`
             );
             const missing = Array.from({ length: session.totalChunks }, (_, i) => i).filter(
-                (i) => !session.receivedChunks.has(i)
+                (i) => !session.receivedChunks.has(i.toString())
             );
             console.log(`[UPLOAD] Missing chunks: ${missing.join(', ')}`);
 
@@ -396,24 +391,22 @@ router.post(
             STORAGE_BUCKET
         } = process.env;
 
-        const missingVariables = [];
-        if (!STORAGE_ACCESS_KEY) missingVariables.push('STORAGE_ACCESS_KEY');
-        if (!STORAGE_SECRET_KEY) missingVariables.push('STORAGE_SECRET_KEY');
-        if (!STORAGE_ENDPOINT) missingVariables.push('STORAGE_ENDPOINT');
-        if (!STORAGE_REGION) missingVariables.push('STORAGE_REGION');
-        if (!STORAGE_BUCKET) missingVariables.push('STORAGE_BUCKET');
-        if (missingVariables.length > 0) {
-            throw new Error(
-                `Storage service environment variables are not properly configured. Missing: ${missingVariables.join(', ')}`
-            );
+        if (
+            !STORAGE_ACCESS_KEY ||
+            !STORAGE_SECRET_KEY ||
+            !STORAGE_ENDPOINT ||
+            !STORAGE_REGION ||
+            !STORAGE_BUCKET
+        ) {
+            throw new Error('Storage service environment variables are not properly configured.');
         }
 
         const storageService = new ObjectStorageService(
-            STORAGE_ACCESS_KEY!,
-            STORAGE_SECRET_KEY!,
-            STORAGE_ENDPOINT!,
-            STORAGE_REGION!,
-            STORAGE_BUCKET!
+            STORAGE_ACCESS_KEY,
+            STORAGE_SECRET_KEY,
+            STORAGE_ENDPOINT,
+            STORAGE_REGION,
+            STORAGE_BUCKET
         );
         const uploads = await Promise.all(
             requiredFiles.map(async (file) => {
@@ -591,9 +584,9 @@ router.post(
         await cleanupSession(session);
         console.log(`[UPLOAD] Session files cleaned up`);
 
-        // Remove session
+        // Remove session from DB
         console.log(`[UPLOAD] Removing session from active sessions`);
-        activeSessions.delete(session.id);
+        await UploadSessionModel.findByIdAndDelete(session.id);
 
         // Clean up temporary files
         console.log(`[UPLOAD] Cleaning up temporary ZIP file: ${finalFilePath}`);
