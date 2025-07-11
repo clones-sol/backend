@@ -22,6 +22,7 @@ import {
 import { Keypair } from '@solana/web3.js';
 import { Webhook } from '../../services/webhook/index.ts';
 import { sendEmail } from '../../services/email/index.ts';
+import { encrypt } from '../../services/security/crypto.ts';
 
 // set up the discord webhook
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
@@ -116,7 +117,7 @@ router.post(
     // Generate Solana keypair for deposit address
     const keypair = Keypair.generate();
     const depositAddress = keypair.publicKey.toString();
-    const depositPrivateKey = Buffer.from(keypair.secretKey).toString('base64');
+    const depositPrivateKey = encrypt(Buffer.from(keypair.secretKey).toString('base64'));
 
     const pool = new TrainingPoolModel({
       name,

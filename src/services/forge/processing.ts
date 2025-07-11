@@ -15,6 +15,7 @@ import * as path from 'path';
 import { Keypair } from '@solana/web3.js';
 import { spawn } from 'child_process';
 import { Webhook } from '../webhook/index.ts';
+import { decrypt, encrypt, LATEST_KEY_VERSION } from '../security/crypto.ts';
 
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
 
@@ -303,10 +304,36 @@ export async function processNextInQueue() {
 
               try {
                 console.log('Attempting blockchain transfer');
-                // Create keypair from private key
-                const fromWallet = Keypair.fromSecretKey(
-                  Buffer.from(pool.depositPrivateKey, 'base64')
+
+                const encryptedPrivateKey = pool.depositPrivateKey;
+                const keyVersion = encryptedPrivateKey.split(':')[0];
+
+                // Decrypt the private key in memory
+                console.log(
+                  `[AUDIT] Decrypting deposit key for pool ${pool._id} for submission ${submissionId}`
                 );
+                const decryptedPrivateKey = decrypt(encryptedPrivateKey);
+
+                // LAZY MIGRATION: If the key was using an old version, re-encrypt it with the latest and save it.
+                if (keyVersion !== LATEST_KEY_VERSION) {
+                  console.log(
+                    `[SECURITY_MIGRATION] Lazily migrating key for pool ${pool._id} from ${keyVersion} to ${LATEST_KEY_VERSION}.`
+                  );
+                  try {
+                    pool.depositPrivateKey = encrypt(decryptedPrivateKey);
+                    await pool.save();
+                    console.log(`[SECURITY_MIGRATION] Successfully migrated key for pool ${pool._id}.`);
+                  } catch (migrationError) {
+                    // We don't want a failed migration to stop the transaction. Log the error and continue.
+                    console.error(
+                      `[SECURITY_MIGRATION] Failed to lazily migrate key for pool ${pool._id}:`,
+                      migrationError
+                    );
+                  }
+                }
+
+                // Create keypair from private key
+                const fromWallet = Keypair.fromSecretKey(Buffer.from(decryptedPrivateKey, 'base64'));
 
                 // Get initial treasury balance
                 const blockchainService = new (await import('../blockchain/index.js')).default(
