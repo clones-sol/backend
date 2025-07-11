@@ -8,7 +8,8 @@
     "dev": "nodemon",
     "build": "node esbuild.js",
     "start": "node build/server.js",
-    "tsc": "tsc"
+    "tsc": "tsc",
+    "migrate:keys": "tsx src/scripts/migrate-keys.ts"
   },
   "keywords": [],
   "author": "",
