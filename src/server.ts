@@ -32,7 +32,8 @@ app.use(function (req, res, next) {
     'http://localhost:8001',
     'http://18.157.122.205',
     'https://clones.sol',
-    'https://viralmind-web-testnet.fly.dev'
+    'https://clones-website-test.fly.dev',
+    'https://clones-backend-test.fly.dev'
   ];
 
   const origin = req.headers.origin || '';
