@@ -11,7 +11,9 @@ import {
   refreshPoolSchema,
   rewardQuerySchema,
   updatePoolEmail,
-  updatePoolSchema
+  updatePoolSchema,
+  withdrawSplSchema,
+  withdrawSolSchema
 } from '../schemas/forge.ts';
 import {
   CreatePoolBody,
@@ -22,8 +24,11 @@ import {
 import { Keypair } from '@solana/web3.js';
 import { Webhook } from '../../services/webhook/index.ts';
 import { sendEmail } from '../../services/email/index.ts';
-import { encrypt } from '../../services/security/crypto.ts';
-import { getSupportedTokenSymbols, supportedTokens } from '../../services/blockchain/tokens.ts';
+import { decrypt, encrypt } from '../../services/security/crypto.ts';
+import { getTokenAddress, getSupportedTokenSymbols, supportedTokens } from '../../services/blockchain/tokens.ts';
+import BlockchainService from '../../services/blockchain/index.ts';
+
+const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
 
 // set up the discord webhook
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
@@ -368,6 +373,102 @@ router.put(
     });
 
     res.status(200).end();
+  })
+);
+
+// Withdraw SPL tokens from a pool
+router.post(
+  '/withdraw/spl',
+  requireWalletAddress,
+  validateBody(withdrawSplSchema),
+  errorHandlerAsync(async (req: Request<{}, {}, { poolId: string; amount: number }>, res: Response) => {
+    const { poolId, amount } = req.body;
+
+    const pool = await TrainingPoolModel.findById(poolId);
+    if (!pool) {
+      throw ApiError.notFound('Training pool not found');
+    }
+
+    // @ts-ignore
+    if (pool.ownerAddress !== req.walletAddress) {
+      throw ApiError.forbidden('Not authorized to withdraw from this pool');
+    }
+
+    const { solBalance, funds } = await updatePoolStatus(pool);
+
+    if (amount > funds) {
+      throw ApiError.badRequest(`Insufficient token balance. Available: ${funds}`);
+    }
+
+    if (solBalance < BlockchainService.MIN_SOL_BALANCE) {
+      throw ApiError.paymentRequired(
+        `Insufficient SOL for gas. Required: ${BlockchainService.MIN_SOL_BALANCE} SOL`
+      );
+    }
+
+    const decryptedKey = decrypt(pool.depositPrivateKey);
+    const fromWallet = Keypair.fromSecretKey(Buffer.from(decryptedKey, 'base64'));
+    const tokenMint = getTokenAddress(pool.token.symbol);
+
+    const signature = await blockchainService.transferToken(
+      tokenMint,
+      amount,
+      fromWallet,
+      pool.ownerAddress
+    );
+
+    if (!signature) {
+      throw ApiError.internalError('Token transfer failed');
+    }
+
+    // Update pool balance after withdrawal
+    await updatePoolStatus(pool);
+
+    res.status(200).json(successResponse({ signature }));
+  })
+);
+
+// Withdraw SOL from a pool
+router.post(
+  '/withdraw/sol',
+  requireWalletAddress,
+  validateBody(withdrawSolSchema),
+  errorHandlerAsync(async (req: Request<{}, {}, { poolId: string; amount: number }>, res: Response) => {
+    const { poolId, amount } = req.body;
+
+    const pool = await TrainingPoolModel.findById(poolId);
+    if (!pool) {
+      throw ApiError.notFound('Training pool not found');
+    }
+
+    // @ts-ignore
+    if (pool.ownerAddress !== req.walletAddress) {
+      throw ApiError.forbidden('Not authorized to withdraw from this pool');
+    }
+
+    const { solBalance } = await updatePoolStatus(pool);
+    const requiredBalance = amount + BlockchainService.MIN_SOL_BALANCE;
+
+    if (solBalance < requiredBalance) {
+      throw ApiError.badRequest(
+        `Insufficient SOL balance. Available for withdrawal: ${solBalance - BlockchainService.MIN_SOL_BALANCE
+        } SOL. Required for operation: ${requiredBalance} SOL.`
+      );
+    }
+
+    const decryptedKey = decrypt(pool.depositPrivateKey);
+    const fromWallet = Keypair.fromSecretKey(Buffer.from(decryptedKey, 'base64'));
+
+    const signature = await blockchainService.transferSol(amount, fromWallet, pool.ownerAddress);
+
+    if (!signature) {
+      throw ApiError.internalError('SOL transfer failed');
+    }
+
+    // Update pool balance after withdrawal
+    await updatePoolStatus(pool);
+
+    res.status(200).json(successResponse({ signature }));
   })
 );
 
