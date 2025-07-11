@@ -125,7 +125,7 @@ export const generateContentSchema: ValidationSchema = {
 };
 
 /**
- * Scheam for getting tasks
+ * Schema for getting tasks
  */
 export const getTasksSchema: ValidationSchema = {
   pool_id: {
@@ -151,5 +151,33 @@ export const getTasksSchema: ValidationSchema = {
   hide_adult: {
     required: false,
     rules: [ValidationRules.isString()]
+  }
+};
+
+/**
+ * Schema for withdrawing SPL tokens from a pool
+ */
+export const withdrawSplSchema: ValidationSchema = {
+  poolId: {
+    required: true,
+    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
+  },
+  amount: {
+    required: true,
+    rules: [ValidationRules.isNumber(), ValidationRules.min(0.000001)] // must be > 0
+  }
+};
+
+/**
+ * Schema for withdrawing SOL from a pool
+ */
+export const withdrawSolSchema: ValidationSchema = {
+  poolId: {
+    required: true,
+    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
+  },
+  amount: {
+    required: true,
+    rules: [ValidationRules.isNumber(), ValidationRules.min(0.000001)] // must be > 0
   }
 };
