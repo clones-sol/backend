@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+import { describe, it, expect, beforeAll } from '@jest/globals';
 
 // We will import these dynamically inside beforeAll
 let encrypt: (text: string) => string;
@@ -62,8 +62,15 @@ describe('Crypto Service', () => {
             // "Tamper" with the encrypted text
             const tamperedEncryptedText = parts[3].slice(0, -4) + 'ffff';
             const tamperedHash = `${parts[0]}:${parts[1]}:${parts[2]}:${tamperedEncryptedText}`;
+            let error: Error | undefined;
+            try {
+                decrypt(tamperedHash);
+            } catch (e) {
+                error = e as Error;
+            }
 
-            expect(() => decrypt(tamperedHash)).toThrow('Unsupported state or unable to authenticate data');
+            expect(error).toBeInstanceOf(Error);
+            expect(error?.message).toBe('Decryption failed: data integrity check failed.');
         });
     });
 }); 
