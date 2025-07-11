@@ -1,4 +1,4 @@
-// This file is run by Jest before any tests are executed.
+// This file is run by Vitest before any tests are executed.
 import { randomBytes } from 'crypto';
 
 // Set environment variables for the test suite
