@@ -82,7 +82,6 @@ async function connectToDatabase() {
       throw new Error('DB_URI environment variable is not set.');
     }
 
-    // The clientOptions are now inferred from the connection string
     await mongoose.connect(dbURI);
 
     await mongoose.connection.db?.admin().command({ ping: 1 });
