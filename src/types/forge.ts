@@ -49,7 +49,11 @@ export interface ConnectBody {
 export interface CreatePoolBody {
   name: string;
   skills: string;
-  tokenSymbol: string;
+  token: {
+    // TODO: VIRAL is not a valid token type, but we need to add it to the enum for now for retro-compatibility
+    type: 'SOL' | 'SPL' | 'VIRAL';
+    symbol: string;
+  };
   ownerAddress?: string; // Now optional since we get it from the token
   pricePerDemo?: number;
   uploadLimit?: {
