@@ -154,7 +154,7 @@ router.get(
     // Get all apps matching the initial query
     let apps = await ForgeAppModel.find(appQuery).populate(
       'pool_id',
-      'name status pricePerDemo uploadLimit'
+      'name status pricePerDemo uploadLimit token'
     );
 
     // Filter by live pools if no specific pool_id was provided
@@ -375,12 +375,12 @@ router.get(
       // If we're already filtering by specific pools, just get those apps
       apps = await ForgeAppModel.find(appQuery).populate(
         'pool_id',
-        'name status pricePerDemo uploadLimit'
+        'name status pricePerDemo uploadLimit token'
       );
     } else {
       // Otherwise, get all apps and filter by live pools
       apps = await ForgeAppModel.find(appQuery)
-        .populate('pool_id', 'name status pricePerDemo uploadLimit')
+        .populate('pool_id', 'name status pricePerDemo uploadLimit token')
         .then((apps) =>
           apps.filter((app) => {
             const pool = app.pool_id as unknown as DBTrainingPool;
