@@ -94,7 +94,7 @@ async function connectToDatabase() {
   }
 }
 
-const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+const host = '0.0.0.0';
 if (process.env.NODE_ENV !== 'test') {
   httpServer.listen(port, host, async () => {
     console.log(`Clones backend listening on port ${port}`);
