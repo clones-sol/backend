@@ -26,7 +26,7 @@ export const supportedTokens: TokenConfig = {
         name: 'USDC',
         decimals: 6,
         mintAddress: {
-            development: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+            development: 'FvL95gvU2RzrRyQESNzib3VhZtMQVn89BZmV3VpmoxPF',
             test: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
             production: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
         }
@@ -35,8 +35,8 @@ export const supportedTokens: TokenConfig = {
         name: 'Clones',
         decimals: 6,
         mintAddress: {
-            development: 'dev-clns-mint-address', // Placeholder
-            test: 'test-clns-mint-address', // Placeholder
+            development: '4fmd25KposhGSi3hFSJP4tWWex2wGWjEQdu14YWTddFV',
+            test: '4fmd25KposhGSi3hFSJP4tWWex2wGWjEQdu14YWTddFV',
             production: 'prod-clns-mint-address' // Placeholder
         }
     }
