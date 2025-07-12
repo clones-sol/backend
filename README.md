@@ -21,6 +21,82 @@ docker-compose down
 
 ```
 
+### Creating Development Tokens
+
+To test features involving SPL tokens, you may need to create your own development tokens on the Solana devnet. This guide explains how to create and mint tokens for use in your local development environment.
+
+**1. Prerequisites**
+
+Ensure you have the [Solana CLI tool suite](https://docs.solana.com/cli/install-solana-cli-tools) installed. You will specifically need `solana` and `spl-token`.
+
+**2. Configure Solana CLI**
+
+First, make sure your CLI is configured to point to the devnet and uses the project's local keypair.
+
+```bash
+# Set the RPC URL to devnet
+solana config set --url https://api.devnet.solana.com
+
+# Set the keypair to the one included in this repository
+solana config set --keypair secrets/solana-keypair.json
+```
+
+**3. Fund Your Wallet**
+
+You'll need some devnet SOL to pay for transaction fees.
+
+```bash
+# Airdrop 2 SOL to your wallet
+solana airdrop 2
+```
+
+**4. Create a New Token**
+
+Run the following command to create a new SPL token. A standard token has 6 decimal places.
+
+```bash
+spl-token create-token --decimals 6
+```
+
+This command will output a **Token Address** (also called a "mint address"). **Copy this address.**
+
+Example output:
+```
+Creating token 4fmd25KposhGSi3hFSJP4tWWex2wGWjEQdu14YWTddFV ...
+Address: 4fmd25KposhGSi3hFSJP4tWWex2wGWjEQdu14YWTddFV
+```
+
+**5. Create a Token Account**
+
+Next, create an account in your wallet to hold the new tokens. Use the token address from the previous step.
+
+```bash
+# Replace <TOKEN_ADDRESS> with the address you copied
+spl-token create-account <TOKEN_ADDRESS>
+```
+
+**6. Mint Tokens**
+
+Now you can mint (create) as many tokens as you need for testing.
+
+```bash
+# Replace <TOKEN_ADDRESS> with your token address and <AMOUNT> with the quantity you want
+spl-token mint <TOKEN_ADDRESS> <AMOUNT>
+```
+
+**7. Update Backend Configuration**
+
+To make the backend aware of your new token, you must add its mint address to `src/services/blockchain/tokens.ts`. Find the correct token symbol (e.g., `USDC`, `CLONES`) and update the `development` address.
+
+**8. Add to Phantom Wallet (Optional)**
+
+You can add the token to your Phantom wallet to see your balance.
+1.  Open Phantom and click "Manage Token List".
+2.  Paste the **Token Address** into the search field.
+3.  Enable the token.
+
+> **Note:** The token will likely appear as "Unknown Token". This is normal because we have not provided on-chain metadata (like a name or symbol). This does not affect its functionality for development purposes.
+
 ---
 
 ## Security
