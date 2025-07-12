@@ -128,16 +128,16 @@ router.post(
   requireWalletAddress,
   validateBody(createPoolSchema),
   errorHandlerAsync(async (req: Request<{}, {}, CreatePoolBody>, res: Response) => {
-    const { name, skills, tokenSymbol, pricePerDemo, apps } = req.body;
+    const { name, skills, token, pricePerDemo, apps } = req.body;
 
     // @ts-ignore - Get walletAddress from the request object
     const ownerAddress = req.walletAddress;
 
     // Validate token symbol
     const supportedSymbols = getSupportedTokenSymbols();
-    if (!supportedSymbols.includes(tokenSymbol)) {
+    if (!token || !supportedSymbols.includes(token.symbol)) {
       throw ApiError.badRequest(
-        `Token symbol "${tokenSymbol}" is not supported. Supported symbols are: ${supportedSymbols.join(
+        `Token symbol "${token?.symbol}" is not supported. Supported symbols are: ${supportedSymbols.join(
           ', '
         )}`
       );
@@ -152,8 +152,8 @@ router.post(
       name,
       skills,
       token: {
-        type: 'SPL',
-        symbol: tokenSymbol
+        type: token.type,
+        symbol: token.symbol
       },
       ownerAddress,
       status: TrainingPoolStatus.noFunds,
