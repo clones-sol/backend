@@ -30,9 +30,29 @@ export const createAgentSchema: ValidationSchema = {
         required: true,
         rules: [ValidationRules.isObject()]
     },
+    'tokenomics.supply': {
+        required: true,
+        rules: [ValidationRules.isNumber(), ValidationRules.min(1000), ValidationRules.max(1_000_000_000_000)]
+    },
+    'tokenomics.minLiquiditySol': {
+        required: true,
+        rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
+    },
+    'tokenomics.gatedPercentage': {
+        required: false,
+        rules: [ValidationRules.isNumber(), ValidationRules.min(0), ValidationRules.max(50)]
+    },
     deployment: {
         required: false,
         rules: [ValidationRules.isObject()]
+    },
+    'deployment.customUrl': {
+        required: false,
+        rules: [ValidationRules.isString(), ValidationRules.pattern(/^https?:\/\//i, 'must be a valid URL.')]
+    },
+    'deployment.huggingFaceApiKey': {
+        required: false,
+        rules: [ValidationRules.isString()]
     }
 };
 
@@ -53,8 +73,28 @@ export const updateAgentSchema: ValidationSchema = {
         required: false,
         rules: [ValidationRules.isObject()]
     },
+    'tokenomics.supply': {
+        required: false,
+        rules: [ValidationRules.isNumber(), ValidationRules.min(1000), ValidationRules.max(1_000_000_000_000)]
+    },
+    'tokenomics.minLiquiditySol': {
+        required: false,
+        rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
+    },
+    'tokenomics.gatedPercentage': {
+        required: false,
+        rules: [ValidationRules.isNumber(), ValidationRules.min(0), ValidationRules.max(50)]
+    },
     deployment: {
         required: false,
         rules: [ValidationRules.isObject()]
+    },
+    'deployment.customUrl': {
+        required: false,
+        rules: [ValidationRules.isString(), ValidationRules.pattern(/^https?:\/\//i, 'must be a valid URL.')]
+    },
+    'deployment.huggingFaceApiKey': {
+        required: false,
+        rules: [ValidationRules.isString()]
     }
 }; 
