@@ -49,7 +49,39 @@ export const agentLifecycleMachine = setup({
                 agentObject.deployment.lastError = 'Deployment cancelled by user after token creation.';
                 return agentObject;
             }
-        })
+        }),
+        // Action to assign token creation data to the context
+        assignTokenCreationData: assign({
+            agent: ({ context, event }) => {
+                if (event.type === 'TOKEN_CREATION_SUCCESS') {
+                    const agentObject = context.agent.toObject();
+                    agentObject.blockchain.tokenAddress = event.data.tokenAddress;
+                    agentObject.blockchain.tokenCreationDetails = {
+                        txHash: event.data.txHash,
+                        timestamp: event.data.timestamp,
+                        slot: event.data.slot,
+                    };
+                    return agentObject;
+                }
+                return context.agent;
+            },
+        }),
+        // Action to assign pool creation data to the context
+        assignPoolCreationData: assign({
+            agent: ({ context, event }) => {
+                if (event.type === 'POOL_CREATION_SUCCESS') {
+                    const agentObject = context.agent.toObject();
+                    agentObject.blockchain.poolAddress = event.data.poolAddress;
+                    agentObject.blockchain.poolCreationDetails = {
+                        txHash: event.data.txHash,
+                        timestamp: event.data.timestamp,
+                        slot: event.data.slot,
+                    };
+                    return agentObject;
+                }
+                return context.agent;
+            },
+        }),
     },
     guards: {
         // Guard to check if a token has been created
@@ -73,7 +105,7 @@ export const agentLifecycleMachine = setup({
         },
         PENDING_TOKEN_SIGNATURE: {
             on: {
-                TOKEN_CREATION_SUCCESS: { target: 'TOKEN_CREATED' },
+                TOKEN_CREATION_SUCCESS: { target: 'TOKEN_CREATED', actions: 'assignTokenCreationData' },
                 FAIL: { target: 'FAILED', actions: 'assignError' },
                 CANCEL: { target: 'DRAFT' },
             },
@@ -86,7 +118,7 @@ export const agentLifecycleMachine = setup({
         },
         PENDING_POOL_SIGNATURE: {
             on: {
-                POOL_CREATION_SUCCESS: { target: 'DEPLOYED' },
+                POOL_CREATION_SUCCESS: { target: 'DEPLOYED', actions: 'assignPoolCreationData' },
                 FAIL: { target: 'FAILED', actions: 'assignError' },
                 CANCEL: { target: 'FAILED', actions: 'assignCancellationError' },
             },
