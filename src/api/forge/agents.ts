@@ -330,7 +330,7 @@ router.put(
 router.post(
     '/:id/deploy',
     requireWalletAddress,
-    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     errorHandlerAsync(async (req: Request, res: Response) => {
         // @ts-ignore
         const ownerAddress = req.walletAddress;
@@ -358,7 +358,7 @@ router.post(
 router.patch(
     '/:id/status',
     requireWalletAddress,
-    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     validateBody(updateAgentStatusSchema),
     errorHandlerAsync(async (req: Request, res: Response) => {
         // @ts-ignore
@@ -391,7 +391,7 @@ router.patch(
 router.delete(
     '/:id',
     requireWalletAddress,
-    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     errorHandlerAsync(async (req: Request, res: Response) => {
         // @ts-ignore
         const ownerAddress = req.walletAddress;
@@ -499,7 +499,6 @@ router.get(
 
             const payer = new PublicKey(ownerAddress);
 
-            // Correction finale: Utiliser la bonne structure pour le constructeur Token
             const baseToken = new Token({
                 mint: new PublicKey(agent.blockchain.tokenAddress),
                 decimals: agent.tokenomics.decimals || 9,
@@ -540,7 +539,6 @@ router.get(
                 };
                 await agent.save();
 
-                // Correction: Utiliser getFeeForMessage pour les VersionedTransaction
                 const fee = (await blockchainService.connection.getFeeForMessage(transaction.message)).value || 0;
 
                 res.status(200).json(successResponse({
@@ -561,7 +559,7 @@ router.get(
 router.post(
     '/:id/retry-deployment',
     requireWalletAddress,
-    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     errorHandlerAsync(async (req: Request, res: Response) => {
         // @ts-ignore
         const ownerAddress = req.walletAddress;
@@ -588,7 +586,7 @@ router.post(
 router.post(
     '/:id/cancel',
     requireWalletAddress,
-    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     errorHandlerAsync(async (req: Request, res: Response) => {
         // @ts-ignore
         const ownerAddress = req.walletAddress;
@@ -712,7 +710,80 @@ router.post(
 
             res.status(200).json(successResponse(updatedAgent));
         } else if (normalizedType === 'POOL_CREATION') {
-            throw ApiError.badRequest('Pool creation is not yet implemented.');
+            let txHash = agent.deployment.pendingTransaction.txHash;
+
+            // Broadcast transaction only if it hasn't been broadcasted before
+            if (!txHash) {
+                try {
+                    const signedTransactionBuffer = Buffer.from(signedTransaction, 'base64');
+                    txHash = await blockchainService.connection.sendRawTransaction(signedTransactionBuffer, {
+                        skipPreflight: true,
+                    });
+                    agent.deployment.pendingTransaction.txHash = txHash;
+                    await agent.save();
+                } catch (error) {
+                    console.error('Error broadcasting pool creation transaction:', error);
+                    await transitionAgentStatus(agent, {
+                        type: 'FAIL',
+                        error: `Failed to broadcast pool creation transaction: ${(error as Error).message}`,
+                    });
+                    throw ApiError.internalError(`Failed to broadcast pool creation transaction: ${(error as Error).message}`);
+                }
+            }
+
+            // Confirm the transaction
+            try {
+                const latestBlockHash = await blockchainService.connection.getLatestBlockhash('confirmed');
+                const confirmation = await blockchainService.connection.confirmTransaction(
+                    {
+                        signature: txHash,
+                        blockhash: latestBlockHash.blockhash,
+                        lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+                    },
+                    'confirmed'
+                );
+
+                if (confirmation.value.err) {
+                    throw new Error(`On-chain confirmation error for pool creation: ${JSON.stringify(confirmation.value.err)}`);
+                }
+            } catch (error) {
+                console.error(`Pool creation transaction ${txHash} failed to confirm on-chain.`, error);
+                const failedAgent = await transitionAgentStatus(agent, {
+                    type: 'FAIL',
+                    error: `Pool creation transaction confirmation failed: ${(error as Error).message}`,
+                });
+                throw ApiError.badRequest(`Pool creation transaction confirmation failed.`, failedAgent);
+            }
+
+            // Fetch transaction details
+            const txDetails = await blockchainService.connection.getTransaction(txHash, {
+                maxSupportedTransactionVersion: 0,
+                commitment: 'confirmed',
+            });
+            if (!txDetails) {
+                throw ApiError.internalError('Failed to retrieve pool creation transaction details after confirmation.');
+            }
+
+            // Extract pool address from stored details
+            const poolKeys = JSON.parse(agent.deployment.pendingTransaction.details.poolKeys);
+            const poolAddress = poolKeys.ammPool;
+
+            if (!poolAddress) {
+                throw ApiError.internalError('Could not find pool address in pending transaction details.');
+            }
+
+            // Transition state machine to DEPLOYED
+            const updatedAgent = await transitionAgentStatus(agent, {
+                type: 'POOL_CREATION_SUCCESS',
+                data: {
+                    poolAddress,
+                    txHash,
+                    timestamp: txDetails.blockTime || Math.floor(Date.now() / 1000),
+                    slot: txDetails.slot,
+                },
+            });
+
+            res.status(200).json(successResponse(updatedAgent));
         } else {
             throw ApiError.badRequest('Invalid transaction type.');
         }
