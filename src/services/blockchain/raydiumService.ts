@@ -59,7 +59,7 @@ export const createPoolCreationTransaction = async (
     const { transaction, extInfo } = await raydium.cpmm.createPool({
         programId: UI_DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM,
         poolFeeAccount: UI_DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_FEE_ACC,
-        // Correction finale: Coder en dur le TOKEN_PROGRAM_ID pour les mints SPL standards.
+        // Hardcode the standard TOKEN_PROGRAM_ID for SPL mints.
         mintA: { address: baseToken.mint.toBase58(), programId: TOKEN_PROGRAM_ID.toBase58(), decimals: baseToken.decimals },
         mintB: { address: quoteToken.mint.toBase58(), programId: TOKEN_PROGRAM_ID.toBase58(), decimals: quoteToken.decimals },
         mintAAmount: baseAmount,

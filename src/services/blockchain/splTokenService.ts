@@ -72,7 +72,8 @@ export const createTokenCreationTransaction = async (
             mintKeypair.publicKey,
             associatedTokenAddress,
             payer, // Mint authority
-            BigInt(tokenSupply * Math.pow(10, tokenDecimals)) // Amount, converted to BigInt
+            // Use BigInt for the entire calculation to prevent precision loss with large numbers
+            BigInt(tokenSupply) * (BigInt(10) ** BigInt(tokenDecimals))
         )
     );
 

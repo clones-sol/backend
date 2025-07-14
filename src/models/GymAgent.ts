@@ -53,12 +53,6 @@ export interface IGymAgent extends Document {
             slot: number; // Solana block slot
         };
     };
-    pendingTransaction?: {
-        idempotencyKey: string;
-        type: 'TOKEN_CREATION' | 'POOL_CREATION';
-        txHash?: string;
-        details: any;
-    };
     auditLog: {
         timestamp: Date;
         user: string;
