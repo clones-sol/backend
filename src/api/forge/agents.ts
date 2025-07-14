@@ -7,6 +7,7 @@ import { ApiError, successResponse } from '../../middleware/types/errors.ts';
 import { GymAgentModel, TrainingPoolModel } from '../../models/Models.ts';
 import { IGymAgent } from '../../models/GymAgent.ts';
 import { encrypt } from '../../services/security/crypto.ts';
+import { ValidationRules } from '../../middleware/validator.ts';
 
 const router: Router = express.Router();
 
@@ -34,6 +35,12 @@ router.post(
             throw ApiError.forbidden('You are not the owner of the specified TrainingPool.');
         }
 
+        // Sanitize the request body for audit logging
+        const sanitizedDetails = JSON.parse(JSON.stringify(req.body));
+        if (sanitizedDetails.deployment?.huggingFaceApiKey) {
+            sanitizedDetails.deployment.huggingFaceApiKey = '[REDACTED]';
+        }
+
         // 3. Create the new agent
         const newAgentData: Partial<IGymAgent> = {
             pool_id,
@@ -50,7 +57,7 @@ router.post(
                 timestamp: new Date(),
                 user: ownerAddress,
                 action: 'CREATE',
-                details: { ...req.body }
+                details: sanitizedDetails
             }]
         };
 
@@ -102,7 +109,7 @@ router.get(
 router.put(
     '/:id',
     requireWalletAddress,
-    validateParams({ id: { required: true } }),
+    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     validateBody(updateAgentSchema),
     errorHandlerAsync(async (req: Request, res: Response) => {
         // @ts-ignore - Get walletAddress from the request object
@@ -206,7 +213,7 @@ router.put(
 router.get(
     '/pool/:pool_id',
     requireWalletAddress,
-    validateParams({ pool_id: { required: true } }),
+    validateParams({ pool_id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     errorHandlerAsync(async (req: Request, res: Response) => {
         // @ts-ignore - Get walletAddress from the request object
         const ownerAddress = req.walletAddress;
