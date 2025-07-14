@@ -33,12 +33,17 @@ export const invokeAgent = async (agent: IGymAgent, payload: any): Promise<any> 
     const startTime = Date.now();
 
     try {
+        const headers: { 'Content-Type': string; Authorization?: string } = {
+            'Content-Type': 'application/json',
+        };
+
+        if (apiKey) {
+            headers.Authorization = `Bearer ${apiKey}`;
+        }
+
         const response = await axios.post(activeVersion.customUrl, payload, {
-            headers: {
-                'Authorization': apiKey ? `Bearer ${apiKey}` : undefined,
-                'Content-Type': 'application/json'
-            },
-            timeout: 30000 // 30-second timeout
+            headers,
+            timeout: 30000, // 30-second timeout
         });
 
         // Record successful invocation

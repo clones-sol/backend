@@ -51,6 +51,10 @@ export const createPoolCreationTransaction = async (
         id: getCpmmPdaAmmConfigId(UI_DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM, config.index).publicKey,
     }));
 
+    if (!feeConfigs || feeConfigs.length === 0) {
+        throw new Error('Failed to fetch any Raydium CPMM fee configurations. Cannot proceed with pool creation.');
+    }
+
     const feeConfig = feeConfigs[0];
 
     const baseAmount = new BN(baseTokenAmount).mul(new BN(10).pow(new BN(baseToken.decimals)));
