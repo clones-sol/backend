@@ -234,9 +234,32 @@ export async function validateObject(
   const errors: Record<string, string> = {};
   const transformedValues: Record<string, any> = {};
 
+  // Helper function to get nested properties
+  const getValue = (path: string, source: Record<string, any>): any => {
+    let current: any = source;
+    for (const part of path.split('.')) {
+      if (current === null || current === undefined) return undefined;
+      current = current[part];
+    }
+    return current;
+  };
+
+  // Helper function to set nested properties for transformations
+  const setValue = (path: string, target: Record<string, any>, value: any) => {
+    const parts = path.split('.');
+    const last = parts.pop();
+    if (!last) return;
+
+    let current = target;
+    for (const part of parts) {
+      current = current[part] = current[part] || {};
+    }
+    current[last] = value;
+  };
+
   // Check each field in the schema
   for (const [field, validation] of Object.entries(schema)) {
-    let value = obj[field];
+    let value = getValue(field, obj);
 
     // Check if required field is missing
     if (validation.required && (value === undefined || value === null || value === '')) {
@@ -260,9 +283,9 @@ export async function validateObject(
         // Apply transformation if provided
         if (rule.transform) {
           value = rule.transform(value);
-          transformedValues[field] = value;
-          // Update the original object with transformed value
-          obj[field] = value;
+          // Use setValue to handle nested transformed values
+          setValue(field, transformedValues, value);
+          setValue(field, obj, value);
         }
       }
     }
