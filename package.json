@@ -31,7 +31,8 @@
     "nodemailer": "^7.0",
     "openai": "^5.0",
     "tweetnacl": "^1.0.3",
-    "unzipper": "^0.12.3"
+    "unzipper": "^0.12.3",
+    "xstate": "^5.20.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
