@@ -11,6 +11,19 @@ import { ValidationRules } from '../../middleware/validator.ts';
 
 const router: Router = express.Router();
 
+/**
+ * Creates a sanitized copy of agent data for logging purposes, redacting sensitive fields.
+ * @param data The raw data object from the request body.
+ * @returns A sanitized data object.
+ */
+const sanitizeAgentDataForLogging = (data: any) => {
+    const sanitized = JSON.parse(JSON.stringify(data));
+    if (sanitized.deployment?.huggingFaceApiKey) {
+        sanitized.deployment.huggingFaceApiKey = '[REDACTED]';
+    }
+    return sanitized;
+};
+
 router.post(
     '/',
     requireWalletAddress,
@@ -36,10 +49,7 @@ router.post(
         }
 
         // Sanitize the request body for audit logging
-        const sanitizedDetails = JSON.parse(JSON.stringify(req.body));
-        if (sanitizedDetails.deployment?.huggingFaceApiKey) {
-            sanitizedDetails.deployment.huggingFaceApiKey = '[REDACTED]';
-        }
+        const sanitizedDetails = sanitizeAgentDataForLogging(req.body);
 
         // 3. Create the new agent
         const newAgentData: Partial<IGymAgent> = {
@@ -156,21 +166,24 @@ router.put(
 
             // Handle deployment updates for the active version
             if (updateData.deployment) {
-                let activeVersion = agent.deployment.versions.find(v => v.versionTag === agent.deployment.activeVersionTag);
+                const activeVersion = agent.deployment.versions.find(v => v.versionTag === agent.deployment.activeVersionTag);
 
-                if (!activeVersion && agent.deployment.status === 'DRAFT' && (updateData.deployment.customUrl || updateData.deployment.huggingFaceApiKey)) {
-                    // If in DRAFT and no versions exist, create the first one
-                    const firstVersion = {
-                        versionTag: 'v1.0', status: 'active' as const, createdAt: new Date(),
-                        customUrl: undefined, encryptedApiKey: undefined,
-                    };
-                    agent.deployment.versions.push(firstVersion);
-                    agent.deployment.activeVersionTag = firstVersion.versionTag;
-                    activeVersion = agent.deployment.versions[0];
-                    changedFields.push('deployment.versions');
-                }
-
-                if (activeVersion) {
+                if (!activeVersion && agent.deployment.status === 'DRAFT') {
+                    // If in DRAFT and no versions exist, create the first one directly with data.
+                    if (updateData.deployment.customUrl || updateData.deployment.huggingFaceApiKey) {
+                        const firstVersion = {
+                            versionTag: 'v1.0',
+                            status: 'active' as const,
+                            createdAt: new Date(),
+                            customUrl: updateData.deployment.customUrl,
+                            encryptedApiKey: updateData.deployment.huggingFaceApiKey ? encrypt(updateData.deployment.huggingFaceApiKey) : undefined,
+                        };
+                        agent.deployment.versions.push(firstVersion);
+                        agent.deployment.activeVersionTag = firstVersion.versionTag;
+                        changedFields.push('deployment.versions');
+                    }
+                } else if (activeVersion) {
+                    // Update an existing active version
                     if (updateData.deployment.customUrl && activeVersion.customUrl !== updateData.deployment.customUrl) {
                         activeVersion.customUrl = updateData.deployment.customUrl;
                         changedFields.push('deployment.customUrl');
@@ -189,10 +202,7 @@ router.put(
         // 3. Add to audit log and save if changes were made
         if (changedFields.length > 0) {
             // Sanitize the update data before logging to avoid storing sensitive info
-            const sanitizedDetails = JSON.parse(JSON.stringify(updateData));
-            if (sanitizedDetails.deployment?.huggingFaceApiKey) {
-                sanitizedDetails.deployment.huggingFaceApiKey = '[REDACTED]';
-            }
+            const sanitizedDetails = sanitizeAgentDataForLogging(updateData);
 
             agent.auditLog.push({
                 timestamp: new Date(),
