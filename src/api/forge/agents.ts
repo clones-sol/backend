@@ -29,9 +29,12 @@ import { Token } from '@raydium-io/raydium-sdk-v2';
 import { createPoolCreationTransaction } from '../../services/blockchain/raydiumService.ts';
 import mongoose from 'mongoose';
 import rateLimit from 'express-rate-limit';
+import { type Cluster } from '@raydium-io/raydium-sdk-v2';
 
 const router: Router = express.Router();
 const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
+const INITIAL_AGENT_VERSION = 'v1.0';
+const SOLANA_CLUSTER = (process.env.SOLANA_CLUSTER || 'devnet') as Cluster;
 
 /**
  * Creates a sanitized copy of agent data for logging purposes, redacting sensitive fields.
@@ -57,7 +60,7 @@ const createFirstDeploymentVersion = (deploymentData?: { customUrl?: string; hug
     }
 
     return {
-        versionTag: 'v1.0',
+        versionTag: INITIAL_AGENT_VERSION,
         status: 'active' as const,
         createdAt: new Date(),
         customUrl: deploymentData.customUrl,
@@ -519,7 +522,8 @@ router.get(
                     baseToken,
                     quoteToken,
                     agent.tokenomics.supply,
-                    agent.tokenomics.minLiquiditySol
+                    agent.tokenomics.minLiquiditySol,
+                    SOLANA_CLUSTER
                 );
 
                 const { blockhash } = await blockchainService.connection.getLatestBlockhash('confirmed');

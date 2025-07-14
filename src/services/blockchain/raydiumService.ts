@@ -7,12 +7,12 @@ import {
 } from '@solana/web3.js';
 import {
     CreateCpmmPoolAddress,
-    LiquidityPoolKeys,
     Raydium,
     Token,
     TxVersion,
     UI_DEVNET_PROGRAM_ID,
     getCpmmPdaAmmConfigId,
+    type Cluster,
 } from '@raydium-io/raydium-sdk-v2';
 import BN from 'bn.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
@@ -31,6 +31,7 @@ const DUMMY_OWNER = Keypair.generate();
  * @param quoteToken - The Token object for the quote token (usually WSOL).
  * @param baseTokenAmount - The amount of the base token to add to the liquidity pool.
  * @param quoteTokenAmount - The amount of the quote token (SOL) to add to the liquidity pool.
+ * @param cluster - The Solana cluster to use for Raydium.
  * @returns An object containing the unsigned transaction and the keys for the newly created pool.
  */
 export const createPoolCreationTransaction = async (
@@ -39,13 +40,14 @@ export const createPoolCreationTransaction = async (
     baseToken: Token,
     quoteToken: Token,
     baseTokenAmount: number,
-    quoteTokenAmount: number
+    quoteTokenAmount: number,
+    cluster: Cluster = 'devnet'
 ): Promise<{ transaction: VersionedTransaction; poolKeys: CreateCpmmPoolAddress }> => {
 
     const raydium = await Raydium.load({
         connection,
         owner: DUMMY_OWNER,
-        cluster: 'devnet',
+        cluster,
     });
 
     const apiFeeConfigs = await raydium.api.getCpmmConfigs();
@@ -54,7 +56,7 @@ export const createPoolCreationTransaction = async (
         id: getCpmmPdaAmmConfigId(UI_DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM, config.index).publicKey,
     }));
 
-    if (!feeConfigs || feeConfigs.length === 0) {
+    if (feeConfigs.length === 0) {
         throw new Error('Failed to fetch any Raydium CPMM fee configurations. Cannot proceed with pool creation.');
     }
 
@@ -75,6 +77,7 @@ export const createPoolCreationTransaction = async (
         feeConfig: feeConfig,
         associatedOnly: false,
         ownerInfo: {
+            feePayer: owner,
             useSOLBalance: true,
         },
         txVersion: TxVersion.V0,
