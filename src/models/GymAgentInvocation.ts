@@ -7,6 +7,7 @@ export interface IGymAgentInvocation extends Document {
     durationMs: number;
     isSuccess: boolean;
     httpStatus?: number;
+    createdAt: Date;
 }
 
 const GymAgentInvocationSchema = new Schema<IGymAgentInvocation>(
