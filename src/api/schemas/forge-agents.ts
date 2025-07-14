@@ -97,4 +97,14 @@ export const updateAgentSchema: ValidationSchema = {
         required: false,
         rules: [ValidationRules.isString()]
     }
+};
+
+export const updateAgentStatusSchema: ValidationSchema = {
+    status: {
+        required: true,
+        rules: [
+            ValidationRules.isString(),
+            ValidationRules.isIn(['DEACTIVATED']),
+        ]
+    }
 }; 
