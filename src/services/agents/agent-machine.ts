@@ -38,6 +38,13 @@ export const agentLifecycleMachine = setup({
                 return context.agent;
             },
         }),
+        // Action to assign a specific cancellation error when a deployment is cancelled post-token creation.
+        assignCancellationError: assign({
+            agent: ({ context }) => {
+                context.agent.deployment.lastError = 'Deployment cancelled by user after token creation.';
+                return context.agent;
+            }
+        })
     },
     guards: {
         // Guard to check if a token has been created
@@ -69,28 +76,14 @@ export const agentLifecycleMachine = setup({
         TOKEN_CREATED: {
             on: {
                 INITIATE_POOL_CREATION: { target: 'PENDING_POOL_SIGNATURE' },
-                CANCEL: {
-                    target: 'FAILED', actions: assign({
-                        agent: (({ context }) => {
-                            context.agent.deployment.lastError = 'Deployment cancelled by user after token creation.';
-                            return context.agent;
-                        })
-                    })
-                },
+                CANCEL: { target: 'FAILED', actions: 'assignCancellationError' },
             },
         },
         PENDING_POOL_SIGNATURE: {
             on: {
                 POOL_CREATION_SUCCESS: { target: 'DEPLOYED' },
                 FAIL: { target: 'FAILED', actions: 'assignError' },
-                CANCEL: {
-                    target: 'FAILED', actions: assign({
-                        agent: (({ context }) => {
-                            context.agent.deployment.lastError = 'Deployment cancelled by user after token creation.';
-                            return context.agent;
-                        })
-                    })
-                },
+                CANCEL: { target: 'FAILED', actions: 'assignCancellationError' },
             },
         },
         DEPLOYED: {
