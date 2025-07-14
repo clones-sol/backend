@@ -4,7 +4,10 @@ import { agentLifecycleMachine, AgentLifecycleContext } from './agent-machine.ts
 import { IGymAgent } from '../../models/GymAgent.ts';
 
 // Mock Mongoose document methods like .toObject()
-const createMockAgent = (initialStatus: IGymAgent['deployment']['status'], tokenAddress?: string): IGymAgent => {
+const createMockAgent = (
+    initialStatus: IGymAgent['deployment']['status'],
+    blockchainData: Partial<IGymAgent['blockchain']> = {}
+): IGymAgent => {
     const agentData = {
         deployment: {
             status: initialStatus,
@@ -12,7 +15,10 @@ const createMockAgent = (initialStatus: IGymAgent['deployment']['status'], token
             consecutiveFailures: 0,
         },
         blockchain: {
-            tokenAddress: tokenAddress,
+            tokenAddress: blockchainData.tokenAddress,
+            tokenCreationDetails: blockchainData.tokenCreationDetails,
+            poolAddress: blockchainData.poolAddress,
+            poolCreationDetails: blockchainData.poolCreationDetails,
         },
         toObject: () => JSON.parse(JSON.stringify(agentData)),
     };
@@ -37,21 +43,39 @@ describe('agentLifecycleMachine', () => {
             expect(actor.getSnapshot().value).toBe('PENDING_TOKEN_SIGNATURE');
         });
 
-        it('PENDING_TOKEN_SIGNATURE -> PENDING_POOL_SIGNATURE on TOKEN_CREATION_SUCCESS (via automatic transition)', () => {
+        it('PENDING_TOKEN_SIGNATURE -> PENDING_POOL_SIGNATURE on TOKEN_CREATION_SUCCESS (via automatic transition) and assigns data', () => {
             const agent = createMockAgent('PENDING_TOKEN_SIGNATURE');
             const actor = createActor(agentLifecycleMachine, { snapshot: agentLifecycleMachine.resolveState({ value: 'PENDING_TOKEN_SIGNATURE', context: { agent } }) });
             actor.start();
-            actor.send({ type: 'TOKEN_CREATION_SUCCESS', data: { tokenAddress: 'abc', txHash: '123', timestamp: 1, slot: 1 } });
+            const eventData = { tokenAddress: 'abc', txHash: '123', timestamp: 1, slot: 1 };
+            actor.send({ type: 'TOKEN_CREATION_SUCCESS', data: eventData });
+
+            const snapshot = actor.getSnapshot();
             // The machine should automatically transition from TOKEN_CREATED to PENDING_POOL_SIGNATURE
-            expect(actor.getSnapshot().value).toBe('PENDING_POOL_SIGNATURE');
+            expect(snapshot.value).toBe('PENDING_POOL_SIGNATURE');
+            expect(snapshot.context.agent.blockchain.tokenAddress).toBe('abc');
+            expect(snapshot.context.agent.blockchain.tokenCreationDetails).toEqual({
+                txHash: '123',
+                timestamp: 1,
+                slot: 1,
+            });
         });
 
-        it('PENDING_POOL_SIGNATURE -> DEPLOYED on POOL_CREATION_SUCCESS', () => {
+        it('PENDING_POOL_SIGNATURE -> DEPLOYED on POOL_CREATION_SUCCESS and assigns data', () => {
             const agent = createMockAgent('PENDING_POOL_SIGNATURE');
             const actor = createActor(agentLifecycleMachine, { snapshot: agentLifecycleMachine.resolveState({ value: 'PENDING_POOL_SIGNATURE', context: { agent } }) });
             actor.start();
-            actor.send({ type: 'POOL_CREATION_SUCCESS', data: { poolAddress: 'def', txHash: '456', timestamp: 2, slot: 2 } });
-            expect(actor.getSnapshot().value).toBe('DEPLOYED');
+            const eventData = { poolAddress: 'def', txHash: '456', timestamp: 2, slot: 2 };
+            actor.send({ type: 'POOL_CREATION_SUCCESS', data: eventData });
+
+            const snapshot = actor.getSnapshot();
+            expect(snapshot.value).toBe('DEPLOYED');
+            expect(snapshot.context.agent.blockchain.poolAddress).toBe('def');
+            expect(snapshot.context.agent.blockchain.poolCreationDetails).toEqual({
+                txHash: '456',
+                timestamp: 2,
+                slot: 2,
+            });
         });
 
         it('PENDING_TOKEN_SIGNATURE -> DRAFT on CANCEL', () => {
@@ -102,7 +126,7 @@ describe('agentLifecycleMachine', () => {
         });
 
         it('FAILED -> PENDING_POOL_SIGNATURE on RETRY if token exists', () => {
-            const agent = createMockAgent('FAILED', 'some-token-address');
+            const agent = createMockAgent('FAILED', { tokenAddress: 'some-token-address' });
             const actor = createActor(agentLifecycleMachine, { snapshot: agentLifecycleMachine.resolveState({ value: 'FAILED', context: { agent } }) });
             actor.start();
             actor.send({ type: 'RETRY' });
