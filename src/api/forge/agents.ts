@@ -125,25 +125,19 @@ router.put(
 
         // 2. Apply updates based on status
         if (agent.deployment.status === 'DRAFT') {
-            // Can update most fields
+            // Can update most fields in DRAFT
             if (updateData.name && agent.name !== updateData.name) {
                 agent.name = updateData.name;
                 changedFields.push('name');
-            }
-            if (updateData.description && agent.description !== updateData.description) {
-                agent.description = updateData.description;
-                changedFields.push('description');
-            }
-            if (updateData.logoUrl && agent.logoUrl !== updateData.logoUrl) {
-                agent.logoUrl = updateData.logoUrl;
-                changedFields.push('logoUrl');
             }
             if (updateData.tokenomics) {
                 agent.tokenomics = { ...agent.tokenomics, ...updateData.tokenomics };
                 changedFields.push('tokenomics');
             }
-        } else if (['DEPLOYED', 'DEACTIVATED'].includes(agent.deployment.status)) {
-            // Can only update non-critical metadata
+        }
+
+        // Fields updatable in DRAFT, DEPLOYED, or DEACTIVATED status
+        if (['DRAFT', 'DEPLOYED', 'DEACTIVATED'].includes(agent.deployment.status)) {
             if (updateData.description && agent.description !== updateData.description) {
                 agent.description = updateData.description;
                 changedFields.push('description');
@@ -152,19 +146,57 @@ router.put(
                 agent.logoUrl = updateData.logoUrl;
                 changedFields.push('logoUrl');
             }
-        } else {
-            throw ApiError.badRequest(`Agent cannot be updated in its current status: ${agent.deployment.status}`);
+
+            // Handle deployment updates for the active version
+            if (updateData.deployment) {
+                let activeVersion = agent.deployment.versions.find(v => v.versionTag === agent.deployment.activeVersionTag);
+
+                if (!activeVersion && agent.deployment.status === 'DRAFT' && (updateData.deployment.customUrl || updateData.deployment.huggingFaceApiKey)) {
+                    // If in DRAFT and no versions exist, create the first one
+                    const firstVersion = {
+                        versionTag: 'v1.0', status: 'active' as const, createdAt: new Date(),
+                        customUrl: undefined, encryptedApiKey: undefined,
+                    };
+                    agent.deployment.versions.push(firstVersion);
+                    agent.deployment.activeVersionTag = firstVersion.versionTag;
+                    activeVersion = agent.deployment.versions[0];
+                    changedFields.push('deployment.versions');
+                }
+
+                if (activeVersion) {
+                    if (updateData.deployment.customUrl && activeVersion.customUrl !== updateData.deployment.customUrl) {
+                        activeVersion.customUrl = updateData.deployment.customUrl;
+                        changedFields.push('deployment.customUrl');
+                    }
+                    if (updateData.deployment.huggingFaceApiKey) {
+                        const newEncryptedKey = encrypt(updateData.deployment.huggingFaceApiKey);
+                        if (activeVersion.encryptedApiKey !== newEncryptedKey) {
+                            activeVersion.encryptedApiKey = newEncryptedKey;
+                            changedFields.push('deployment.huggingFaceApiKey');
+                        }
+                    }
+                }
+            }
         }
 
-        // 3. Add to audit log if changes were made
+        // 3. Add to audit log and save if changes were made
         if (changedFields.length > 0) {
+            // Sanitize the update data before logging to avoid storing sensitive info
+            const sanitizedDetails = JSON.parse(JSON.stringify(updateData));
+            if (sanitizedDetails.deployment?.huggingFaceApiKey) {
+                sanitizedDetails.deployment.huggingFaceApiKey = '[REDACTED]';
+            }
+
             agent.auditLog.push({
                 timestamp: new Date(),
                 user: ownerAddress,
                 action: 'UPDATE',
-                details: { changedFields, ...updateData }
+                details: sanitizedDetails
             });
             await agent.save();
+        } else if (Object.keys(updateData).length > 0) {
+            // If there's data in the body but no valid fields were updated, throw an error.
+            throw ApiError.badRequest(`Agent cannot be updated in its current status: ${agent.deployment.status}, or no valid fields were provided.`);
         }
 
         res.status(200).json(successResponse(agent));
