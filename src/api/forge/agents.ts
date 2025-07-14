@@ -470,7 +470,7 @@ router.get(
             const idempotencyKey = uuidv4();
 
             // 7. Save pending transaction details to the agent
-            agent.pendingTransaction = {
+            agent.deployment.pendingTransaction = {
                 idempotencyKey,
                 type: 'TOKEN_CREATION',
                 details: {
@@ -531,7 +531,7 @@ router.get(
 
                 const idempotencyKey = uuidv4();
 
-                agent.pendingTransaction = {
+                agent.deployment.pendingTransaction = {
                     idempotencyKey,
                     type: 'POOL_CREATION',
                     details: {
@@ -631,21 +631,21 @@ router.post(
             throw ApiError.forbidden('You are not authorized to perform this action.');
         }
 
-        if (!agent.pendingTransaction || agent.pendingTransaction.idempotencyKey !== idempotencyKey) {
+        if (!agent.deployment.pendingTransaction || agent.deployment.pendingTransaction.idempotencyKey !== idempotencyKey) {
             throw ApiError.badRequest('Invalid idempotency key or no pending transaction.');
         }
 
         // Normalize the input type to match the stored format (e.g., 'token-creation' -> 'TOKEN_CREATION')
         const normalizedType = type.toUpperCase().replace('-', '_');
 
-        if (agent.pendingTransaction.type !== normalizedType) {
+        if (agent.deployment.pendingTransaction.type !== normalizedType) {
             throw ApiError.badRequest(
-                `Invalid transaction type. Expected ${agent.pendingTransaction.type}, got ${type}.`
+                `Invalid transaction type. Expected ${agent.deployment.pendingTransaction.type}, got ${type}.`
             );
         }
 
         if (normalizedType === 'TOKEN_CREATION') {
-            let txHash = agent.pendingTransaction.txHash;
+            let txHash = agent.deployment.pendingTransaction.txHash;
 
             // Broadcast transaction only if it hasn't been broadcasted before
             if (!txHash) {
@@ -654,7 +654,7 @@ router.post(
                     txHash = await blockchainService.connection.sendRawTransaction(signedTransactionBuffer, {
                         skipPreflight: true,
                     });
-                    agent.pendingTransaction.txHash = txHash;
+                    agent.deployment.pendingTransaction.txHash = txHash;
                     await agent.save();
                 } catch (error) {
                     console.error('Error broadcasting transaction:', error);
@@ -703,7 +703,7 @@ router.post(
             const updatedAgent = await transitionAgentStatus(agent, {
                 type: 'TOKEN_CREATION_SUCCESS',
                 data: {
-                    tokenAddress: agent.pendingTransaction.details.mint,
+                    tokenAddress: agent.deployment.pendingTransaction.details.mint,
                     txHash,
                     timestamp: txDetails.blockTime || Math.floor(Date.now() / 1000),
                     slot: txDetails.slot,
