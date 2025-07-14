@@ -24,6 +24,25 @@ const sanitizeAgentDataForLogging = (data: any) => {
     return sanitized;
 };
 
+/**
+ * Creates the initial deployment version object if deployment data is provided.
+ * @param deploymentData The deployment data from the request.
+ * @returns A DeploymentVersion object or undefined.
+ */
+const createFirstDeploymentVersion = (deploymentData?: { customUrl?: string; huggingFaceApiKey?: string }) => {
+    if (!deploymentData || (!deploymentData.customUrl && !deploymentData.huggingFaceApiKey)) {
+        return undefined;
+    }
+
+    return {
+        versionTag: 'v1.0',
+        status: 'active' as const,
+        createdAt: new Date(),
+        customUrl: deploymentData.customUrl,
+        encryptedApiKey: deploymentData.huggingFaceApiKey ? encrypt(deploymentData.huggingFaceApiKey) : undefined,
+    };
+};
+
 router.post(
     '/',
     requireWalletAddress,
@@ -72,15 +91,8 @@ router.post(
         };
 
         // 4. Handle initial deployment version if provided
-        if (deployment?.customUrl || deployment?.huggingFaceApiKey) {
-            const firstVersion = {
-                versionTag: 'v1.0',
-                customUrl: deployment.customUrl,
-                encryptedApiKey: deployment.huggingFaceApiKey ? encrypt(deployment.huggingFaceApiKey) : undefined,
-                status: 'active' as const,
-                createdAt: new Date(),
-            };
-            // The deployment object is guaranteed to be defined from step 3
+        const firstVersion = createFirstDeploymentVersion(deployment);
+        if (firstVersion) {
             newAgentData.deployment!.versions.push(firstVersion);
             newAgentData.deployment!.activeVersionTag = firstVersion.versionTag;
         }
@@ -170,14 +182,8 @@ router.put(
 
                 if (!activeVersion && agent.deployment.status === 'DRAFT') {
                     // If in DRAFT and no versions exist, create the first one directly with data.
-                    if (updateData.deployment.customUrl || updateData.deployment.huggingFaceApiKey) {
-                        const firstVersion = {
-                            versionTag: 'v1.0',
-                            status: 'active' as const,
-                            createdAt: new Date(),
-                            customUrl: updateData.deployment.customUrl,
-                            encryptedApiKey: updateData.deployment.huggingFaceApiKey ? encrypt(updateData.deployment.huggingFaceApiKey) : undefined,
-                        };
+                    const firstVersion = createFirstDeploymentVersion(updateData.deployment);
+                    if (firstVersion) {
                         agent.deployment.versions.push(firstVersion);
                         agent.deployment.activeVersionTag = firstVersion.versionTag;
                         changedFields.push('deployment.versions');

@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { isValidUrl } from '../middleware/validator.ts';
 
 // Define an interface for the document
 interface DeploymentVersion {
@@ -86,12 +87,7 @@ const GymAgentSchema = new Schema<IGymAgent>(
             required: false,
             validate: {
                 validator: function (v: string) {
-                    try {
-                        new URL(v);
-                        return /^https?:\/\/.+\.(jpg|jpeg|png|gif|svg)$/i.test(v);
-                    } catch {
-                        return false;
-                    }
+                    return isValidUrl(v) && /^https?:\/\/.+\.(jpg|jpeg|png|gif|svg)$/i.test(v);
                 },
                 message: (props: { value: string }) => `${props.value} is not a valid image URL.`
             }
@@ -120,14 +116,7 @@ const GymAgentSchema = new Schema<IGymAgent>(
                 type: String,
                 required: false,
                 validate: {
-                    validator: function (v: string) {
-                        try {
-                            new URL(v);
-                            return true;
-                        } catch {
-                            return false;
-                        }
-                    },
+                    validator: isValidUrl,
                     message: (props: { value: string }) => `${props.value} is not a valid URL.`
                 }
             } // A link to the final T&Cs document.
@@ -151,7 +140,7 @@ const GymAgentSchema = new Schema<IGymAgent>(
                     customUrl: {
                         type: String,
                         validate: {
-                            validator: function (v: string) { try { new URL(v); return true; } catch { return false; } },
+                            validator: isValidUrl,
                             message: (props: { value: string }) => `${props.value} is not a valid URL.`
                         }
                     },
