@@ -165,3 +165,61 @@ Deploy the updated application. The system will now:
 - Decrypt data encrypted with both `v1` and `v2` keys.
 - Automatically upgrade `v1` keys to `v2` during payment processing.
 - You should monitor logs for any decryption errors.
+
+---
+
+## Agent Lifecycle State Machine
+
+To ensure robust and predictable behavior, the entire lifecycle of an AI Agent—from creation to deployment and archival—is managed by a formal state machine implemented with **XState v5**. This machine serves as the **single source of truth** for all agent status transitions, eliminating the risk of inconsistent states.
+
+### Lifecycle Diagram
+
+The following diagram illustrates all possible agent statuses and the events that trigger transitions between them.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> DRAFT
+    DRAFT --> PENDING_TOKEN_SIGNATURE: INITIATE_DEPLOYMENT
+    DRAFT --> ARCHIVED: ARCHIVE
+
+    PENDING_TOKEN_SIGNATURE --> TOKEN_CREATED: TOKEN_CREATION_SUCCESS
+    PENDING_TOKEN_SIGNATURE --> FAILED: FAIL
+    PENDING_TOKEN_SIGNATURE --> DRAFT: CANCEL
+
+    TOKEN_CREATED --> PENDING_POOL_SIGNATURE: INITIATE_POOL_CREATION
+    TOKEN_CREATED --> FAILED: CANCEL
+
+    PENDING_POOL_SIGNATURE --> DEPLOYED: POOL_CREATION_SUCCESS
+    PENDING_POOL_SIGNATURE --> FAILED: FAIL / CANCEL
+
+    DEPLOYED --> DEACTIVATED: DEACTIVATE
+
+    DEACTIVATED --> ARCHIVED: ARCHIVE
+
+    FAILED --> PENDING_TOKEN_SIGNATURE: RETRY (if no token)
+    FAILED --> PENDING_POOL_SIGNATURE: RETRY (if token exists)
+    FAILED --> ARCHIVED: ARCHIVE
+    
+    ARCHIVED --> [*]
+```
+
+### Key Concepts
+
+-   **States**: Each `status` of an agent (`DRAFT`, `PENDING_TOKEN_SIGNATURE`, `DEPLOYED`, etc.) corresponds to a finite state in the machine. An agent can only be in one state at any given time.
+-   **Events**: Transitions are triggered by explicit events (e.g., `{ type: 'INITIATE_DEPLOYMENT' }`). An event can only cause a transition if it is valid from the current state. Any attempt to make an invalid transition is blocked.
+-   **Context**: The state machine maintains a `context` that holds the full `agent` document. `Actions` can modify this object in response to an event. For example, the `FAIL` event triggers an action that updates the `lastError` field in the context.
+-   **Guards**: Certain transitions are conditional. For instance, the `RETRY` event only leads to `PENDING_TOKEN_SIGNATURE` if the `hasNoToken` guard is met (i.e., if a token has not yet been created). This enables intelligent recovery logic.
+
+### Code Integration
+
+Interaction with the state machine is centralized in the `transitionAgentStatus` service (`src/services/agents/index.ts`). The process is as follows:
+
+1.  **Hydration**: The service receives an `agent` document and hydrates a machine instance, restoring it to the agent's current state and context.
+2.  **Transition**: It sends the requested event (e.g., `CANCEL`) to the machine.
+3.  **Validation**: The machine checks if the transition is valid from the current state. If not, it throws an error, protecting data integrity.
+4.  **Update**: If the transition is valid, the machine moves to the new state and updates its context accordingly.
+5.  **Persistence**: The service retrieves the updated context and saves the `agent` object with its new status to the database.
+
+This approach ensures that the complex business logic of the lifecycle is decoupled from the API handlers, is testable in isolation, and is highly reliable.

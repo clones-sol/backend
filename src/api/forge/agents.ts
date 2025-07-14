@@ -2,13 +2,14 @@ import express, { Request, Response, Router } from 'express';
 import { requireWalletAddress } from '../../middleware/auth.ts';
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
 import { validateBody, validateParams } from '../../middleware/validator.ts';
-import { createAgentSchema, updateAgentSchema } from '../schemas/forge-agents.ts';
+import { createAgentSchema, updateAgentSchema, updateAgentStatusSchema } from '../schemas/forge-agents.ts';
 import { ApiError, successResponse } from '../../middleware/types/errors.ts';
 import { GymAgentModel, TrainingPoolModel } from '../../models/Models.ts';
 import { IGymAgent } from '../../models/GymAgent.ts';
 import { encrypt } from '../../services/security/crypto.ts';
 import { ValidationRules } from '../../middleware/validator.ts';
 import { validateHuggingFaceApiKey } from '../../services/huggingface/index.ts';
+import { transitionAgentStatus } from '../../services/agents/index.ts';
 
 const router: Router = express.Router();
 
@@ -240,6 +241,145 @@ router.put(
         }
 
         res.status(200).json(successResponse(agent));
+    })
+);
+
+router.post(
+    '/:id/deploy',
+    requireWalletAddress,
+    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    errorHandlerAsync(async (req: Request, res: Response) => {
+        // @ts-ignore
+        const ownerAddress = req.walletAddress;
+        const { id } = req.params;
+
+        // 1. Find agent
+        const agent = await GymAgentModel.findById(id);
+        if (!agent) {
+            throw ApiError.notFound(`Agent with id ${id} not found.`);
+        }
+
+        // 2. Verify ownership
+        const pool = await TrainingPoolModel.findById(agent.pool_id);
+        if (!pool || pool.ownerAddress !== ownerAddress) {
+            throw ApiError.forbidden('You are not authorized to deploy this agent.');
+        }
+
+        // 3. Perform the transition
+        const updatedAgent = await transitionAgentStatus(agent, { type: 'INITIATE_DEPLOYMENT' });
+
+        res.status(200).json(successResponse(updatedAgent));
+    })
+);
+
+router.patch(
+    '/:id/status',
+    requireWalletAddress,
+    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateBody(updateAgentStatusSchema),
+    errorHandlerAsync(async (req: Request, res: Response) => {
+        // @ts-ignore
+        const ownerAddress = req.walletAddress;
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const agent = await GymAgentModel.findById(id);
+        if (!agent) {
+            throw ApiError.notFound(`Agent with id ${id} not found.`);
+        }
+
+        const pool = await TrainingPoolModel.findById(agent.pool_id);
+        if (!pool || pool.ownerAddress !== ownerAddress) {
+            throw ApiError.forbidden('You are not authorized to change this agent\'s status.');
+        }
+
+        let updatedAgent;
+        if (status === 'DEACTIVATED') {
+            updatedAgent = await transitionAgentStatus(agent, { type: 'DEACTIVATE' });
+        } else {
+            // This case should be blocked by the validator, but as a safeguard:
+            throw ApiError.badRequest(`Unsupported status transition to '${status}'.`);
+        }
+
+        res.status(200).json(successResponse(updatedAgent));
+    })
+);
+
+router.delete(
+    '/:id',
+    requireWalletAddress,
+    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    errorHandlerAsync(async (req: Request, res: Response) => {
+        // @ts-ignore
+        const ownerAddress = req.walletAddress;
+        const { id } = req.params;
+
+        const agent = await GymAgentModel.findById(id);
+        if (!agent) {
+            throw ApiError.notFound(`Agent with id ${id} not found.`);
+        }
+
+        const pool = await TrainingPoolModel.findById(agent.pool_id);
+        if (!pool || pool.ownerAddress !== ownerAddress) {
+            throw ApiError.forbidden('You are not authorized to archive this agent.');
+        }
+
+        // The state machine will automatically prevent archiving from an invalid state (e.g., DEPLOYED).
+        const updatedAgent = await transitionAgentStatus(agent, { type: 'ARCHIVE' });
+
+        res.status(200).json(successResponse(updatedAgent));
+    })
+);
+
+router.post(
+    '/:id/retry-deployment',
+    requireWalletAddress,
+    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    errorHandlerAsync(async (req: Request, res: Response) => {
+        // @ts-ignore
+        const ownerAddress = req.walletAddress;
+        const { id } = req.params;
+
+        const agent = await GymAgentModel.findById(id);
+        if (!agent) {
+            throw ApiError.notFound(`Agent with id ${id} not found.`);
+        }
+
+        const pool = await TrainingPoolModel.findById(agent.pool_id);
+        if (!pool || pool.ownerAddress !== ownerAddress) {
+            throw ApiError.forbidden('You are not authorized to retry this agent\'s deployment.');
+        }
+
+        // The state machine will only allow this transition from the FAILED state
+        // and will determine the correct state to return to (PENDING_TOKEN_SIGNATURE or PENDING_POOL_SIGNATURE).
+        const updatedAgent = await transitionAgentStatus(agent, { type: 'RETRY' });
+
+        res.status(200).json(successResponse(updatedAgent));
+    })
+);
+
+router.post(
+    '/:id/cancel',
+    requireWalletAddress,
+    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    errorHandlerAsync(async (req: Request, res: Response) => {
+        // @ts-ignore
+        const ownerAddress = req.walletAddress;
+        const { id } = req.params;
+
+        const agent = await GymAgentModel.findById(id);
+        if (!agent) {
+            throw ApiError.notFound(`Agent with id ${id} not found.`);
+        }
+
+        const pool = await TrainingPoolModel.findById(agent.pool_id);
+        if (!pool || pool.ownerAddress !== ownerAddress) {
+            throw ApiError.forbidden('You are not authorized to cancel this agent\'s deployment.');
+        }
+
+        const updatedAgent = await transitionAgentStatus(agent, { type: 'CANCEL' });
+
+        res.status(200).json(successResponse(updatedAgent));
     })
 );
 
