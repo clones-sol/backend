@@ -635,13 +635,16 @@ router.post(
             throw ApiError.badRequest('Invalid idempotency key or no pending transaction.');
         }
 
-        if (agent.pendingTransaction.type !== type) {
+        // Normalize the input type to match the stored format (e.g., 'token-creation' -> 'TOKEN_CREATION')
+        const normalizedType = type.toUpperCase().replace('-', '_');
+
+        if (agent.pendingTransaction.type !== normalizedType) {
             throw ApiError.badRequest(
                 `Invalid transaction type. Expected ${agent.pendingTransaction.type}, got ${type}.`
             );
         }
 
-        if (type === 'TOKEN_CREATION') {
+        if (normalizedType === 'TOKEN_CREATION') {
             let txHash = agent.pendingTransaction.txHash;
 
             // Broadcast transaction only if it hasn't been broadcasted before
@@ -708,7 +711,7 @@ router.post(
             });
 
             res.status(200).json(successResponse(updatedAgent));
-        } else if (type === 'POOL_CREATION') {
+        } else if (normalizedType === 'POOL_CREATION') {
             throw ApiError.badRequest('Pool creation is not yet implemented.');
         } else {
             throw ApiError.badRequest('Invalid transaction type.');
