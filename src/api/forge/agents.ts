@@ -8,6 +8,7 @@ import { GymAgentModel, TrainingPoolModel } from '../../models/Models.ts';
 import { IGymAgent } from '../../models/GymAgent.ts';
 import { encrypt } from '../../services/security/crypto.ts';
 import { ValidationRules } from '../../middleware/validator.ts';
+import { validateHuggingFaceApiKey } from '../../services/huggingface/index.ts';
 
 const router: Router = express.Router();
 
@@ -51,6 +52,14 @@ router.post(
         // @ts-ignore - Get walletAddress from the request object
         const ownerAddress = req.walletAddress;
         const { pool_id, name, ticker, description, logoUrl, tokenomics, deployment } = req.body;
+
+        // 0. Validate Hugging Face API key if provided
+        if (deployment?.huggingFaceApiKey) {
+            const isApiKeyValid = await validateHuggingFaceApiKey(deployment.huggingFaceApiKey);
+            if (!isApiKeyValid) {
+                throw ApiError.badRequest('The provided Hugging Face API key is invalid.');
+            }
+        }
 
         // 1. Check if an agent already exists for this pool
         const existingAgent = await GymAgentModel.findOne({ pool_id });
@@ -138,6 +147,14 @@ router.put(
         const ownerAddress = req.walletAddress;
         const { id } = req.params;
         const updateData = req.body;
+
+        // 0. Validate new Hugging Face API key if provided
+        if (updateData.deployment?.huggingFaceApiKey) {
+            const isApiKeyValid = await validateHuggingFaceApiKey(updateData.deployment.huggingFaceApiKey);
+            if (!isApiKeyValid) {
+                throw ApiError.badRequest('The provided Hugging Face API key is invalid.');
+            }
+        }
 
         // 1. Find agent and verify ownership
         const agent = await GymAgentModel.findById(id);
