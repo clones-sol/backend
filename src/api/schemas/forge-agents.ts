@@ -24,7 +24,7 @@ export const createAgentSchema: ValidationSchema = {
     },
     logoUrl: {
         required: false,
-        rules: [ValidationRules.isString(), ValidationRules.pattern(/^https?:\/\/.+\.(jpg|jpeg|png|gif|svg)$/i, 'must be a valid image URL.')]
+        rules: [ValidationRules.isImageUrl()]
     },
     tokenomics: {
         required: true,
@@ -67,7 +67,7 @@ export const updateAgentSchema: ValidationSchema = {
     },
     logoUrl: {
         required: false,
-        rules: [ValidationRules.isString(), ValidationRules.pattern(/^https?:\/\/.+\.(jpg|jpeg|png|gif|svg)$/i, 'must be a valid image URL.')]
+        rules: [ValidationRules.isImageUrl()]
     },
     tokenomics: {
         required: false,

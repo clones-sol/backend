@@ -3,6 +3,20 @@ import { ApiError } from './types/errors.ts';
 import { PublicKey } from '@solana/web3.js';
 
 /**
+ * Validates if a string is a valid URL.
+ * @param v The string to validate.
+ * @returns True if the string is a valid URL, false otherwise.
+ */
+export const isValidUrl = (v: string): boolean => {
+  try {
+    new URL(v);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Type for validation rules
  */
 export type ValidationRule = {
@@ -129,6 +143,14 @@ export const ValidationRules = {
     message: customMessage || 'Invalid format'
   }),
 
+  isImageUrl: (): ValidationRule => ({
+    validate: (value) => {
+      if (typeof value !== 'string' || !isValidUrl(value)) return false;
+      return /^https?:\/\/.+\.(jpg|jpeg|png|gif|svg)$/i.test(value);
+    },
+    message: 'Must be a valid image URL (jpg, jpeg, png, gif, svg).'
+  }),
+
   isIn: (values: any[], customMessage?: string): ValidationRule => ({
     validate: (value) => values.includes(value),
     message: customMessage || `Must be one of: ${values.join(', ')}`
@@ -186,10 +208,10 @@ export const ValidationRules = {
       min !== undefined && max !== undefined
         ? `Must be a number between ${min} and ${max}`
         : min !== undefined
-        ? `Must be a number greater than or equal to ${min}`
-        : max !== undefined
-        ? `Must be a number less than or equal to ${max}`
-        : 'Must be a valid number',
+          ? `Must be a number greater than or equal to ${min}`
+          : max !== undefined
+            ? `Must be a number less than or equal to ${max}`
+            : 'Must be a valid number',
     transform: (value) => {
       if (value === undefined) return value;
       return parseInt(value as string);
@@ -234,7 +256,7 @@ export async function validateObject(
           errors[field] = rule.message;
           break;
         }
-        
+
         // Apply transformation if provided
         if (rule.transform) {
           value = rule.transform(value);
