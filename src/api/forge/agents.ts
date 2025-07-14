@@ -689,7 +689,7 @@ router.post(
                     type: 'FAIL',
                     error: `Transaction confirmation failed: ${(error as Error).message}`,
                 });
-                throw ApiError.badRequest(`Transaction confirmation failed.`, failedAgent);
+                throw ApiError.badRequest('Transaction confirmation failed.', { details: failedAgent });
             }
 
             // Fetch transaction details
@@ -756,7 +756,7 @@ router.post(
                     type: 'FAIL',
                     error: `Pool creation transaction confirmation failed: ${(error as Error).message}`,
                 });
-                throw ApiError.badRequest(`Pool creation transaction confirmation failed.`, failedAgent);
+                throw ApiError.badRequest('Pool creation transaction confirmation failed.', { details: failedAgent });
             }
 
             // Fetch transaction details
