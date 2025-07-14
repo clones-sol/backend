@@ -17,11 +17,6 @@ import {
 import BN from 'bn.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
-// Use a constant dummy keypair for Raydium SDK initialization.
-// This is a placeholder to satisfy the SDK's requirement for a Signer,
-// as we are only creating an unsigned transaction for the client to sign.
-const DUMMY_OWNER = Keypair.generate();
-
 /**
  * Creates an unsigned transaction for setting up a new Raydium CPMM liquidity pool.
  *
@@ -43,6 +38,11 @@ export const createPoolCreationTransaction = async (
     quoteTokenAmount: number,
     cluster: Cluster = 'devnet'
 ): Promise<{ transaction: VersionedTransaction; poolKeys: CreateCpmmPoolAddress }> => {
+
+    // Use a constant dummy keypair for Raydium SDK initialization.
+    // This is a placeholder to satisfy the SDK's requirement for a Signer,
+    // as we are only creating an unsigned transaction for the client to sign.
+    const DUMMY_OWNER = Keypair.generate();
 
     const raydium = await Raydium.load({
         connection,

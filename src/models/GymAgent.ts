@@ -158,13 +158,10 @@ const GymAgentSchema = new Schema<IGymAgent>(
                 }, { _id: false })
             ],
             pendingTransaction: {
-                type: {
-                    idempotencyKey: { type: String, required: true },
-                    type: { type: String, enum: ['TOKEN_CREATION', 'POOL_CREATION'], required: true },
-                    txHash: { type: String },
-                    details: { type: Schema.Types.Mixed },
-                },
-                required: false,
+                idempotencyKey: { type: String },
+                type: { type: String, enum: ['TOKEN_CREATION', 'POOL_CREATION'] },
+                txHash: { type: String },
+                details: { type: Schema.Types.Mixed },
             }
         },
 

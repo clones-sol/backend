@@ -188,8 +188,8 @@ stateDiagram-v2
     PENDING_TOKEN_SIGNATURE --> FAILED: FAIL
     PENDING_TOKEN_SIGNATURE --> DRAFT: CANCEL
 
-    TOKEN_CREATED --> PENDING_POOL_SIGNATURE: INITIATE_POOL_CREATION
     TOKEN_CREATED --> FAILED: CANCEL
+    TOKEN_CREATED -.-> PENDING_POOL_SIGNATURE: Automatic
 
     PENDING_POOL_SIGNATURE --> DEPLOYED: POOL_CREATION_SUCCESS
     PENDING_POOL_SIGNATURE --> FAILED: FAIL / CANCEL
@@ -209,6 +209,7 @@ stateDiagram-v2
 
 -   **States**: Each `status` of an agent (`DRAFT`, `PENDING_TOKEN_SIGNATURE`, `DEPLOYED`, etc.) corresponds to a finite state in the machine. An agent can only be in one state at any given time.
 -   **Events**: Transitions are triggered by explicit events (e.g., `{ type: 'INITIATE_DEPLOYMENT' }`). An event can only cause a transition if it is valid from the current state. Any attempt to make an invalid transition is blocked.
+-   **Automatic Transitions**: Some transitions occur automatically upon entering a state. For example, upon successful token creation (entering `TOKEN_CREATED`), the machine immediately transitions to `PENDING_POOL_SIGNATURE` to continue the workflow seamlessly without requiring another client-side action.
 -   **Context**: The state machine maintains a `context` that holds the full `agent` document. `Actions` can modify this object in response to an event. For example, the `FAIL` event triggers an action that updates the `lastError` field in the context.
 -   **Guards**: Certain transitions are conditional. For instance, the `RETRY` event only leads to `PENDING_TOKEN_SIGNATURE` if the `hasNoToken` guard is met (i.e., if a token has not yet been created). This enables intelligent recovery logic.
 

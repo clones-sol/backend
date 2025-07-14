@@ -120,7 +120,7 @@ export const updateAgentStatusSchema: ValidationSchema = {
 export const submitTxSchema: ValidationSchema = {
     type: {
         required: true,
-        rules: [ValidationRules.isString(), ValidationRules.isIn(['TOKEN_CREATION', 'POOL_CREATION'])],
+        rules: [ValidationRules.isString(), ValidationRules.isIn(['token-creation', 'pool-creation'])],
     },
     signedTransaction: {
         required: true,
