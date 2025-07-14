@@ -32,8 +32,11 @@ export const agentLifecycleMachine = setup({
         assignError: assign({
             agent: ({ context, event }) => {
                 if (event.type === 'FAIL') {
-                    context.agent.deployment.lastError = event.error;
-                    context.agent.deployment.consecutiveFailures = (context.agent.deployment.consecutiveFailures || 0) + 1;
+                    // Return a new agent object to avoid direct mutation of the context.
+                    const agentObject = context.agent.toObject();
+                    agentObject.deployment.lastError = event.error;
+                    agentObject.deployment.consecutiveFailures = (agentObject.deployment.consecutiveFailures || 0) + 1;
+                    return agentObject;
                 }
                 return context.agent;
             },
@@ -41,8 +44,10 @@ export const agentLifecycleMachine = setup({
         // Action to assign a specific cancellation error when a deployment is cancelled post-token creation.
         assignCancellationError: assign({
             agent: ({ context }) => {
-                context.agent.deployment.lastError = 'Deployment cancelled by user after token creation.';
-                return context.agent;
+                // Return a new agent object to avoid direct mutation.
+                const agentObject = context.agent.toObject();
+                agentObject.deployment.lastError = 'Deployment cancelled by user after token creation.';
+                return agentObject;
             }
         })
     },
