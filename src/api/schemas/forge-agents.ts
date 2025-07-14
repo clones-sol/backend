@@ -42,6 +42,10 @@ export const createAgentSchema: ValidationSchema = {
         required: false,
         rules: [ValidationRules.isNumber(), ValidationRules.min(0), ValidationRules.max(50)]
     },
+    'tokenomics.decimals': {
+        required: false, // Default is set in the model
+        rules: [ValidationRules.isNumber(), ValidationRules.min(0), ValidationRules.max(12)]
+    },
     deployment: {
         required: false,
         rules: [ValidationRules.isObject()]
@@ -85,6 +89,10 @@ export const updateAgentSchema: ValidationSchema = {
         required: false,
         rules: [ValidationRules.isNumber(), ValidationRules.min(0), ValidationRules.max(50)]
     },
+    'tokenomics.decimals': {
+        required: false,
+        rules: [ValidationRules.isNumber(), ValidationRules.min(0), ValidationRules.max(12)]
+    },
     deployment: {
         required: false,
         rules: [ValidationRules.isObject()]
@@ -106,5 +114,72 @@ export const updateAgentStatusSchema: ValidationSchema = {
             ValidationRules.isString(),
             ValidationRules.isIn(['DEACTIVATED']),
         ]
+    }
+};
+
+export const submitTxSchema: ValidationSchema = {
+    type: {
+        required: true,
+        rules: [ValidationRules.isString(), ValidationRules.isIn(['TOKEN_CREATION', 'POOL_CREATION'])],
+    },
+    signedTransaction: {
+        required: true,
+        rules: [ValidationRules.isString()],
+    },
+    idempotencyKey: {
+        required: true,
+        rules: [ValidationRules.isString()],
+    },
+};
+
+export const agentVersionSchema: ValidationSchema = {
+    versionTag: {
+        required: true,
+        rules: [ValidationRules.isString(), ValidationRules.minLength(1), ValidationRules.maxLength(20)]
+    },
+    customUrl: {
+        required: false,
+        rules: [ValidationRules.isString(), ValidationRules.pattern(/^https?:\/\//i, 'must be a valid URL.')]
+    },
+    huggingFaceApiKey: {
+        required: false,
+        rules: [ValidationRules.isString()]
+    }
+};
+
+export const setActiveVersionSchema: ValidationSchema = {
+    versionTag: {
+        required: true,
+        rules: [ValidationRules.isString()]
+    }
+};
+
+export const metricsQuerySchema: ValidationSchema = {
+    timeframe: {
+        required: false,
+        rules: [ValidationRules.isString(), ValidationRules.isIn(['24h', '7d', '30d'])]
+    },
+    versionTag: {
+        required: false,
+        rules: [ValidationRules.isString()]
+    }
+};
+
+export const searchAgentsSchema: ValidationSchema = {
+    q: {
+        required: false,
+        rules: [ValidationRules.isString()]
+    },
+    sortBy: {
+        required: false,
+        rules: [ValidationRules.isString(), ValidationRules.isIn(['newest', 'name'])]
+    },
+    limit: {
+        required: false,
+        rules: [ValidationRules.isNumber(), ValidationRules.min(1), ValidationRules.max(100)]
+    },
+    offset: {
+        required: false,
+        rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
     }
 }; 
