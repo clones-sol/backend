@@ -34,6 +34,17 @@ services:
       - ./localstack:/var/lib/localstack
       - /var/run/docker.sock:/var/run/docker.sock
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    networks:
+      - node-network
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
   backend-dev:
     platform: linux/amd64
     build: 
@@ -71,9 +82,11 @@ services:
       - DEPOSIT_KEY_ENCRYPTION_SECRET=${DEPOSIT_KEY_ENCRYPTION_SECRET}
       - DEPOSIT_KEY_ENCRYPTION_SALT=${DEPOSIT_KEY_ENCRYPTION_SALT}
       - SOLANA_CLUSTER=${SOLANA_CLUSTER}
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - mongodb
       - localstack
+      - redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "deb.debian.org:host-gateway"
@@ -84,3 +97,4 @@ networks:
 
 volumes:
   mongodb_data:
+  redis_data:
