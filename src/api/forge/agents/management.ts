@@ -13,9 +13,160 @@ import { encrypt } from '../../../services/security/crypto.ts';
 import { requireAgentOwnership } from './middleware.ts';
 import { AuthenticatedRequest } from '../../../middleware/types/request.ts';
 
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     GymAgent:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *           description: The unique identifier for the agent.
+ *           example: "60d5f2f5c7b5f2a8a4f5b6c7"
+ *         pool_id:
+ *           type: string
+ *           description: The ID of the TrainingPool this agent is derived from.
+ *         name:
+ *           type: string
+ *           description: The public display name of the agent.
+ *         ticker:
+ *           type: string
+ *           description: The token ticker for the agent's SPL token.
+ *         description:
+ *           type: string
+ *           description: A detailed description of the agent's purpose and capabilities.
+ *         tokenomics:
+ *           type: object
+ *           properties:
+ *             supply:
+ *               type: number
+ *             minLiquiditySol:
+ *               type: number
+ *             gatedPercentage:
+ *               type: number
+ *             decimals:
+ *               type: number
+ *         deployment:
+ *           type: object
+ *           properties:
+ *             status:
+ *               type: string
+ *               enum: [DRAFT, PENDING_TOKEN_SIGNATURE, TOKEN_CREATED, PENDING_POOL_SIGNATURE, DEPLOYED, DEACTIVATED, FAILED, ARCHIVED]
+ *             lastError:
+ *               type: string
+ *             activeVersionTag:
+ *               type: string
+ *             versions:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   versionTag:
+ *                     type: string
+ *                   customUrl:
+ *                     type: string
+ *                   status:
+ *                     type: string
+ *                     enum: [active, deprecated]
+ *         blockchain:
+ *           type: object
+ *           properties:
+ *             tokenAddress:
+ *               type: string
+ *             poolAddress:
+ *               type: string
+ *     ApiError:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: false
+ *         error:
+ *           type: object
+ *           properties:
+ *             code:
+ *               type: string
+ *               description: A machine-readable error code.
+ *             message:
+ *               type: string
+ *               description: A human-readable error message.
+ *   responses:
+ *     Unauthorized:
+ *       description: Unauthorized. The request lacks valid authentication credentials.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ApiError'
+ *     Forbidden:
+ *       description: Forbidden. The user is not authorized to perform this action.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ApiError'
+ *     BadRequest:
+ *       description: Bad Request. The request was malformed or invalid.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ApiError'
+ *     NotFound:
+ *       description: Not Found. The requested resource could not be found.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ApiError'
+ *     Conflict:
+ *       description: Conflict. The request could not be completed due to a conflict with the current state of the resource.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ApiError'
+ *     InternalError:
+ *       description: Internal Server Error. An unexpected error occurred on the server.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ApiError'
+ */
 const router: Router = express.Router();
 
-// POST / - Create Agent
+/**
+ * @openapi
+ * /forge/agents:
+ *   post:
+ *     tags:
+ *       - Agents Management
+ *     summary: Create a new AI Agent
+ *     description: Creates a new AI Agent record in `DRAFT` status. The authenticated user must be the owner of the `pool_id` provided.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateAgentRequest'
+ *     responses:
+ *       '201':
+ *         description: Agent created successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/GymAgent'
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '409':
+ *         $ref: '#/components/responses/Conflict'
+ */
 router.post(
     '/',
     requireWalletAddress,
@@ -78,7 +229,32 @@ router.post(
     })
 );
 
-// GET / - List Own Agents
+/**
+ * @openapi
+ * /forge/agents:
+ *   get:
+ *     tags:
+ *       - Agents Management
+ *     summary: List all agents owned by the user
+ *     description: Retrieves a list of all AI Agents owned by the authenticated user, regardless of their status. This is for the owner's private management view.
+ *     responses:
+ *       '200':
+ *         description: A list of agents owned by the user.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/GymAgent'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ */
 router.get(
     '/',
     requireWalletAddress,
@@ -97,7 +273,52 @@ router.get(
     })
 );
 
-// PUT /:id - Update Agent
+/**
+ * @openapi
+ * /forge/agents/{id}:
+ *   put:
+ *     tags:
+ *       - Agents Management
+ *     summary: Update an agent's details
+ *     description: |-
+ *       Updates the details of an agent. The updatable fields depend on the agent's current status.
+ *       - In `DRAFT`, most configuration fields can be updated.
+ *       - In `DEPLOYED` or `DEACTIVATED`, only non-critical metadata such as `description`, `logoUrl`, and deployment credentials can be modified.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the agent to update.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateAgentRequest'
+ *     responses:
+ *       '200':
+ *         description: Agent updated successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/GymAgent'
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.put(
     '/:id',
     requireWalletAddress,
@@ -196,7 +417,41 @@ router.put(
     })
 );
 
-// GET /pool/:pool_id - Get Agent by Pool ID
+/**
+ * @openapi
+ * /forge/agents/pool/{pool_id}:
+ *   get:
+ *     tags:
+ *       - Agents Management
+ *     summary: Get an agent by its associated Pool ID
+ *     description: Retrieves the agent document linked to a specific `TrainingPool`. The authenticated user must be the owner of the pool.
+ *     parameters:
+ *       - in: path
+ *         name: pool_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the `TrainingPool`.
+ *     responses:
+ *       '200':
+ *         description: The agent associated with the pool.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/GymAgent'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.get(
     '/pool/:pool_id',
     requireWalletAddress,

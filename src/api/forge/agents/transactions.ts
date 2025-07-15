@@ -19,11 +19,95 @@ import { GymAgentModel } from '../../../models/Models.ts';
 import { AuthenticatedRequest } from '../../../middleware/types/request.ts';
 import { broadcastTxSubmitted } from '../../../services/websockets/agentBroadcaster.ts';
 
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     SubmitTxRequest:
+ *       type: object
+ *       required:
+ *         - type
+ *         - signedTransaction
+ *         - idempotencyKey
+ *       properties:
+ *         type:
+ *           type: string
+ *           enum: [token-creation, pool-creation]
+ *           description: The type of the transaction being submitted.
+ *         signedTransaction:
+ *           type: string
+ *           format: base64
+ *           description: The base64-encoded, client-signed transaction.
+ *         idempotencyKey:
+ *           type: string
+ *           format: uuid
+ *           description: The idempotency key received from the transaction generation endpoint.
+ */
 const router: Router = express.Router();
 const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
 const SOLANA_CLUSTER = (process.env.SOLANA_CLUSTER || 'devnet') as Cluster;
 
-// GET /:id/transactions/:type
+/**
+ * @openapi
+ * /forge/agents/{id}/transactions/{type}:
+ *   get:
+ *     tags:
+ *       - Agents On-Chain
+ *     summary: Get an unsigned transaction for on-chain actions
+ *     description: |-
+ *       Constructs and returns a base64-encoded, unsigned transaction for the client to sign.
+ *       The `type` parameter determines which transaction to generate.
+ *       - `token-creation`: Generates the transaction to create a new SPL token for the agent.
+ *       - `pool-creation`: Generates the transaction to create a Raydium liquidity pool for the agent's token.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the agent.
+ *       - in: path
+ *         name: type
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [token-creation, pool-creation]
+ *         description: The type of transaction to generate.
+ *     responses:
+ *       '200':
+ *         description: The unsigned transaction and related data.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     transaction:
+ *                       type: string
+ *                       format: base64
+ *                     idempotencyKey:
+ *                       type: string
+ *                       format: uuid
+ *                     estimatedFeeSol:
+ *                       type: number
+ *                     mintAddress:
+ *                       type: string
+ *                       description: (Only for token-creation) The address of the new token mint.
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '409':
+ *         $ref: '#/components/responses/Conflict'
+ */
 router.get(
     '/:id/transactions/:type',
     requireWalletAddress,
@@ -209,7 +293,62 @@ router.get(
     })
 );
 
-// POST /:id/submit-tx
+/**
+ * @openapi
+ * /forge/agents/{id}/submit-tx:
+ *   post:
+ *     tags:
+ *       - Agents On-Chain
+ *     summary: Submit a signed transaction for broadcasting
+ *     description: |-
+ *       Submits a client-signed transaction to the backend. The backend broadcasts it to the Solana network and processes the result asynchronously.
+ *       This endpoint is idempotent and uses the `idempotencyKey` to prevent duplicate submissions.
+ *       The client should listen on the WebSocket connection for real-time updates on the transaction's progress.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the agent.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SubmitTxRequest'
+ *     responses:
+ *       '202':
+ *         description: Transaction accepted for processing. The client should wait for WebSocket messages for final status.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                     agentId:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                     idempotencyKey:
+ *                       type: string
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '409':
+ *         $ref: '#/components/responses/Conflict'
+ */
 router.post(
     '/:id/submit-tx',
     requireWalletAddress,

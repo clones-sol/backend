@@ -13,7 +13,68 @@ import { AuthenticatedRequest } from '../../../middleware/types/request.ts';
 
 const router: Router = express.Router();
 
-// GET /search
+/**
+ * @openapi
+ * /forge/agents/search:
+ *   get:
+ *     tags:
+ *       - Agents Monitoring & Public
+ *     summary: Search and filter public agents
+ *     description: A public endpoint to find and filter `DEPLOYED` agents for a marketplace view. This endpoint is rate-limited.
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         schema:
+ *           type: string
+ *         description: A search term to match against agent name and description.
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [newest, name]
+ *           default: newest
+ *         description: The sorting criteria.
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: The number of results to return per page.
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: The number of results to skip for pagination.
+ *     responses:
+ *       '200':
+ *         description: A paginated list of public agents.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/GymAgent'
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         offset:
+ *                           type: integer
+ *       '429':
+ *         description: Too many requests. Rate limit exceeded.
+ */
 router.get(
     '/search',
     rateLimit({
@@ -72,7 +133,47 @@ router.get(
     })
 );
 
-// GET /:id/health
+/**
+ * @openapi
+ * /forge/agents/{id}/health:
+ *   get:
+ *     tags:
+ *       - Agents Monitoring & Public
+ *     summary: Get agent health status
+ *     description: Provides a simple, real-time health status of a deployed agent, including its current deployment status and last known error.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the agent.
+ *     responses:
+ *       '200':
+ *         description: The health status of the agent.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     status:
+ *                       type: string
+ *                     isOperational:
+ *                       type: boolean
+ *                     lastError:
+ *                       type: string
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.get(
     '/:id/health',
     requireWalletAddress,
@@ -91,7 +192,63 @@ router.get(
     })
 );
 
-// GET /:id/metrics
+/**
+ * @openapi
+ * /forge/agents/{id}/metrics:
+ *   get:
+ *     tags:
+ *       - Agents Monitoring & Public
+ *     summary: Get agent performance metrics
+ *     description: Retrieves aggregated performance metrics for an agent over a specified timeframe, such as total requests, error rate, and average response time.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the agent.
+ *       - in: query
+ *         name: timeframe
+ *         schema:
+ *           type: string
+ *           enum: [24h, 7d, 30d]
+ *           default: 24h
+ *         description: The time window for the metrics.
+ *       - in: query
+ *         name: versionTag
+ *         schema:
+ *           type: string
+ *         description: An optional version tag to filter metrics for a specific version.
+ *     responses:
+ *       '200':
+ *         description: Aggregated performance metrics for the agent.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     timeframe:
+ *                       type: string
+ *                     totalRequests:
+ *                       type: integer
+ *                     errorRate:
+ *                       type: number
+ *                     averageResponseTimeMs:
+ *                       type: integer
+ *                     versionTag:
+ *                       type: string
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.get(
     '/:id/metrics',
     requireWalletAddress,

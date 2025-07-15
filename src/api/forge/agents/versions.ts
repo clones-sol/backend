@@ -13,10 +13,81 @@ import { DeploymentVersion } from '../../../models/GymAgent.ts';
 import { AuthenticatedRequest } from '../../../middleware/types/request.ts';
 import { GymAgentModel } from '../../../models/GymAgent.ts';
 
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     AddVersionRequest:
+ *       type: object
+ *       required:
+ *         - versionTag
+ *       properties:
+ *         versionTag:
+ *           type: string
+ *           description: A unique tag for the new version (e.g., "v1.1-beta").
+ *         customUrl:
+ *           type: string
+ *           format: url
+ *           description: The new inference endpoint URL for this version.
+ *         huggingFaceApiKey:
+ *           type: string
+ *           description: The new Hugging Face API key for this version.
+ *     SetActiveVersionRequest:
+ *       type: object
+ *       required:
+ *         - versionTag
+ *       properties:
+ *         versionTag:
+ *           type: string
+ *           description: The tag of the version to set as active.
+ */
 const router: Router = express.Router();
 const MAX_VERSIONS_PER_AGENT = 10;
 
-// POST /:id/versions
+/**
+ * @openapi
+ * /forge/agents/{id}/versions:
+ *   post:
+ *     tags:
+ *       - Agents Versioning
+ *     summary: Add a new deployment version to an agent
+ *     description: Adds a new deployment configuration (URL, API key) to an agent. The new version is created with a `deprecated` status and must be activated separately.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the agent.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AddVersionRequest'
+ *     responses:
+ *       '201':
+ *         description: New version added successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/GymAgent'
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '409':
+ *         $ref: '#/components/responses/Conflict'
+ */
 router.post(
     '/:id/versions',
     requireWalletAddress,
@@ -88,7 +159,48 @@ router.post(
     })
 );
 
-// PUT /:id/versions/active
+/**
+ * @openapi
+ * /forge/agents/{id}/versions/active:
+ *   put:
+ *     tags:
+ *       - Agents Versioning
+ *     summary: Set an agent's active version
+ *     description: Promotes a specific version to be the `active` one for an agent. The previously active version will automatically be set to `deprecated`.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the agent.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SetActiveVersionRequest'
+ *     responses:
+ *       '200':
+ *         description: Active version set successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/GymAgent'
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.put(
     '/:id/versions/active',
     requireWalletAddress,
