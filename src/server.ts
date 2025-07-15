@@ -16,6 +16,8 @@ import { initializeWebSocketServer } from './services/websockets/socketManager.t
 import { catchErrors } from './hooks/errors.ts';
 import { redisPublisher, redisSubscriber } from './services/redis.ts';
 import mongoose from 'mongoose';
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpec from '../swagger.ts';
 
 const app = express();
 const port = parseInt(process.env.PORT || '8001', 10);
@@ -70,6 +72,14 @@ app.use('/api/recordings', express.static(path.join(__dirname, 'public', 'record
 app.use('/api/v1/gym', gymApi);
 app.use('/api/v1/forge', forgeApi);
 app.use('/api/v1/wallet', walletApi);
+
+// Swagger API documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Not found handler
+app.all('*', (req, res, next) => {
+  res.status(404).json({ message: 'Endpoint not found' });
+});
 
 // Error handling
 app.use(errorHandler);
