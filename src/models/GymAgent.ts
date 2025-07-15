@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 import { isValidUrl } from '../middleware/validator.ts';
 
 // Define an interface for the document
-interface DeploymentVersion {
+export interface DeploymentVersion {
     versionTag: string;
     customUrl?: string;
     encryptedApiKey?: string;
@@ -35,9 +35,13 @@ export interface IGymAgent extends Document {
         pendingTransaction?: {
             idempotencyKey: string;
             type: 'TOKEN_CREATION' | 'POOL_CREATION';
+            status: 'PENDING' | 'PROCESSING' | 'SUBMITTED';
             txHash?: string;
             details: any;
         };
+        lastAttemptedAt?: Date; // For atomic locking during tx submission
+        transitionLock?: Date; // Distributed lock for state transitions
+        transitionLockBy?: string; // Process ID that holds the lock
     };
     blockchain: {
         tokenAddress?: string;
@@ -160,9 +164,13 @@ const GymAgentSchema = new Schema<IGymAgent>(
             pendingTransaction: {
                 idempotencyKey: { type: String },
                 type: { type: String, enum: ['TOKEN_CREATION', 'POOL_CREATION'] },
+                status: { type: String, enum: ['PENDING', 'PROCESSING', 'SUBMITTED'] },
                 txHash: { type: String },
                 details: { type: Schema.Types.Mixed },
-            }
+            },
+            lastAttemptedAt: { type: Date },
+            transitionLock: { type: Date }, // Distributed lock for state transitions
+            transitionLockBy: { type: String } // Process ID that holds the lock
         },
 
         /**
@@ -211,5 +219,16 @@ GymAgentSchema.index({ pool_id: 1 }, { unique: true });
 GymAgentSchema.index({ 'deployment.status': 1 });
 GymAgentSchema.index({ name: 'text', description: 'text' });
 GymAgentSchema.index({ "auditLog.timestamp": -1 });
+
+// Additional indexes for performance optimization
+GymAgentSchema.index({ 'blockchain.tokenAddress': 1 }); // For token lookups
+GymAgentSchema.index({ 'blockchain.poolAddress': 1 }); // For pool lookups
+GymAgentSchema.index({ 'deployment.pendingTransaction.idempotencyKey': 1 }); // For transaction idempotency
+GymAgentSchema.index({ 'deployment.pendingTransaction.status': 1 }); // For pending transaction queries
+GymAgentSchema.index({ 'deployment.activeVersionTag': 1 }); // For active version lookups
+GymAgentSchema.index({ 'deployment.consecutiveFailures': 1 }); // For failure monitoring
+GymAgentSchema.index({ 'deployment.transitionLock': 1 }); // For distributed locking
+GymAgentSchema.index({ createdAt: -1 }); // For sorting by creation date
+GymAgentSchema.index({ 'deployment.status': 1, createdAt: -1 }); // Compound index for status + date queries
 
 export const GymAgentModel = mongoose.model<IGymAgent>('GymAgent', GymAgentSchema); 

@@ -7,6 +7,7 @@ import { transitionAgentStatus } from '../../../services/agents/index.ts';
 import { ValidationRules } from '../../../middleware/validator.ts';
 import { updateAgentStatusSchema } from '../../schemas/forge-agents.ts';
 import { requireAgentOwnership } from './middleware.ts';
+import { AuthenticatedRequest } from '../../../middleware/types/request.ts';
 
 const router: Router = express.Router();
 
@@ -16,10 +17,9 @@ router.post(
     requireWalletAddress,
     validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - agent is attached by requireAgentOwnership middleware
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;
-        const updatedAgent = await transitionAgentStatus(agent, { type: 'INITIATE_DEPLOYMENT' });
+        const updatedAgent = await transitionAgentStatus(agent!, { type: 'INITIATE_DEPLOYMENT' });
         res.status(200).json(successResponse(updatedAgent));
     })
 );
@@ -31,14 +31,13 @@ router.patch(
     validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     validateBody(updateAgentStatusSchema),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - agent is attached by requireAgentOwnership middleware
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;
         const { status } = req.body;
 
         let updatedAgent;
         if (status === 'DEACTIVATED') {
-            updatedAgent = await transitionAgentStatus(agent, { type: 'DEACTIVATE' });
+            updatedAgent = await transitionAgentStatus(agent!, { type: 'DEACTIVATE' });
         } else {
             throw ApiError.badRequest(`Unsupported status transition to '${status}'.`);
         }
@@ -53,10 +52,9 @@ router.delete(
     requireWalletAddress,
     validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - agent is attached by requireAgentOwnership middleware
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;
-        const updatedAgent = await transitionAgentStatus(agent, { type: 'ARCHIVE' });
+        const updatedAgent = await transitionAgentStatus(agent!, { type: 'ARCHIVE' });
         res.status(200).json(successResponse(updatedAgent));
     })
 );
@@ -67,10 +65,9 @@ router.post(
     requireWalletAddress,
     validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - agent is attached by requireAgentOwnership middleware
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;
-        const updatedAgent = await transitionAgentStatus(agent, { type: 'RETRY' });
+        const updatedAgent = await transitionAgentStatus(agent!, { type: 'RETRY' });
         res.status(200).json(successResponse(updatedAgent));
     })
 );
@@ -81,10 +78,9 @@ router.post(
     requireWalletAddress,
     validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - agent is attached by requireAgentOwnership middleware
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;
-        const updatedAgent = await transitionAgentStatus(agent, { type: 'CANCEL' });
+        const updatedAgent = await transitionAgentStatus(agent!, { type: 'CANCEL' });
         res.status(200).json(successResponse(updatedAgent));
     })
 );

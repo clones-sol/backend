@@ -5,12 +5,13 @@ import { validateBody, validateParams } from '../../../middleware/validator.ts';
 import { createAgentSchema, updateAgentSchema } from '../../schemas/forge-agents.ts';
 import { ApiError, successResponse } from '../../../middleware/types/errors.ts';
 import { GymAgentModel, TrainingPoolModel } from '../../../models/Models.ts';
-import { IGymAgent } from '../../../models/GymAgent.ts';
+import { IGymAgent, DeploymentVersion } from '../../../models/GymAgent.ts';
 import { validateHuggingFaceApiKey } from '../../../services/huggingface/index.ts';
 import { ValidationRules } from '../../../middleware/validator.ts';
 import { createFirstDeploymentVersion, sanitizeAgentDataForLogging } from './helpers.ts';
 import { encrypt } from '../../../services/security/crypto.ts';
 import { requireAgentOwnership } from './middleware.ts';
+import { AuthenticatedRequest } from '../../../middleware/types/request.ts';
 
 const router: Router = express.Router();
 
@@ -19,9 +20,8 @@ router.post(
     '/',
     requireWalletAddress,
     validateBody(createAgentSchema),
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - Get walletAddress from the request object
-        const ownerAddress = req.walletAddress;
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+        const ownerAddress = req.walletAddress!;
         const { pool_id, name, ticker, description, logoUrl, tokenomics, deployment } = req.body;
 
         if (deployment?.huggingFaceApiKey) {
@@ -82,9 +82,8 @@ router.post(
 router.get(
     '/',
     requireWalletAddress,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - Get walletAddress from the request object
-        const ownerAddress = req.walletAddress;
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+        const ownerAddress = req.walletAddress!;
 
         const userPools = await TrainingPoolModel.find({ ownerAddress }).select('_id');
         const poolIds = userPools.map(pool => pool._id);
@@ -105,12 +104,15 @@ router.put(
     validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     validateBody(updateAgentSchema),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - Get walletAddress from the request object
-        const ownerAddress = req.walletAddress;
-        // @ts-ignore
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+        const ownerAddress = req.walletAddress!;
         const { agent } = req;
         const updateData = req.body;
+
+        if (!agent) {
+            // Should not happen due to requireAgentOwnership, but for type safety
+            throw ApiError.internalError('Agent not found in request.');
+        }
 
         if (updateData.deployment?.huggingFaceApiKey) {
             const isApiKeyValid = await validateHuggingFaceApiKey(updateData.deployment.huggingFaceApiKey);
@@ -119,48 +121,53 @@ router.put(
             }
         }
 
+        const updatePayload: { $set: any, $push?: any } = { $set: {} };
         const changedFields: string[] = [];
 
         if (agent.deployment.status === 'DRAFT') {
             if (updateData.name && agent.name !== updateData.name) {
-                agent.name = updateData.name;
+                updatePayload.$set.name = updateData.name;
                 changedFields.push('name');
             }
             if (updateData.tokenomics) {
-                agent.tokenomics = { ...agent.tokenomics, ...updateData.tokenomics };
+                // Use dot notation for updating nested fields
+                for (const [key, value] of Object.entries(updateData.tokenomics)) {
+                    updatePayload.$set[`tokenomics.${key}`] = value;
+                }
                 changedFields.push('tokenomics');
             }
         }
 
         if (['DRAFT', 'DEPLOYED', 'DEACTIVATED'].includes(agent.deployment.status)) {
             if (updateData.description && agent.description !== updateData.description) {
-                agent.description = updateData.description;
+                updatePayload.$set.description = updateData.description;
                 changedFields.push('description');
             }
             if (updateData.logoUrl && agent.logoUrl !== updateData.logoUrl) {
-                agent.logoUrl = updateData.logoUrl;
+                updatePayload.$set.logoUrl = updateData.logoUrl;
                 changedFields.push('logoUrl');
             }
 
             if (updateData.deployment) {
-                const activeVersion = agent.deployment.versions.find((v: any) => v.versionTag === agent.deployment.activeVersionTag);
+                const activeVersionIndex = agent.deployment.versions.findIndex((v: DeploymentVersion) => v.versionTag === agent.deployment.activeVersionTag);
 
-                if (!activeVersion && agent.deployment.status === 'DRAFT') {
+                if (activeVersionIndex === -1 && agent.deployment.status === 'DRAFT') {
                     const firstVersion = createFirstDeploymentVersion(updateData.deployment);
                     if (firstVersion) {
-                        agent.deployment.versions.push(firstVersion);
-                        agent.deployment.activeVersionTag = firstVersion.versionTag;
+                        updatePayload.$set['deployment.versions'] = [firstVersion];
+                        updatePayload.$set['deployment.activeVersionTag'] = firstVersion.versionTag;
                         changedFields.push('deployment.versions');
                     }
-                } else if (activeVersion) {
+                } else if (activeVersionIndex !== -1) {
+                    const activeVersion = agent.deployment.versions[activeVersionIndex];
                     if (updateData.deployment.customUrl && activeVersion.customUrl !== updateData.deployment.customUrl) {
-                        activeVersion.customUrl = updateData.deployment.customUrl;
+                        updatePayload.$set[`deployment.versions.${activeVersionIndex}.customUrl`] = updateData.deployment.customUrl;
                         changedFields.push('deployment.customUrl');
                     }
                     if (updateData.deployment.huggingFaceApiKey) {
                         const newEncryptedKey = encrypt(updateData.deployment.huggingFaceApiKey);
                         if (activeVersion.encryptedApiKey !== newEncryptedKey) {
-                            activeVersion.encryptedApiKey = newEncryptedKey;
+                            updatePayload.$set[`deployment.versions.${activeVersionIndex}.encryptedApiKey`] = newEncryptedKey;
                             changedFields.push('deployment.huggingFaceApiKey');
                         }
                     }
@@ -170,18 +177,22 @@ router.put(
 
         if (changedFields.length > 0) {
             const sanitizedDetails = sanitizeAgentDataForLogging(updateData);
-            agent.auditLog.push({
-                timestamp: new Date(),
-                user: ownerAddress,
-                action: 'UPDATE',
-                details: sanitizedDetails
-            });
-            await agent.save();
+            updatePayload.$push = {
+                auditLog: {
+                    timestamp: new Date(),
+                    user: ownerAddress,
+                    action: 'UPDATE',
+                    details: sanitizedDetails
+                }
+            };
+            const updatedAgent = await GymAgentModel.findByIdAndUpdate(agent._id, updatePayload, { new: true });
+            res.status(200).json(successResponse(updatedAgent));
         } else if (Object.keys(updateData).length > 0) {
             throw ApiError.badRequest(`Agent cannot be updated in its current status: ${agent.deployment.status}, or no valid fields were provided.`);
+        } else {
+            // No changes, just return the agent
+            res.status(200).json(successResponse(agent));
         }
-
-        res.status(200).json(successResponse(agent));
     })
 );
 
@@ -190,9 +201,8 @@ router.get(
     '/pool/:pool_id',
     requireWalletAddress,
     validateParams({ pool_id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - Get walletAddress from the request object
-        const ownerAddress = req.walletAddress;
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+        const ownerAddress = req.walletAddress!;
         const { pool_id } = req.params;
 
         const agent = await GymAgentModel.findOne({ pool_id });

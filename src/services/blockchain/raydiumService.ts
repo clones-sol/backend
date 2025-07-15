@@ -12,6 +12,7 @@ import {
     TxVersion,
     UI_DEVNET_PROGRAM_ID,
     getCpmmPdaAmmConfigId,
+    type ApiCpmmConfigInfo,
     type Cluster,
 } from '@raydium-io/raydium-sdk-v2';
 import BN from 'bn.js';
@@ -51,9 +52,9 @@ export const createPoolCreationTransaction = async (
     });
 
     const apiFeeConfigs = await raydium.api.getCpmmConfigs();
-    const feeConfigs = apiFeeConfigs.map((config: any) => ({ // Using any to bypass ApiCpmmConfig issue
+    const feeConfigs = apiFeeConfigs.map((config: ApiCpmmConfigInfo) => ({
         ...config,
-        id: getCpmmPdaAmmConfigId(UI_DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM, config.index).publicKey,
+        id: getCpmmPdaAmmConfigId(UI_DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM, config.index).publicKey.toBase58(),
     }));
 
     if (feeConfigs.length === 0) {
