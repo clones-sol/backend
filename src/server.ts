@@ -14,7 +14,7 @@ import { walletApi } from './api/wallet.ts';
 import { errorHandler } from './middleware/errorHandler.ts';
 import { initializeWebSocketServer } from './services/websockets/socketManager.ts';
 import { catchErrors } from './hooks/errors.ts';
-import { redisPublisher, redisSubscriber } from './services/redis.ts';
+import { connectToRedis, disconnectFromRedis } from './services/redis.ts';
 import mongoose from 'mongoose';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from '../swagger.ts';
@@ -94,6 +94,7 @@ if (process.env.NODE_ENV !== 'test') {
   httpServer.listen(port, host, async () => {
     console.log(`Clones backend listening on port ${port}`);
     await connectToDatabase().catch(console.dir);
+    connectToRedis();
     // Refreshing pools data
     await startRefreshInterval();
   });
@@ -106,9 +107,10 @@ const handleShutdown = () => {
     console.log('HTTP server closed.');
     mongoose.disconnect().then(() => {
       console.log('MongoDB connection closed.');
-      redisPublisher.quit();
-      redisSubscriber.quit();
-      console.log('Redis connections closed.');
+      if (process.env.NODE_ENV !== 'test') {
+        disconnectFromRedis();
+        console.log('Redis connections closed.');
+      }
       process.exit(0);
     });
   });
