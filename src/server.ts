@@ -45,7 +45,7 @@ app.use(cors({
     'https://clones-website-test.fly.dev',
     'https://clones-backend-test.fly.dev'
   ],
-  methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
     'X-Requested-With',
     'content-type',
