@@ -133,6 +133,14 @@ For production environments, set both secrets using the Fly.io CLI:
 fly secrets set DEPOSIT_KEY_ENCRYPTION_SECRET="your-generated-key-here" DEPOSIT_KEY_ENCRYPTION_SALT="your-generated-salt-here" --app <your-app-name>
 ```
 
+### WebSocket and Redis Configuration
+
+For real-time updates in a multi-instance environment, the backend uses Redis. You need to provide the Redis connection URL via an environment variable.
+
+-   `REDIS_URL`: The full connection string for your Redis server.
+    -   **Local Development**: `REDIS_URL="redis://127.0.0.1:6379"`
+    -   **Production (Fly.io)**: Fly.io provides a `FLY_REDIS_CACHE_URL` that you can use. Set it with `fly secrets set REDIS_URL=$FLY_REDIS_CACHE_URL`.
+
 ### Automatic Key Migration (Lazy Migration)
 
 The system is designed to handle key rotations and legacy unencrypted keys with zero downtime through a process called **lazy migration**.
@@ -222,6 +230,72 @@ Interaction with the state machine is centralized in the `transitionAgentStatus`
 This approach ensures that the complex business logic of the lifecycle is decoupled from the API handlers, is testable in isolation, and is highly reliable.
 
 ---
+
+## Real-Time Updates with WebSockets
+
+To provide a responsive user experience during the asynchronous on-chain deployment process, the backend uses a WebSocket server to push real-time status updates to the client. This avoids the need for inefficient HTTP polling.
+
+### How It Works
+
+1.  **Connection**: The client establishes a WebSocket connection to the server.
+2.  **Subscription**: Once connected, the client subscribes to topics it's interested in. For agent updates, the topic is the agent's ID.
+3.  **Real-Time Push**: The backend broadcasts messages to all clients subscribed to a specific topic when a relevant event occurs:
+    *   `agentStatusUpdate`: Sent whenever an agent's status changes (e.g., from `PENDING_POOL_SIGNATURE` to `DEPLOYED`).
+    *   `txSubmitted`: Sent immediately after a transaction is accepted by the backend and broadcasted to the blockchain network, providing the user with an instant transaction hash.
+
+### Client-Side Usage Example
+
+Here is a basic example of how a JavaScript client would connect, subscribe to an agent's updates, and handle incoming messages.
+
+```javascript
+const agentId = 'your-agent-id-here'; // The ID of the agent to monitor
+const socket = new WebSocket('ws://localhost:3000'); // Use wss:// in production
+
+// 1. When the connection is open, subscribe to the agent's topic
+socket.onopen = () => {
+  console.log('WebSocket connection established.');
+  const subscriptionMessage = {
+    type: 'subscribe',
+    topic: agentId,
+  };
+  socket.send(JSON.stringify(subscriptionMessage));
+  console.log(`Subscribed to updates for agent: ${agentId}`);
+};
+
+// 2. Handle incoming messages from the server
+socket.onmessage = (event) => {
+  try {
+    const message = JSON.parse(event.data);
+    console.log('Received message:', message);
+
+    // Example: Update UI based on the event type
+    if (message.event === 'agentStatusUpdate') {
+      const { agentId, status, details } = message.data;
+      // Update your UI to show the new status, e.g., 'DEPLOYED'
+      // and display details like the token or pool address.
+      console.log(`Agent ${agentId} is now ${status}.`);
+
+    } else if (message.event === 'txSubmitted') {
+      const { agentId, status, txHash } = message.data;
+      // Display the transaction hash to the user immediately
+      console.log(`Transaction submitted for agent ${agentId} in status ${status}. Hash: ${txHash}`);
+    }
+
+  } catch (error) {
+    console.error('Error parsing WebSocket message:', error);
+  }
+};
+
+// 3. Handle connection closure and errors
+socket.onclose = () => {
+  console.log('WebSocket connection closed.');
+};
+
+socket.onerror = (error) => {
+  console.error('WebSocket error:', error);
+};
+
+```
 
 ## Database Index Validation
 

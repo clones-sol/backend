@@ -12,6 +12,8 @@ import { createPoolCreationTransaction } from '../../services/blockchain/raydium
 import { PublicKey } from '@solana/web3.js';
 import { broadcastAgentUpdate, broadcastTxSubmitted } from '../../services/websockets/agentBroadcaster.ts';
 import { connectToDatabase } from '../../services/database.ts';
+import { forgeAgentsApi } from './agents.ts';
+import { errorHandler } from '../../middleware/errorHandler.ts';
 
 // Mock Redis service
 vi.mock('../../services/redis.ts', () => {
@@ -38,19 +40,15 @@ vi.mock('../../middleware/auth.ts', () => ({
 }));
 
 // Define the mock connection object at the top level so it can be hoisted.
-const mockConnection = {
-    getLatestBlockhash: vi.fn(),
-    sendRawTransaction: vi.fn(),
-    confirmTransaction: vi.fn(),
-    getFeeForMessage: vi.fn(),
-    getTransaction: vi.fn(),
-};
+let mockConnection: any;
 
 // Mock blockchain transaction services
 vi.mock('../../services/blockchain/index.ts', () => {
     return {
         default: class MockBlockchainService {
-            connection = mockConnection;
+            get connection() {
+                return mockConnection;
+            }
         }
     };
 });
@@ -63,11 +61,11 @@ vi.mock('../../services/blockchain/raydiumService.ts', () => ({
     createPoolCreationTransaction: vi.fn(),
 }));
 
-// We no longer mock broadcastAgentUpdate directly, as we will test the Redis layer.
-// vi.mock('../../services/websockets/agentBroadcaster.ts', () => ({
-//     broadcastAgentUpdate: vi.fn(),
-//     broadcastTxSubmitted: vi.fn(),
-// }));
+vi.mock('../../services/websockets/agentBroadcaster.ts', () => ({
+    broadcastAgentUpdate: vi.fn(),
+    broadcastTxSubmitted: vi.fn(),
+}));
+
 
 let app: express.Express;
 
@@ -76,14 +74,8 @@ describe('Forge Agents API', () => {
     let trainingPool: Document & DBTrainingPool;
 
     beforeAll(async () => {
-        // Dynamically import app after all mocks are set up
-        const serverModule = await import('../../server.ts');
-        app = serverModule.app;
-
-        // Setup middleware and routes after app is initialized
+        app = express();
         app.use(express.json());
-        const { forgeAgentsApi } = await import('./agents.ts');
-        const { errorHandler } = await import('../../middleware/errorHandler.ts');
         app.use('/api/v1/forge/agents', forgeAgentsApi);
         app.use(errorHandler);
 
@@ -109,8 +101,22 @@ describe('Forge Agents API', () => {
     });
 
     afterAll(async () => {
+        if (mongoServer) {
+            await mongoServer.stop();
+        }
         await mongoose.disconnect();
-        await mongoServer.stop();
+    });
+
+    beforeEach(() => {
+        // Reset mocks before each test
+        mockConnection = {
+            getLatestBlockhash: vi.fn(),
+            sendRawTransaction: vi.fn(),
+            confirmTransaction: vi.fn(),
+            getFeeForMessage: vi.fn(),
+            getTransaction: vi.fn(),
+        };
+        vi.clearAllMocks();
     });
 
     afterEach(async () => {
@@ -498,13 +504,13 @@ describe('Forge Agents API', () => {
             });
 
             // Setup default happy-path mocks for blockchain services
-            vi.mocked(mockConnection.getLatestBlockhash).mockResolvedValue({
+            mockConnection.getLatestBlockhash.mockResolvedValue({
                 blockhash: 'test-blockhash',
                 lastValidBlockHeight: 123
             });
-            vi.mocked(mockConnection.sendRawTransaction).mockResolvedValue('test-tx-signature');
-            vi.mocked(mockConnection.confirmTransaction).mockResolvedValue({ value: { err: null } });
-            vi.mocked(mockConnection.getTransaction).mockResolvedValue({
+            mockConnection.sendRawTransaction.mockResolvedValue('test-tx-signature');
+            mockConnection.confirmTransaction.mockResolvedValue({ value: { err: null } });
+            mockConnection.getTransaction.mockResolvedValue({
                 blockTime: Math.floor(Date.now() / 1000),
                 slot: 12345,
                 meta: { err: null },
@@ -609,7 +615,7 @@ describe('Forge Agents API', () => {
                 };
                 await agent.save();
 
-                vi.mocked(mockConnection.confirmTransaction).mockRejectedValue(new Error('Confirmation failed on-chain'));
+                mockConnection.confirmTransaction.mockRejectedValue(new Error('Confirmation failed on-chain'));
 
                 // Act
                 const response = await supertest(app)
@@ -705,14 +711,14 @@ describe('Forge Agents API', () => {
                 expect(response.body.success).toBe(true);
 
                 // Wait for background processing
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise(resolve => setTimeout(resolve, 200));
 
                 // Assert final state from DB
                 const dbAgent = await GymAgentModel.findById(agent._id);
                 expect(dbAgent?.deployment.status).toBe('DEPLOYED');
                 expect(dbAgent?.blockchain.poolAddress).toBe('mock-pool-address');
                 expect(dbAgent?.blockchain.poolCreationDetails?.txHash).toBe('test-tx-signature');
-                // expect(vi.mocked(broadcastAgentUpdate)).toHaveBeenCalled();
+                expect(vi.mocked(broadcastAgentUpdate)).toHaveBeenCalled();
             });
         });
     });

@@ -1,25 +1,48 @@
 import 'dotenv/config';
+import type { Redis as RedisClient } from 'ioredis';
 const Redis = require('ioredis');
+
+let redisPublisher: RedisClient;
+let redisSubscriber: RedisClient;
 
 const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 
-// It is recommended to use two separate connections for publishing and subscribing.
-// The subscriber connection can only perform subscription-related commands.
-export const redisPublisher = new Redis(redisUrl, { maxRetriesPerRequest: null });
-export const redisSubscriber = new Redis(redisUrl, { maxRetriesPerRequest: null });
+const connectToRedis = () => {
+    // It is recommended to use two separate connections for publishing and subscribing.
+    // The subscriber connection can only perform subscription-related commands.
+    if (!redisPublisher) {
+        redisPublisher = new Redis(redisUrl, { maxRetriesPerRequest: null });
+        redisPublisher.on('connect', () => {
+            console.log('[Redis] Publisher connected.');
+        });
+        redisPublisher.on('error', (err: Error) => {
+            console.error('[Redis] Publisher connection error:', err);
+        });
+    }
 
-redisPublisher.on('connect', () => {
-    console.log('[Redis] Publisher connected.');
-});
+    if (!redisSubscriber) {
+        redisSubscriber = new Redis(redisUrl, { maxRetriesPerRequest: null });
+        redisSubscriber.on('connect', () => {
+            console.log('[Redis] Subscriber connected.');
+        });
+        redisSubscriber.on('error', (err: Error) => {
+            console.error('[Redis] Subscriber connection error:', err);
+        });
+    }
+};
 
-redisSubscriber.on('connect', () => {
-    console.log('[Redis] Subscriber connected.');
-});
+const disconnectFromRedis = () => {
+    if (redisPublisher) {
+        redisPublisher.quit();
+    }
+    if (redisSubscriber) {
+        redisSubscriber.quit();
+    }
+};
 
-redisPublisher.on('error', (err: Error) => {
-    console.error('[Redis] Publisher connection error:', err);
-});
-
-redisSubscriber.on('error', (err: Error) => {
-    console.error('[Redis] Subscriber connection error:', err);
-}); 
+export {
+    connectToRedis,
+    disconnectFromRedis,
+    redisPublisher,
+    redisSubscriber
+}; 
