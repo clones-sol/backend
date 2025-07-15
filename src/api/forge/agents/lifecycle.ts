@@ -1,4 +1,4 @@
-import express, { Request, Response, Router } from 'express';
+import express, { Response, Router } from 'express';
 import { requireWalletAddress } from '../../../middleware/auth.ts';
 import { errorHandlerAsync } from '../../../middleware/errorHandler.ts';
 import { validateBody, validateParams } from '../../../middleware/validator.ts';

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createActor } from 'xstate';
-import { agentLifecycleMachine, AgentLifecycleContext } from './agent-machine.ts';
+import { agentLifecycleMachine } from './agent-machine.ts';
 import { IGymAgent } from '../../models/GymAgent.ts';
 
 // Mock Mongoose document methods like .toObject()
