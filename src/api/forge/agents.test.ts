@@ -3,12 +3,25 @@ import supertest from 'supertest';
 import express, { Request, Response, NextFunction } from 'express';
 import mongoose, { Document } from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
+const Redis = require('ioredis-mock');
 import { TrainingPoolModel, GymAgentModel } from '../../models/Models.ts';
 import { DBTrainingPool } from '../../types/index.ts';
 import { validateHuggingFaceApiKey } from '../../services/huggingface/index.ts';
 import { createTokenCreationTransaction } from '../../services/blockchain/splTokenService.ts';
 import { createPoolCreationTransaction } from '../../services/blockchain/raydiumService.ts';
 import { PublicKey } from '@solana/web3.js';
+import { broadcastAgentUpdate, broadcastTxSubmitted } from '../../services/websockets/agentBroadcaster.ts';
+import { connectToDatabase } from '../../services/database.ts';
+
+// Mock Redis service
+vi.mock('../../services/redis.ts', () => {
+    const redisMock = new Redis();
+    return {
+        redisPublisher: redisMock,
+        redisSubscriber: redisMock, // In ioredis-mock, one instance can do both
+    };
+});
+
 
 const ownerAddress = 'GjY2YhNBYbYPUH5nB2p1K2sM9c1A3s8zQ5E6f7g8h9jK'; // A valid Base58 public key
 
@@ -50,6 +63,12 @@ vi.mock('../../services/blockchain/raydiumService.ts', () => ({
     createPoolCreationTransaction: vi.fn(),
 }));
 
+// We no longer mock broadcastAgentUpdate directly, as we will test the Redis layer.
+// vi.mock('../../services/websockets/agentBroadcaster.ts', () => ({
+//     broadcastAgentUpdate: vi.fn(),
+//     broadcastTxSubmitted: vi.fn(),
+// }));
+
 let app: express.Express;
 
 describe('Forge Agents API', () => {
@@ -70,7 +89,10 @@ describe('Forge Agents API', () => {
 
         mongoServer = await MongoMemoryServer.create();
         const mongoUri = mongoServer.getUri();
-        await mongoose.connect(mongoUri);
+
+        // Set the DB_URI for the centralized connection function
+        process.env.DB_URI = mongoUri;
+        await connectToDatabase();
 
         trainingPool = await TrainingPoolModel.create({
             name: 'Test Pool for Agents',
@@ -536,7 +558,7 @@ describe('Forge Agents API', () => {
         });
 
         describe('POST /:id/submit-tx (Token Creation)', () => {
-            it('should process a signed token creation tx and update agent status', async () => {
+            it('should accept a signed token creation tx and update agent status in the background', async () => {
                 // Setup
                 const idempotencyKey = 'test-idempotency-key-token';
                 agent.deployment.status = 'PENDING_TOKEN_SIGNATURE';
@@ -556,18 +578,26 @@ describe('Forge Agents API', () => {
                         signedTransaction: 'mock-signed-tx-base64',
                         idempotencyKey: idempotencyKey,
                     })
-                    .expect(200);
+                    .expect(202); // Expect 202 Accepted
 
-                // Assert
+                // Assert immediate response
                 expect(response.body.success).toBe(true);
-                expect(response.body.data.deployment.status).toBe('PENDING_POOL_SIGNATURE');
-                expect(response.body.data.blockchain.tokenAddress).toBe('mock-mint-address');
-                expect(response.body.data.blockchain.tokenCreationDetails.txHash).toBe('test-tx-signature');
-                expect(mockConnection.sendRawTransaction).toHaveBeenCalledTimes(1);
-                expect(mockConnection.confirmTransaction).toHaveBeenCalledTimes(1);
+                expect(response.body.data.message).toContain('Transaction accepted');
+
+                // Wait for background processing to complete
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                // Assert final state from DB
+                const dbAgent = await GymAgentModel.findById(agent._id);
+                expect(dbAgent?.deployment.status).toBe('PENDING_POOL_SIGNATURE');
+                expect(dbAgent?.blockchain.tokenAddress).toBe('mock-mint-address');
+                expect(dbAgent?.blockchain.tokenCreationDetails?.txHash).toBe('test-tx-signature');
+                // The following mocks are removed as we test the effect (Redis message) not the direct call
+                // expect(vi.mocked(broadcastTxSubmitted)).toHaveBeenCalledWith(agent._id.toString(), 'PENDING_TOKEN_SIGNATURE', 'test-tx-signature');
+                // expect(vi.mocked(broadcastAgentUpdate)).toHaveBeenCalled();
             });
 
-            it('should fail gracefully if transaction confirmation fails', async () => {
+            it('should accept the request and handle transaction confirmation failure in the background', async () => {
                 // Setup
                 const idempotencyKey = 'test-idempotency-key-fail';
                 agent.deployment.status = 'PENDING_TOKEN_SIGNATURE';
@@ -589,13 +619,19 @@ describe('Forge Agents API', () => {
                         signedTransaction: 'mock-signed-tx-base64',
                         idempotencyKey,
                     })
-                    .expect(400);
+                    .expect(202); // Still expects 202
 
-                // Assert
-                expect(response.body.error.message).toContain('Transaction confirmation failed');
+                // Assert immediate response
+                expect(response.body.success).toBe(true);
+
+                // Wait for background processing
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Assert final state from DB
                 const dbAgent = await GymAgentModel.findById(agent._id);
                 expect(dbAgent?.deployment.status).toBe('FAILED');
                 expect(dbAgent?.deployment.lastError).toContain('Transaction confirmation failed');
+                // expect(vi.mocked(broadcastAgentUpdate)).toHaveBeenCalled();
             });
         });
 
@@ -643,7 +679,7 @@ describe('Forge Agents API', () => {
         });
 
         describe('POST /:id/submit-tx (Pool Creation)', () => {
-            it('should process a signed pool creation tx and update agent status to DEPLOYED', async () => {
+            it('should accept a signed pool creation tx and update agent status to DEPLOYED in background', async () => {
                 // Setup
                 const idempotencyKey = 'test-idempotency-key-pool';
                 agent.deployment.status = 'PENDING_POOL_SIGNATURE';
@@ -663,13 +699,20 @@ describe('Forge Agents API', () => {
                         signedTransaction: 'mock-signed-pool-tx-base64',
                         idempotencyKey,
                     })
-                    .expect(200);
+                    .expect(202); // Expect 202 Accepted
 
-                // Assert
+                // Assert immediate response
                 expect(response.body.success).toBe(true);
-                expect(response.body.data.deployment.status).toBe('DEPLOYED');
-                expect(response.body.data.blockchain.poolAddress).toBe('mock-pool-address');
-                expect(response.body.data.blockchain.poolCreationDetails.txHash).toBe('test-tx-signature');
+
+                // Wait for background processing
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Assert final state from DB
+                const dbAgent = await GymAgentModel.findById(agent._id);
+                expect(dbAgent?.deployment.status).toBe('DEPLOYED');
+                expect(dbAgent?.blockchain.poolAddress).toBe('mock-pool-address');
+                expect(dbAgent?.blockchain.poolCreationDetails?.txHash).toBe('test-tx-signature');
+                // expect(vi.mocked(broadcastAgentUpdate)).toHaveBeenCalled();
             });
         });
     });

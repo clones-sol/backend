@@ -1,15 +1,24 @@
+import 'dotenv/config';
 import express from 'express';
-import dotenv from 'dotenv';
-import mongoose, { ConnectOptions } from 'mongoose';
-import path from 'path';
-import { catchErrors } from './hooks/errors.ts';
-import { fileURLToPath } from 'url';
+import helmet from 'helmet';
+import cors from 'cors';
 import { createServer } from 'http';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+import { connectToDatabase } from './services/database.ts';
+import { startRefreshInterval } from './services/forge/pools.ts';
+import { gymApi } from './api/gym.ts';
+import { forgeApi } from './api/forge/index.ts';
+import { walletApi } from './api/wallet.ts';
+import { errorHandler } from './middleware/errorHandler.ts';
+import { initializeWebSocketServer } from './services/websockets/socketManager.ts';
+import { catchErrors } from './hooks/errors.ts';
+import { redisPublisher, redisSubscriber } from './services/redis.ts';
+import mongoose from 'mongoose';
 
 const app = express();
-const port = 8001;
+const port = parseInt(process.env.PORT || '8001', 10);
 
 // Create HTTP server
 const httpServer = createServer(app);
@@ -18,12 +27,12 @@ const httpServer = createServer(app);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Middlewares
 app.use(express.json({ limit: '15gb' }));
-app.use(express.urlencoded());
-// Add headers
-app.use(function (req, res, next) {
-  // Origin to allow
-  const allowedOrigins = [
+app.use(express.urlencoded({ extended: true }));
+app.use(helmet());
+app.use(cors({
+  origin: [
     'tauri://localhost',
     'http://tauri.localhost',
     'http://localhost:1420',
@@ -34,23 +43,21 @@ app.use(function (req, res, next) {
     'https://clones.sol',
     'https://clones-website-test.fly.dev',
     'https://clones-backend-test.fly.dev'
-  ];
-
-  const origin = req.headers.origin || '';
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-
-  // Request methods
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
-  // Request headers
-  res.setHeader('Access-Control-Expose-Headers', 'auth-token, x-forwarded-for');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-Requested-With,content-type,auth-token,cancelToken,responsetype,x-forwarded-for,x-wallet-address,x-connect-token,content-length'
-  );
-  next();
-});
+  ],
+  methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
+  allowedHeaders: [
+    'X-Requested-With',
+    'content-type',
+    'auth-token',
+    'cancelToken',
+    'responsetype',
+    'x-forwarded-for',
+    'x-wallet-address',
+    'x-connect-token',
+    'content-length'
+  ],
+  exposedHeaders: ['auth-token', 'x-forwarded-for']
+}));
 
 app.disable('x-powered-by');
 app.set('trust proxy', true);
@@ -59,49 +66,46 @@ app.set('trust proxy', true);
 app.use('/api/screenshots', express.static(path.join(__dirname, 'public', 'screenshots')));
 app.use('/api/recordings', express.static(path.join(__dirname, 'public', 'recordings')));
 
-// api v1 endpoints
-import { gymApi } from './api/gym.ts';
-import { forgeApi } from './api/forge/index.ts';
-import { walletApi } from './api/wallet.ts';
-import { errorHandler } from './middleware/errorHandler.ts';
-import { startRefreshInterval } from './services/forge/pools.ts';
-
+// API v1 endpoints
 app.use('/api/v1/gym', gymApi);
 app.use('/api/v1/forge', forgeApi);
 app.use('/api/v1/wallet', walletApi);
 
-// error handling
-
+// Error handling
 app.use(errorHandler);
-
 catchErrors();
-async function connectToDatabase() {
-  try {
-    const dbURI = process.env.DB_URI;
-    if (!dbURI) {
-      throw new Error('DB_URI environment variable is not set.');
-    }
 
-    await mongoose.connect(dbURI);
+// Initialize WebSocket server
+initializeWebSocketServer(httpServer);
 
-    await mongoose.connection.db?.admin().command({ ping: 1 });
-    console.log('Database connected!');
-  } catch (err) {
-    console.error('Error connecting to MongoDB:', err);
-    // Set exit code to 1 for graceful shutdown in case of database connection error
-    process.exitCode = 1;
-    return;
-  }
-}
-
-const host = '0.0.0.0';
+// Start server
 if (process.env.NODE_ENV !== 'test') {
+  const host = '0.0.0.0';
   httpServer.listen(port, host, async () => {
     console.log(`Clones backend listening on port ${port}`);
     await connectToDatabase().catch(console.dir);
-    // refresh pool status
-    startRefreshInterval();
+    // Refreshing pools data
+    await startRefreshInterval();
   });
 }
 
-export { app };
+// Graceful shutdown logic
+const handleShutdown = () => {
+  console.log(`\nReceived shutdown signal. Shutting down gracefully...`);
+  httpServer.close(() => {
+    console.log('HTTP server closed.');
+    mongoose.disconnect().then(() => {
+      console.log('MongoDB connection closed.');
+      redisPublisher.quit();
+      redisSubscriber.quit();
+      console.log('Redis connections closed.');
+      process.exit(0);
+    });
+  });
+};
+
+// Listen for termination signals
+process.on('SIGTERM', handleShutdown);
+process.on('SIGINT', handleShutdown);
+
+export { app, httpServer };
