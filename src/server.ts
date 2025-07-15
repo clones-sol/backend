@@ -85,9 +85,6 @@ app.use(errorHandler);
 
 catchErrors();
 
-// Initialize WebSocket server
-initializeWebSocketServer(httpServer);
-
 // Start server
 if (process.env.NODE_ENV !== 'test') {
   const host = '0.0.0.0';
@@ -95,6 +92,10 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`Clones backend listening on port ${port}`);
     await connectToDatabase().catch(console.dir);
     connectToRedis();
+
+    // Initialize WebSocket server after Redis connection
+    initializeWebSocketServer(httpServer);
+
     // Refreshing pools data
     await startRefreshInterval();
   });

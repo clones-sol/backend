@@ -6,6 +6,9 @@
 app = 'clones-backend-test'
 primary_region = 'cdg'
 
+[env]
+  NODE_ENV = "test"
+
 [http_service]
   internal_port = 8001
   force_https = true
