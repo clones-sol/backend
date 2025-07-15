@@ -566,7 +566,7 @@ describe('Forge Agents API', () => {
         describe('POST /:id/submit-tx (Token Creation)', () => {
             it('should accept a signed token creation tx and update agent status in the background', async () => {
                 // Setup
-                const idempotencyKey = 'test-idempotency-key-token';
+                const idempotencyKey = 'test-idempotency-key-123';
                 agent.deployment.status = 'PENDING_TOKEN_SIGNATURE';
                 agent.deployment.pendingTransaction = {
                     idempotencyKey: idempotencyKey,
@@ -578,7 +578,7 @@ describe('Forge Agents API', () => {
 
                 // Act
                 const response = await supertest(app)
-                    .post(`/api/v1/forge/agents/${agent._id}/submit-tx`)
+                    .post(`/api/v1/forge/agents/${agent._id}/submit-tx/token-creation`)
                     .send({
                         type: 'token-creation', // Use kebab-case to match validator
                         signedTransaction: 'mock-signed-tx-base64',
@@ -605,7 +605,7 @@ describe('Forge Agents API', () => {
 
             it('should accept the request and handle transaction confirmation failure in the background', async () => {
                 // Setup
-                const idempotencyKey = 'test-idempotency-key-fail';
+                const idempotencyKey = 'test-idempotency-key-456';
                 agent.deployment.status = 'PENDING_TOKEN_SIGNATURE';
                 agent.deployment.pendingTransaction = {
                     idempotencyKey,
@@ -619,7 +619,7 @@ describe('Forge Agents API', () => {
 
                 // Act
                 const response = await supertest(app)
-                    .post(`/api/v1/forge/agents/${agent._id}/submit-tx`)
+                    .post(`/api/v1/forge/agents/${agent._id}/submit-tx/token-creation`)
                     .send({
                         type: 'token-creation', // Use kebab-case
                         signedTransaction: 'mock-signed-tx-base64',
@@ -687,7 +687,7 @@ describe('Forge Agents API', () => {
         describe('POST /:id/submit-tx (Pool Creation)', () => {
             it('should accept a signed pool creation tx and update agent status to DEPLOYED in background', async () => {
                 // Setup
-                const idempotencyKey = 'test-idempotency-key-pool';
+                const idempotencyKey = 'test-idempotency-key-789';
                 agent.deployment.status = 'PENDING_POOL_SIGNATURE';
                 agent.deployment.pendingTransaction = {
                     idempotencyKey,
@@ -699,7 +699,7 @@ describe('Forge Agents API', () => {
 
                 // Act
                 const response = await supertest(app)
-                    .post(`/api/v1/forge/agents/${agent._id}/submit-tx`)
+                    .post(`/api/v1/forge/agents/${agent._id}/submit-tx/pool-creation`)
                     .send({
                         type: 'pool-creation', // Use kebab-case
                         signedTransaction: 'mock-signed-pool-tx-base64',

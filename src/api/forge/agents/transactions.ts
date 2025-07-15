@@ -350,9 +350,12 @@ router.get(
  *         $ref: '#/components/responses/Conflict'
  */
 router.post(
-    '/:id/submit-tx',
+    '/:id/submit-tx/:type',
     requireWalletAddress,
-    validateParams(idValidationSchema),
+    validateParams({
+        id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] },
+        type: { required: true, rules: [ValidationRules.isIn(['token-creation', 'pool-creation'])] }
+    }),
     validateBody(submitTxSchema),
     requireAgentOwnership,
     errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
