@@ -5,6 +5,7 @@ import { IGymAgent } from '../../models/GymAgent.ts';
 import { GymAgentModel } from '../../models/Models.ts';
 import { sanitizeEventForLogging } from '../../api/forge/agents/helpers.ts';
 import { ApiError } from '../../middleware/types/errors.ts';
+import { broadcastAgentUpdate } from '../websockets/agentBroadcaster.ts';
 
 /**
  * Transitions an agent's status using the state machine.
@@ -163,6 +164,14 @@ export const transitionAgentStatus = async (
 
         // Stop the actor after use
         actor.stop();
+
+        // Broadcast the update to subscribed clients
+        try {
+            broadcastAgentUpdate(updatedAgent);
+        } catch (error) {
+            // Log the error but do not throw, as broadcasting is a non-critical side effect.
+            console.error(`[WEBSOCKET_ERROR] Failed to broadcast agent update for agent ${updatedAgent._id}:`, error);
+        }
 
         console.info(`[AGENT_TRANSITION_SUCCESS] Agent ${agentId} transitioned from ${freshAgent.deployment.status} to ${newStatus}`, {
             agentId,

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
+import 'dotenv/config';
 import mongoose from 'mongoose';
 import { GymAgentModel } from '../models/GymAgent.ts';
 import { GymAgentInvocationModel } from '../models/GymAgentInvocation.ts';
+import { connectToDatabase } from '../services/database.ts';
 
 const REQUIRED_INDEXES = {
     gym_agents: [
@@ -39,8 +41,8 @@ async function validateIndexes(): Promise<void> {
     try {
         console.log('🔍 Validating database indexes...');
 
-        // Connect to MongoDB
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/clones');
+        // Connect to MongoDB using the centralized service
+        await connectToDatabase();
 
         // Check GymAgent indexes
         const gymAgentIndexes = await GymAgentModel.collection.listIndexes().toArray();
