@@ -77,7 +77,6 @@ const GymAgentSchema = new Schema<IGymAgent>(
             type: Schema.Types.ObjectId,
             ref: 'TrainingPool',
             required: true,
-            unique: true,
         },
 
         /**
@@ -178,24 +177,27 @@ const GymAgentSchema = new Schema<IGymAgent>(
          * This data provides a permanent, auditable record of the deployment events.
          */
         blockchain: {
-            tokenAddress: { type: String, required: false }, // The address of the created SPL token.
-            tokenCreationDetails: {
-                type: {
-                    txHash: { type: String, required: true },
-                    timestamp: { type: Number, required: true }, // The on-chain blockTime (Unix timestamp)
-                    slot: { type: Number, required: true }, // The Solana slot in which the transaction was confirmed
-                },
-                required: false
-            }, // Details of the token creation transaction.
-            poolAddress: { type: String, required: false }, // The ID of the created Raydium liquidity pool.
-            poolCreationDetails: {
-                type: {
-                    txHash: { type: String, required: true },
-                    timestamp: { type: Number, required: true },
-                    slot: { type: Number, required: true },
-                },
-                required: false
-            }, // Details of the pool creation transaction.
+            type: {
+                tokenAddress: { type: String, required: false }, // The address of the created SPL token.
+                tokenCreationDetails: {
+                    type: {
+                        txHash: { type: String, required: true },
+                        timestamp: { type: Number, required: true }, // The on-chain blockTime (Unix timestamp)
+                        slot: { type: Number, required: true }, // The Solana slot in which the transaction was confirmed
+                    },
+                    required: false
+                }, // Details of the token creation transaction.
+                poolAddress: { type: String, required: false }, // The ID of the created Raydium liquidity pool.
+                poolCreationDetails: {
+                    type: {
+                        txHash: { type: String, required: true },
+                        timestamp: { type: Number, required: true },
+                        slot: { type: Number, required: true },
+                    },
+                    required: false
+                }, // Details of the pool creation transaction.
+            },
+            default: {} // Ensure the blockchain object is initialized
         },
 
         /**
