@@ -1,6 +1,5 @@
 import 'dotenv/config';
-import type { Redis as RedisClient } from 'ioredis';
-const Redis = require('ioredis');
+import { Redis, type Redis as RedisClient } from 'ioredis';
 
 let redisPublisher: RedisClient;
 let redisSubscriber: RedisClient;

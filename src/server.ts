@@ -5,7 +5,6 @@ import cors from 'cors';
 import { createServer } from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
 import { connectToDatabase } from './services/database.ts';
 import { startRefreshInterval } from './services/forge/pools.ts';
 import { gymApi } from './api/gym.ts';
@@ -77,12 +76,13 @@ app.use('/api/v1/wallet', walletApi);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Not found handler
-app.all('*', (req, res, next) => {
+app.use((req, res, next) => {
   res.status(404).json({ message: 'Endpoint not found' });
 });
 
 // Error handling
 app.use(errorHandler);
+
 catchErrors();
 
 // Initialize WebSocket server
