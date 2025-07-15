@@ -24,29 +24,42 @@ router.post(
     })
 );
 
-// PATCH /:id/status
-router.patch(
-    '/:id/status',
+// POST /:id/cancel
+router.post(
+    '/:id/cancel',
     requireWalletAddress,
     validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
-    validateBody(updateAgentStatusSchema),
     requireAgentOwnership,
     errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;
-        const { status } = req.body;
-
-        let updatedAgent;
-        if (status === 'DEACTIVATED') {
-            updatedAgent = await transitionAgentStatus(agent!, { type: 'DEACTIVATE' });
-        } else {
-            throw ApiError.badRequest(`Unsupported status transition to '${status}'.`);
-        }
-
+        const updatedAgent = await transitionAgentStatus(agent!, { type: 'CANCEL' });
         res.status(200).json(successResponse(updatedAgent));
     })
 );
 
-// DELETE /:id
+// DELETE /:id and PATCH /:id/status
+router.route('/:id/status')
+    .patch(
+        requireWalletAddress,
+        validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+        validateBody(updateAgentStatusSchema),
+        requireAgentOwnership,
+        errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+            const { agent } = req;
+            const { status } = req.body;
+
+            let updatedAgent;
+            if (status === 'DEACTIVATED') {
+                updatedAgent = await transitionAgentStatus(agent!, { type: 'DEACTIVATE' });
+            } else {
+                throw ApiError.badRequest(`Unsupported status transition to '${status}'.`);
+            }
+
+            res.status(200).json(successResponse(updatedAgent));
+        })
+    );
+
+
 router.delete(
     '/:id',
     requireWalletAddress,
@@ -68,19 +81,6 @@ router.post(
     errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;
         const updatedAgent = await transitionAgentStatus(agent!, { type: 'RETRY' });
-        res.status(200).json(successResponse(updatedAgent));
-    })
-);
-
-// POST /:id/cancel
-router.post(
-    '/:id/cancel',
-    requireWalletAddress,
-    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
-    requireAgentOwnership,
-    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
-        const { agent } = req;
-        const updatedAgent = await transitionAgentStatus(agent!, { type: 'CANCEL' });
         res.status(200).json(successResponse(updatedAgent));
     })
 );

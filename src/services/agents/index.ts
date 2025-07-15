@@ -4,6 +4,7 @@ import type { AgentLifecycleEvents } from './agent-machine.ts';
 import { IGymAgent } from '../../models/GymAgent.ts';
 import { GymAgentModel } from '../../models/Models.ts';
 import { sanitizeEventForLogging } from '../../api/forge/agents/helpers.ts';
+import { ApiError } from '../../middleware/types/errors.ts';
 
 /**
  * Transitions an agent's status using the state machine.
@@ -45,13 +46,13 @@ export const transitionAgentStatus = async (
         );
 
         if (!lockAcquired) {
-            throw new Error(`Agent ${agentId} is currently being processed by another operation. Please try again later.`);
+            throw ApiError.conflict(`Agent ${agentId} is currently being processed by another operation. Please try again later.`);
         }
 
         // Refresh agent data to ensure we have the latest state
         const freshAgent = await GymAgentModel.findById(agentId);
         if (!freshAgent) {
-            throw new Error(`Agent ${agentId} not found`);
+            throw ApiError.notFound(`Agent ${agentId} not found`);
         }
 
         // Create a state object representing the agent's current state.
@@ -75,7 +76,7 @@ export const transitionAgentStatus = async (
                 currentStatus: freshAgent.deployment.status,
                 event: sanitizeEventForLogging(event)
             });
-            throw new Error(errorMessage);
+            throw ApiError.badRequest(errorMessage);
         }
 
         // Send the event to trigger the transition.
@@ -157,7 +158,7 @@ export const transitionAgentStatus = async (
                 targetStatus: newStatus,
                 event: sanitizeEventForLogging(event)
             });
-            throw new Error(errorMessage);
+            throw ApiError.conflict(errorMessage);
         }
 
         // Stop the actor after use
