@@ -5,6 +5,17 @@ import { decrypt } from '../security/crypto.ts';
 import { transitionAgentStatus } from './index.ts';
 
 const FAILURE_THRESHOLD = 5;
+const INVOCATION_TIMEOUT = 30000; // 30 seconds
+
+/**
+ * Securely clears a string from memory
+ */
+const clearString = (str: string): void => {
+    // Overwrite with zeros (best effort memory clearing)
+    for (let i = 0; i < str.length; i++) {
+        str = str.substring(0, i) + '0' + str.substring(i + 1);
+    }
+};
 
 /**
  * Invokes an AI agent by calling its external endpoint and records the interaction.
@@ -21,72 +32,131 @@ export const invokeAgent = async (agent: IGymAgent, payload: any): Promise<any> 
         throw new Error(`Agent ${agent._id} has no active and configured version to invoke.`);
     }
 
-    const apiKey = activeVersion.encryptedApiKey ? decrypt(activeVersion.encryptedApiKey) : undefined;
-
-    const invocation = new GymAgentInvocationModel({
-        agentId: agent._id,
-        versionTag: activeVersion.versionTag,
-        timestamp: new Date(),
-        // Duration and success will be set after the call
-    });
-
-    const startTime = Date.now();
+    let apiKey: string | undefined;
 
     try {
-        const headers: { 'Content-Type': string; Authorization?: string } = {
-            'Content-Type': 'application/json',
-        };
+        // Decrypt API key only when needed and clear it after use
+        apiKey = activeVersion.encryptedApiKey ? decrypt(activeVersion.encryptedApiKey) : undefined;
 
+        // Log API key decryption for security audit
         if (apiKey) {
-            headers.Authorization = `Bearer ${apiKey}`;
+            console.info(`[SECURITY_AUDIT] Hugging Face API key decrypted for agent ${agent._id}`);
         }
 
-        const response = await axios.post(activeVersion.customUrl, payload, {
-            headers,
-            timeout: 30000, // 30-second timeout
+        const invocation = new GymAgentInvocationModel({
+            agentId: agent._id,
+            versionTag: activeVersion.versionTag,
+            timestamp: new Date(),
+            // Duration and success will be set after the call
         });
 
-        // Record successful invocation
-        invocation.durationMs = Date.now() - startTime;
-        invocation.isSuccess = true;
-        invocation.httpStatus = response.status;
-        await invocation.save();
+        const startTime = Date.now();
 
-        // Reset consecutive failures on success
-        if (agent.deployment.consecutiveFailures && agent.deployment.consecutiveFailures > 0) {
-            agent.deployment.consecutiveFailures = 0;
-            await agent.save();
+        try {
+            const headers: { 'Content-Type': string; Authorization?: string } = {
+                'Content-Type': 'application/json',
+            };
+
+            if (apiKey) {
+                headers.Authorization = `Bearer ${apiKey}`;
+            }
+
+            const response = await axios.post(activeVersion.customUrl, payload, {
+                headers,
+                timeout: INVOCATION_TIMEOUT,
+            });
+
+            // Record successful invocation
+            invocation.durationMs = Date.now() - startTime;
+            invocation.isSuccess = true;
+            invocation.httpStatus = response.status;
+            await invocation.save();
+
+            // Reset consecutive failures on success using an atomic operation
+            if (agent.deployment.consecutiveFailures && agent.deployment.consecutiveFailures > 0) {
+                await GymAgentModel.updateOne(
+                    { _id: agent._id },
+                    { $set: { 'deployment.consecutiveFailures': 0 } }
+                );
+            }
+
+            return response.data;
+
+        } catch (error) {
+            const durationMs = Date.now() - startTime;
+            let httpStatus: number | undefined;
+
+            if (axios.isAxiosError(error)) {
+                httpStatus = error.response?.status;
+            }
+
+            // Record failed invocation
+            invocation.durationMs = durationMs;
+            invocation.isSuccess = false;
+            invocation.httpStatus = httpStatus;
+            await invocation.save();
+
+            // Handle failure logic with atomic operations to prevent race conditions
+            const updatedAgent = await GymAgentModel.findOneAndUpdate(
+                {
+                    _id: agent._id,
+                    'deployment.consecutiveFailures': { $lt: FAILURE_THRESHOLD } // Prevent multiple auto-deactivations
+                },
+                {
+                    $inc: { 'deployment.consecutiveFailures': 1 },
+                    $set: { 'deployment.lastFailureAt': new Date() }
+                },
+                { new: true }
+            );
+
+            // Only attempt auto-deactivation if we successfully incremented and reached threshold
+            if (updatedAgent?.deployment?.consecutiveFailures === FAILURE_THRESHOLD) {
+                try {
+                    // Set error message before attempting deactivation
+                    await GymAgentModel.updateOne(
+                        { _id: updatedAgent._id },
+                        { $set: { 'deployment.lastError': `Agent auto-disabled after ${FAILURE_THRESHOLD} consecutive failures.` } }
+                    );
+
+                    // Attempt to transition to DEACTIVATED status
+                    await transitionAgentStatus(updatedAgent, { type: 'DEACTIVATE' });
+
+                    // Reset failure counter after successful deactivation
+                    await GymAgentModel.updateOne(
+                        { _id: updatedAgent._id },
+                        { $set: { 'deployment.consecutiveFailures': 0 } }
+                    );
+
+                    console.warn(`[AGENT_AUTO_DEACTIVATION] Agent ${updatedAgent._id} automatically deactivated after ${FAILURE_THRESHOLD} consecutive failures.`);
+
+                } catch (deactivationError) {
+                    // Log the deactivation failure but don't throw to avoid masking the original error
+                    console.error(`[AGENT_AUTO_DEACTIVATION_ERROR] Failed to auto-deactivate agent ${updatedAgent._id}:`, deactivationError);
+
+                    // Attempt to record the deactivation failure in the agent document
+                    try {
+                        await GymAgentModel.updateOne(
+                            { _id: updatedAgent._id },
+                            {
+                                $set: {
+                                    'deployment.lastError': `Auto-deactivation failed after ${FAILURE_THRESHOLD} consecutive failures. Manual intervention required.`
+                                }
+                            }
+                        );
+                    } catch (recordError) {
+                        console.error(`[AGENT_AUTO_DEACTIVATION_ERROR] Failed to record deactivation failure for agent ${updatedAgent._id}:`, recordError);
+                    }
+                }
+            }
+
+            // Re-throw the original error to be handled by the caller
+            throw error;
         }
-
-        return response.data;
-
-    } catch (error) {
-        const durationMs = Date.now() - startTime;
-        let httpStatus: number | undefined;
-
-        if (axios.isAxiosError(error)) {
-            httpStatus = error.response?.status;
+    } finally {
+        // Securely clear the API key from memory
+        if (apiKey) {
+            clearString(apiKey);
+            apiKey = undefined;
         }
-
-        // Record failed invocation
-        invocation.durationMs = durationMs;
-        invocation.isSuccess = false;
-        invocation.httpStatus = httpStatus;
-        await invocation.save();
-
-        // Handle failure logic
-        agent.deployment.consecutiveFailures = (agent.deployment.consecutiveFailures || 0) + 1;
-
-        if (agent.deployment.consecutiveFailures >= FAILURE_THRESHOLD) {
-            agent.deployment.lastError = `Agent auto-disabled after ${FAILURE_THRESHOLD} consecutive failures.`;
-            await transitionAgentStatus(agent, { type: 'DEACTIVATE' });
-            // Reset counter after deactivation
-            agent.deployment.consecutiveFailures = 0;
-        }
-
-        await agent.save();
-
-        // Re-throw the error to be handled by the caller
-        throw error;
     }
 }; 

@@ -9,8 +9,12 @@ import { encrypt } from '../../../services/security/crypto.ts';
 import { idValidationSchema } from '../../schemas/common.ts';
 import { sanitizeAgentDataForLogging } from './helpers.ts';
 import { requireAgentOwnership } from './middleware.ts';
+import { DeploymentVersion } from '../../../models/GymAgent.ts';
+import { AuthenticatedRequest } from '../../../middleware/types/request.ts';
+import { GymAgentModel } from '../../../models/GymAgent.ts';
 
 const router: Router = express.Router();
+const MAX_VERSIONS_PER_AGENT = 10;
 
 // POST /:id/versions
 router.post(
@@ -19,10 +23,8 @@ router.post(
     validateParams(idValidationSchema),
     validateBody(agentVersionSchema),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore
-        const ownerAddress = req.walletAddress;
-        // @ts-ignore
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+        const ownerAddress = req.walletAddress!;
         const { agent } = req;
         const { versionTag, customUrl, huggingFaceApiKey } = req.body;
 
@@ -33,10 +35,6 @@ router.post(
             }
         }
 
-        if (agent.deployment.versions.some((v: any) => v.versionTag === versionTag)) {
-            throw ApiError.conflict(`Version tag '${versionTag}' already exists for this agent.`);
-        }
-
         const newVersion = {
             versionTag,
             customUrl,
@@ -45,18 +43,48 @@ router.post(
             createdAt: new Date(),
         };
 
-        agent.deployment.versions.push(newVersion);
-
-        agent.auditLog.push({
+        const auditLogEntry = {
             timestamp: new Date(),
             user: ownerAddress,
             action: 'ADD_VERSION',
             details: sanitizeAgentDataForLogging({ versionTag, customUrl, huggingFaceApiKey })
-        });
+        };
 
-        await agent.save();
+        // Atomic operation to add version with duplicate and limit checks
+        const updatedAgent = await GymAgentModel.findOneAndUpdate(
+            {
+                _id: agent!._id,
+                'deployment.versions.versionTag': { $ne: versionTag }, // Ensure no duplicate
+                $expr: { $lt: [{ $size: '$deployment.versions' }, MAX_VERSIONS_PER_AGENT] } // Limit check
+            },
+            {
+                $push: {
+                    'deployment.versions': newVersion,
+                    auditLog: auditLogEntry
+                }
+            },
+            { new: true }
+        );
 
-        res.status(201).json(successResponse(agent));
+        if (!updatedAgent) {
+            // Check what went wrong
+            const existingAgent = await GymAgentModel.findById(agent!._id);
+            if (!existingAgent) {
+                throw ApiError.notFound('Agent not found.');
+            }
+
+            if (existingAgent.deployment.versions.some((v: DeploymentVersion) => v.versionTag === versionTag)) {
+                throw ApiError.conflict(`Version tag '${versionTag}' already exists for this agent.`);
+            }
+
+            if (existingAgent.deployment.versions.length >= MAX_VERSIONS_PER_AGENT) {
+                throw ApiError.badRequest(`Cannot add more than ${MAX_VERSIONS_PER_AGENT} versions per agent.`);
+            }
+
+            throw ApiError.internalError('Failed to add version due to concurrent modification.');
+        }
+
+        res.status(201).json(successResponse(updatedAgent));
     })
 );
 
@@ -67,14 +95,12 @@ router.put(
     validateParams(idValidationSchema),
     validateBody(setActiveVersionSchema),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore
-        const ownerAddress = req.walletAddress;
-        // @ts-ignore
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+        const ownerAddress = req.walletAddress!;
         const { agent } = req;
         const { versionTag } = req.body;
 
-        const targetVersion = agent.deployment.versions.find((v: any) => v.versionTag === versionTag);
+        const targetVersion = agent!.deployment.versions.find((v: DeploymentVersion) => v.versionTag === versionTag);
         if (!targetVersion) {
             throw ApiError.notFound(`Version with tag '${versionTag}' not found.`);
         }
@@ -83,24 +109,35 @@ router.put(
             return res.status(200).json(successResponse(agent));
         }
 
-        const currentActiveVersion = agent.deployment.versions.find((v: any) => v.status === 'active');
-        if (currentActiveVersion) {
-            currentActiveVersion.status = 'deprecated';
-        }
-
-        targetVersion.status = 'active';
-        agent.deployment.activeVersionTag = versionTag;
-
-        agent.auditLog.push({
+        // Build the atomic update payload
+        const updatePayload: { $set: any, $push?: any } = { $set: {} };
+        const auditLog = {
             timestamp: new Date(),
             user: ownerAddress,
             action: 'SET_ACTIVE_VERSION',
-            details: { versionTag } as any
-        });
+            details: { versionTag }
+        };
+        updatePayload.$push = { auditLog };
+        updatePayload.$set['deployment.activeVersionTag'] = versionTag;
 
-        await agent.save();
+        // Create a dynamic query to update all version statuses in one go
+        const versionUpdates = agent!.deployment.versions.map((version, index) => {
+            if (version.versionTag === versionTag) {
+                return { [`deployment.versions.${index}.status`]: 'active' };
+            } else if (version.status === 'active') {
+                return { [`deployment.versions.${index}.status`]: 'deprecated' };
+            }
+            return null;
+        }).filter(Boolean);
 
-        res.status(200).json(successResponse(agent));
+        // Merge all version status updates into the $set payload
+        if (versionUpdates.length > 0) {
+            Object.assign(updatePayload.$set, ...versionUpdates);
+        }
+
+        const updatedAgent = await GymAgentModel.findByIdAndUpdate(agent!._id, updatePayload, { new: true });
+
+        res.status(200).json(successResponse(updatedAgent));
     })
 );
 

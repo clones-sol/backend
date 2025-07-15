@@ -43,7 +43,7 @@ describe('agentLifecycleMachine', () => {
             expect(actor.getSnapshot().value).toBe('PENDING_TOKEN_SIGNATURE');
         });
 
-        it('PENDING_TOKEN_SIGNATURE -> PENDING_POOL_SIGNATURE on TOKEN_CREATION_SUCCESS (via automatic transition) and assigns data', () => {
+        it('PENDING_TOKEN_SIGNATURE -> PENDING_POOL_SIGNATURE on TOKEN_CREATION_SUCCESS and assigns data', () => {
             const agent = createMockAgent('PENDING_TOKEN_SIGNATURE');
             const actor = createActor(agentLifecycleMachine, { snapshot: agentLifecycleMachine.resolveState({ value: 'PENDING_TOKEN_SIGNATURE', context: { agent } }) });
             actor.start();
@@ -51,7 +51,6 @@ describe('agentLifecycleMachine', () => {
             actor.send({ type: 'TOKEN_CREATION_SUCCESS', data: eventData });
 
             const snapshot = actor.getSnapshot();
-            // The machine should automatically transition from TOKEN_CREATED to PENDING_POOL_SIGNATURE
             expect(snapshot.value).toBe('PENDING_POOL_SIGNATURE');
             expect(snapshot.context.agent.blockchain.tokenAddress).toBe('abc');
             expect(snapshot.context.agent.blockchain.tokenCreationDetails).toEqual({
