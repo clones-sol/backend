@@ -17,6 +17,7 @@ import { ValidationRules } from '../../../middleware/validator.ts';
 import { requireAgentOwnership } from './middleware.ts';
 import { GymAgentModel } from '../../../models/Models.ts';
 import { AuthenticatedRequest } from '../../../middleware/types/request.ts';
+import { broadcastTxSubmitted } from '../../../services/websockets/agentBroadcaster.ts';
 
 const router: Router = express.Router();
 const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
@@ -219,6 +220,7 @@ router.post(
         const { type, signedTransaction, idempotencyKey } = req.body;
         const normalizedType = type.toUpperCase().replace('-', '_');
         const agentFromMiddleware = req.agent!;
+        const agentIdString = (agentFromMiddleware._id as any).toString();
 
         const agent = await GymAgentModel.findOneAndUpdate(
             {
@@ -254,6 +256,14 @@ router.post(
             );
         }
 
+        // Respond immediately to the client
+        res.status(202).json(successResponse({
+            message: 'Transaction accepted and is being processed.',
+            agentId: agentIdString,
+            status: agent.deployment.status,
+            idempotencyKey: pendingTx.idempotencyKey,
+        }));
+
         const processTransaction = async (txType: 'TOKEN_CREATION' | 'POOL_CREATION') => {
             let txHash = pendingTx.txHash;
 
@@ -267,6 +277,10 @@ router.post(
                         { _id: agent._id, 'deployment.pendingTransaction.idempotencyKey': idempotencyKey },
                         { $set: { 'deployment.pendingTransaction.txHash': txHash, 'deployment.pendingTransaction.status': 'SUBMITTED' } }
                     );
+
+                    // Broadcast that the transaction has been submitted
+                    broadcastTxSubmitted(agentIdString, agent.deployment.status, txHash);
+
                 } catch (error) {
                     console.error(`Error broadcasting ${txType} transaction:`, error);
                     await GymAgentModel.updateOne(
@@ -277,7 +291,9 @@ router.post(
                         type: 'FAIL',
                         error: `Failed to broadcast transaction: ${(error as Error).message}`,
                     });
-                    throw ApiError.internalError(`Failed to broadcast transaction: ${(error as Error).message}`);
+                    // Since we already responded, we can't throw an ApiError here.
+                    // The failure is broadcasted via WebSocket by transitionAgentStatus.
+                    return;
                 }
             }
 
@@ -353,11 +369,8 @@ router.post(
                         : `Transaction confirmation failed: ${errorMessage}`,
                 });
 
-                throw ApiError.badRequest(
-                    isTimeout
-                        ? 'Transaction confirmation timed out. Please check the transaction status manually.'
-                        : 'Transaction confirmation failed.'
-                );
+                // Can't throw here as we already responded.
+                return;
             }
 
             // Add timeout to transaction details retrieval
@@ -421,8 +434,12 @@ router.post(
             }
         };
 
-        const updatedAgent = await processTransaction(normalizedType as 'TOKEN_CREATION' | 'POOL_CREATION');
-        res.status(200).json(successResponse(updatedAgent));
+        // Do not await this. Let it run in the background.
+        processTransaction(normalizedType as 'TOKEN_CREATION' | 'POOL_CREATION').catch(err => {
+            // Log any unexpected errors during background processing.
+            // The user has already been notified of acceptance, but we need to log this server-side.
+            console.error(`[FATAL_TX_PROCESSING_ERROR] Unhandled error in background transaction processor for agent ${agentIdString}:`, err);
+        });
     })
 );
 

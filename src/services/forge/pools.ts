@@ -26,7 +26,7 @@ export function stopRefreshInterval() {
   clearInterval(refreshInterval);
 }
 
-export function startRefreshInterval() {
+export async function startRefreshInterval() {
   refreshInterval = setInterval(async () => {
     try {
       // Get all pools
