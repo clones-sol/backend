@@ -1,5 +1,4 @@
 import express, { Router } from 'express';
-
 import { managementRoutes } from './agents/management.ts';
 import { lifecycleRoutes } from './agents/lifecycle.ts';
 import { transactionRoutes } from './agents/transactions.ts';
