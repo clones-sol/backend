@@ -14,9 +14,7 @@ const options: swaggerJsdoc.Options = {
             version: '1.0.0',
             description: 'API for creating, managing, and deploying AI Agents on the Solana blockchain. This documentation provides details on all available endpoints for agent lifecycle management, on-chain orchestration, versioning, and monitoring.',
             contact: {
-                name: 'Clones Support',
-                url: 'https://clones.ai',
-                email: 'support@clones.ai',
+                name: 'Clones Support'
             },
         },
         servers: [
