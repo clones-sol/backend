@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { GymAgentModel, TrainingPoolModel } from '../../../models/Models.ts';
 import { ApiError } from '../../../middleware/types/errors.ts';
 import mongoose from 'mongoose';

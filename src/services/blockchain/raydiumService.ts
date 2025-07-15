@@ -2,7 +2,6 @@ import {
     Connection,
     Keypair,
     PublicKey,
-    Transaction,
     VersionedTransaction,
 } from '@solana/web3.js';
 import {
