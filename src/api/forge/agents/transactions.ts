@@ -1,4 +1,4 @@
-import express, { Request, Response, Router } from 'express';
+import express, { Response, Router } from 'express';
 import { requireWalletAddress } from '../../../middleware/auth.ts';
 import { errorHandlerAsync } from '../../../middleware/errorHandler.ts';
 import { validateBody, validateParams } from '../../../middleware/validator.ts';
@@ -16,6 +16,7 @@ import { createPoolCreationTransaction } from '../../../services/blockchain/rayd
 import { ValidationRules } from '../../../middleware/validator.ts';
 import { requireAgentOwnership } from './middleware.ts';
 import { GymAgentModel } from '../../../models/Models.ts';
+import { AuthenticatedRequest } from '../../../middleware/types/request.ts';
 
 const router: Router = express.Router();
 const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
@@ -30,24 +31,22 @@ router.get(
         type: { required: true, rules: [ValidationRules.isIn(['token-creation', 'pool-creation'])] }
     }),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore
-        const ownerAddress = req.walletAddress;
-        // @ts-ignore
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+        const ownerAddress = req.walletAddress!;
         const { agent } = req;
         const { type } = req.params;
 
         if (type === 'token-creation') {
-            if (agent.deployment.status !== 'PENDING_TOKEN_SIGNATURE') {
-                throw ApiError.badRequest(`Agent must be in PENDING_TOKEN_SIGNATURE status, but is in ${agent.deployment.status}.`);
+            if (agent!.deployment.status !== 'PENDING_TOKEN_SIGNATURE') {
+                throw ApiError.badRequest(`Agent must be in PENDING_TOKEN_SIGNATURE status, but is in ${agent!.deployment.status}.`);
             }
 
             const payer = new PublicKey(ownerAddress);
             const { transaction, mintKeypair } = await createTokenCreationTransaction(
                 blockchainService.connection,
                 payer,
-                agent.tokenomics.supply,
-                agent.tokenomics.decimals || 9
+                agent!.tokenomics.supply,
+                agent!.tokenomics.decimals ?? 9
             );
 
             const { blockhash } = await blockchainService.connection.getLatestBlockhash('confirmed');
@@ -62,14 +61,32 @@ router.get(
             const base64Transaction = serializedTransaction.toString('base64');
             const idempotencyKey = uuidv4();
 
-            agent.deployment.pendingTransaction = {
+            const pendingTransaction = {
                 idempotencyKey,
                 type: 'TOKEN_CREATION',
+                status: 'PENDING',
                 details: {
                     mint: mintKeypair.publicKey.toBase58(),
                 },
             };
-            await agent.save();
+
+            // Atomic update of pending transaction
+            const updatedAgent = await GymAgentModel.findOneAndUpdate(
+                {
+                    _id: agent!._id,
+                    'deployment.status': 'PENDING_TOKEN_SIGNATURE' // Ensure status hasn't changed
+                },
+                {
+                    $set: {
+                        'deployment.pendingTransaction': pendingTransaction
+                    }
+                },
+                { new: true }
+            );
+
+            if (!updatedAgent) {
+                throw ApiError.conflict('Agent status changed during transaction preparation. Please try again.');
+            }
 
             const fee = await transaction.getEstimatedFee(blockchainService.connection);
 
@@ -80,20 +97,20 @@ router.get(
                 mintAddress: mintKeypair.publicKey.toBase58(),
             }));
         } else if (type === 'pool-creation') {
-            if (agent.deployment.status !== 'TOKEN_CREATED' && agent.deployment.status !== 'PENDING_POOL_SIGNATURE') {
-                throw ApiError.badRequest(`Agent must be in TOKEN_CREATED or PENDING_POOL_SIGNATURE status, but is in ${agent.deployment.status}.`);
+            if (agent!.deployment.status !== 'PENDING_POOL_SIGNATURE') {
+                throw ApiError.badRequest(`Agent must be in PENDING_POOL_SIGNATURE status, but is in ${agent!.deployment.status}.`);
             }
-            if (!agent.blockchain.tokenAddress) {
+            if (!agent!.blockchain.tokenAddress) {
                 throw ApiError.internalError('Agent token address is missing.');
             }
 
             const payer = new PublicKey(ownerAddress);
 
             const baseToken = new Token({
-                mint: new PublicKey(agent.blockchain.tokenAddress),
-                decimals: agent.tokenomics.decimals || 9,
-                symbol: agent.ticker,
-                name: agent.name
+                mint: new PublicKey(agent!.blockchain.tokenAddress),
+                decimals: agent!.tokenomics.decimals ?? 9,
+                symbol: agent!.ticker,
+                name: agent!.name
             });
             const quoteToken = new Token({
                 mint: NATIVE_MINT,
@@ -108,8 +125,8 @@ router.get(
                     payer,
                     baseToken,
                     quoteToken,
-                    agent.tokenomics.supply,
-                    agent.tokenomics.minLiquiditySol,
+                    agent!.tokenomics.supply,
+                    agent!.tokenomics.minLiquiditySol,
                     SOLANA_CLUSTER
                 );
 
@@ -148,14 +165,32 @@ router.get(
                 const base64Transaction = Buffer.from(serializedTransaction).toString('base64');
                 const idempotencyKey = uuidv4();
 
-                agent.deployment.pendingTransaction = {
+                const pendingTransaction = {
                     idempotencyKey,
                     type: 'POOL_CREATION',
+                    status: 'PENDING',
                     details: {
                         poolKeys: JSON.stringify(poolKeys),
                     },
                 };
-                await agent.save();
+
+                // Atomic update of pending transaction
+                const updatedAgent = await GymAgentModel.findOneAndUpdate(
+                    {
+                        _id: agent!._id,
+                        'deployment.status': 'PENDING_POOL_SIGNATURE' // Ensure status hasn't changed
+                    },
+                    {
+                        $set: {
+                            'deployment.pendingTransaction': pendingTransaction
+                        }
+                    },
+                    { new: true }
+                );
+
+                if (!updatedAgent) {
+                    throw ApiError.conflict('Agent status changed during transaction preparation. Please try again.');
+                }
 
                 const fee = (await blockchainService.connection.getFeeForMessage(transaction.message)).value || 0;
 
@@ -180,25 +215,47 @@ router.post(
     validateParams(idValidationSchema),
     validateBody(submitTxSchema),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore
-        const { agent } = req;
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { type, signedTransaction, idempotencyKey } = req.body;
+        const normalizedType = type.toUpperCase().replace('-', '_');
+        const agentFromMiddleware = req.agent!;
 
-        if (!agent.deployment.pendingTransaction || agent.deployment.pendingTransaction.idempotencyKey !== idempotencyKey) {
-            throw ApiError.badRequest('Invalid idempotency key or no pending transaction.');
+        const agent = await GymAgentModel.findOneAndUpdate(
+            {
+                _id: agentFromMiddleware._id,
+                'deployment.pendingTransaction.idempotencyKey': idempotencyKey,
+                'deployment.pendingTransaction.status': 'PENDING'
+            },
+            {
+                $set: {
+                    'deployment.pendingTransaction.status': 'PROCESSING',
+                    'deployment.lastAttemptedAt': new Date()
+                }
+            },
+            { new: true }
+        );
+
+        if (!agent) {
+            const alreadyProcessedAgent = await GymAgentModel.findById(agentFromMiddleware._id);
+            if (alreadyProcessedAgent?.deployment?.pendingTransaction?.idempotencyKey === idempotencyKey) {
+                throw new ApiError(409, ErrorCode.CONFLICT, 'This transaction is already being processed or has been submitted.');
+            }
+            throw new ApiError(400, ErrorCode.BAD_REQUEST, 'The provided idempotency key is invalid or out of date.');
         }
 
-        const normalizedType = type.toUpperCase().replace('-', '_');
+        const pendingTx = agent.deployment.pendingTransaction;
+        if (!pendingTx) {
+            throw ApiError.internalError('Pending transaction lock failed.');
+        }
 
-        if (agent.deployment.pendingTransaction.type !== normalizedType) {
+        if (pendingTx.type !== normalizedType) {
             throw ApiError.badRequest(
-                `Invalid transaction type. Expected ${agent.deployment.pendingTransaction.type}, got ${type}.`
+                `Invalid transaction type. Expected ${pendingTx.type}, got ${normalizedType}.`
             );
         }
 
-        if (normalizedType === 'TOKEN_CREATION') {
-            let txHash = agent.deployment.pendingTransaction.txHash;
+        const processTransaction = async (txType: 'TOKEN_CREATION' | 'POOL_CREATION') => {
+            let txHash = pendingTx.txHash;
 
             if (!txHash) {
                 try {
@@ -206,10 +263,16 @@ router.post(
                     txHash = await blockchainService.connection.sendRawTransaction(signedTransactionBuffer, {
                         skipPreflight: true,
                     });
-                    agent.deployment.pendingTransaction.txHash = txHash;
-                    await agent.save();
+                    await GymAgentModel.updateOne(
+                        { _id: agent._id, 'deployment.pendingTransaction.idempotencyKey': idempotencyKey },
+                        { $set: { 'deployment.pendingTransaction.txHash': txHash, 'deployment.pendingTransaction.status': 'SUBMITTED' } }
+                    );
                 } catch (error) {
-                    console.error('Error broadcasting transaction:', error);
+                    console.error(`Error broadcasting ${txType} transaction:`, error);
+                    await GymAgentModel.updateOne(
+                        { _id: agent._id, 'deployment.pendingTransaction.idempotencyKey': idempotencyKey },
+                        { $set: { 'deployment.pendingTransaction.status': 'PENDING' } }
+                    );
                     await transitionAgentStatus(agent, {
                         type: 'FAIL',
                         error: `Failed to broadcast transaction: ${(error as Error).message}`,
@@ -220,129 +283,147 @@ router.post(
 
             try {
                 const latestBlockHash = await blockchainService.connection.getLatestBlockhash('confirmed');
-                const confirmation = await blockchainService.connection.confirmTransaction(
-                    {
-                        signature: txHash,
-                        blockhash: latestBlockHash.blockhash,
-                        lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-                    },
-                    'confirmed'
-                );
 
-                if (confirmation.value.err) {
-                    throw new Error(`On-chain confirmation error: ${JSON.stringify(confirmation.value.err)}`);
+                // Configurable timeout based on network conditions
+                const CONFIRMATION_TIMEOUT = process.env.NODE_ENV === 'production' ? 120000 : 60000; // 2 minutes in prod, 1 minute in dev
+                const MAX_RETRIES = 3;
+                let retryCount = 0;
+                let confirmation;
+
+                while (retryCount < MAX_RETRIES) {
+                    try {
+                        const confirmationPromise = blockchainService.connection.confirmTransaction(
+                            {
+                                signature: txHash,
+                                blockhash: latestBlockHash.blockhash,
+                                lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+                            },
+                            'confirmed'
+                        );
+
+                        const timeoutPromise = new Promise((_, reject) => {
+                            setTimeout(() => {
+                                reject(new Error(`Transaction confirmation timed out after ${CONFIRMATION_TIMEOUT / 1000} seconds (attempt ${retryCount + 1}/${MAX_RETRIES})`));
+                            }, CONFIRMATION_TIMEOUT);
+                        });
+
+                        confirmation = await Promise.race([confirmationPromise, timeoutPromise]);
+
+                        if ((confirmation as any).value?.err) {
+                            throw new Error(`On-chain confirmation error: ${JSON.stringify((confirmation as any).value.err)}`);
+                        }
+
+                        // Success - break out of retry loop
+                        break;
+
+                    } catch (retryError) {
+                        retryCount++;
+                        const isTimeout = (retryError as Error).message.includes('timed out');
+
+                        if (retryCount >= MAX_RETRIES) {
+                            throw retryError;
+                        }
+
+                        if (isTimeout) {
+                            console.warn(`[TRANSACTION_TIMEOUT] Retry ${retryCount}/${MAX_RETRIES} for transaction ${txHash}`, {
+                                txType,
+                                agentId: agent._id,
+                                attempt: retryCount
+                            });
+
+                            // Exponential backoff: wait longer between retries
+                            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+                        } else {
+                            // Non-timeout error - don't retry
+                            throw retryError;
+                        }
+                    }
                 }
             } catch (error) {
-                console.error(`Transaction ${txHash} failed to confirm on-chain.`, error);
-                const failedAgent = await transitionAgentStatus(agent, {
+                console.error(`Transaction ${txHash} failed to confirm on-chain for ${txType}.`, error);
+
+                // Check if it's a timeout error
+                const errorMessage = (error as Error).message;
+                const isTimeout = errorMessage.includes('timed out');
+
+                await transitionAgentStatus(agent, {
                     type: 'FAIL',
-                    error: `Transaction confirmation failed: ${(error as Error).message}`,
+                    error: isTimeout
+                        ? `Transaction confirmation timed out. Transaction may still be processing on-chain: ${txHash}`
+                        : `Transaction confirmation failed: ${errorMessage}`,
                 });
-                throw ApiError.badRequest('Transaction confirmation failed.', { details: failedAgent });
+
+                throw ApiError.badRequest(
+                    isTimeout
+                        ? 'Transaction confirmation timed out. Please check the transaction status manually.'
+                        : 'Transaction confirmation failed.'
+                );
             }
 
-            const txDetails = await blockchainService.connection.getTransaction(txHash, {
-                maxSupportedTransactionVersion: 0,
-                commitment: 'confirmed',
-            });
-            if (!txDetails) {
-                throw ApiError.internalError('Failed to retrieve transaction details after confirmation.');
-            }
-
-            // A final check before using the details
-            if (!agent.deployment.pendingTransaction?.details.mint) {
-                throw ApiError.internalError('Mint details missing from pending transaction.');
-            }
-
-            const updatedAgent = await transitionAgentStatus(agent, {
-                type: 'TOKEN_CREATION_SUCCESS',
-                data: {
-                    tokenAddress: agent.deployment.pendingTransaction.details.mint,
-                    txHash,
-                    timestamp: txDetails.blockTime || Math.floor(Date.now() / 1000),
-                    slot: txDetails.slot,
-                },
-            });
-
-            res.status(200).json(successResponse(updatedAgent));
-        } else if (normalizedType === 'POOL_CREATION') {
-            let txHash = agent.deployment.pendingTransaction.txHash;
-
-            if (!txHash) {
-                try {
-                    const signedTransactionBuffer = Buffer.from(signedTransaction, 'base64');
-                    txHash = await blockchainService.connection.sendRawTransaction(signedTransactionBuffer, {
-                        skipPreflight: true,
-                    });
-                    agent.deployment.pendingTransaction.txHash = txHash;
-                    await agent.save();
-                } catch (error) {
-                    console.error('Error broadcasting pool creation transaction:', error);
-                    await transitionAgentStatus(agent, {
-                        type: 'FAIL',
-                        error: `Failed to broadcast pool creation transaction: ${(error as Error).message}`,
-                    });
-                    throw ApiError.internalError(`Failed to broadcast pool creation transaction: ${(error as Error).message}`);
-                }
-            }
-
+            // Add timeout to transaction details retrieval
+            let txDetails;
             try {
-                const latestBlockHash = await blockchainService.connection.getLatestBlockhash('confirmed');
-                const confirmation = await blockchainService.connection.confirmTransaction(
-                    {
-                        signature: txHash,
-                        blockhash: latestBlockHash.blockhash,
-                        lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-                    },
-                    'confirmed'
-                );
-
-                if (confirmation.value.err) {
-                    throw new Error(`On-chain confirmation error for pool creation: ${JSON.stringify(confirmation.value.err)}`);
-                }
-            } catch (error) {
-                console.error(`Pool creation transaction ${txHash} failed to confirm on-chain.`, error);
-                const failedAgent = await transitionAgentStatus(agent, {
-                    type: 'FAIL',
-                    error: `Pool creation transaction confirmation failed: ${(error as Error).message}`,
+                const TX_DETAILS_TIMEOUT = 30000; // 30 seconds
+                const detailsPromise = blockchainService.connection.getTransaction(txHash, {
+                    maxSupportedTransactionVersion: 0,
+                    commitment: 'confirmed',
                 });
-                throw ApiError.badRequest('Pool creation transaction confirmation failed.', { details: failedAgent });
+
+                const detailsTimeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => {
+                        reject(new Error(`Transaction details retrieval timed out after ${TX_DETAILS_TIMEOUT / 1000} seconds`));
+                    }, TX_DETAILS_TIMEOUT);
+                });
+
+                txDetails = await Promise.race([detailsPromise, detailsTimeoutPromise]);
+            } catch (error) {
+                console.error(`Failed to retrieve transaction details for ${txHash}:`, error);
+                // Don't fail the entire process for details retrieval timeout
+                txDetails = null;
             }
 
-            const txDetails = await blockchainService.connection.getTransaction(txHash, {
-                maxSupportedTransactionVersion: 0,
-                commitment: 'confirmed',
-            });
             if (!txDetails) {
-                throw ApiError.internalError('Failed to retrieve pool creation transaction details after confirmation.');
+                console.warn(`Transaction ${txHash} confirmed but details unavailable. Using fallback data.`);
             }
 
-            if (!agent.deployment.pendingTransaction?.details.poolKeys) {
-                throw ApiError.internalError('Pool keys missing from pending transaction details.');
+            if (txType === 'TOKEN_CREATION') {
+                if (!pendingTx.details.mint) {
+                    throw ApiError.internalError('Mint details missing from pending transaction.');
+                }
+                return transitionAgentStatus(agent, {
+                    type: 'TOKEN_CREATION_SUCCESS',
+                    data: {
+                        tokenAddress: pendingTx.details.mint,
+                        txHash,
+                        timestamp: (txDetails as any)?.blockTime || Math.floor(Date.now() / 1000),
+                        slot: (txDetails as any)?.slot || 0,
+                    },
+                });
+            } else { // POOL_CREATION
+                if (!pendingTx.details.poolKeys) {
+                    throw ApiError.internalError('Pool keys missing from pending transaction details.');
+                }
+                const poolKeys = JSON.parse(pendingTx.details.poolKeys);
+                const poolAddress = poolKeys.ammPool;
+
+                if (!poolAddress) {
+                    throw ApiError.internalError('Could not find pool address in pending transaction details.');
+                }
+                return transitionAgentStatus(agent, {
+                    type: 'POOL_CREATION_SUCCESS',
+                    data: {
+                        poolAddress,
+                        txHash,
+                        timestamp: (txDetails as any)?.blockTime || Math.floor(Date.now() / 1000),
+                        slot: (txDetails as any)?.slot || 0,
+                    },
+                });
             }
+        };
 
-            const poolKeys = JSON.parse(agent.deployment.pendingTransaction.details.poolKeys);
-            const poolAddress = poolKeys.ammPool;
-
-            if (!poolAddress) {
-                throw ApiError.internalError('Could not find pool address in pending transaction details.');
-            }
-
-            const updatedAgent = await transitionAgentStatus(agent, {
-                type: 'POOL_CREATION_SUCCESS',
-                data: {
-                    poolAddress,
-                    txHash,
-                    timestamp: txDetails.blockTime || Math.floor(Date.now() / 1000),
-                    slot: txDetails.slot,
-                },
-            });
-
-            res.status(200).json(successResponse(updatedAgent));
-        } else {
-            throw ApiError.badRequest('Invalid transaction type.');
-        }
+        const updatedAgent = await processTransaction(normalizedType as 'TOKEN_CREATION' | 'POOL_CREATION');
+        res.status(200).json(successResponse(updatedAgent));
     })
 );
 
-export { router as transactionRoutes }; 
+export { router as transactionRoutes };

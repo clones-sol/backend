@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { GymAgentModel, TrainingPoolModel } from '../../../models/Models.ts';
 import { ApiError } from '../../../middleware/types/errors.ts';
 import mongoose from 'mongoose';
+import { AuthenticatedRequest } from '../../../middleware/types/request.ts';
 
 /**
  * Middleware to verify that the authenticated user is the owner of the requested agent.
@@ -10,9 +11,8 @@ import mongoose from 'mongoose';
  *
  * Throws ApiError (notFound, forbidden, internalError) if checks fail.
  */
-export const requireAgentOwnership = async (req: Request, res: Response, next: NextFunction) => {
+export const requireAgentOwnership = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-        // @ts-ignore - walletAddress is attached by a preceding middleware
         const ownerAddress = req.walletAddress;
         if (!ownerAddress) {
             // This should be caught by requireWalletAddress first, but as a safeguard
@@ -41,7 +41,6 @@ export const requireAgentOwnership = async (req: Request, res: Response, next: N
 
         // Attach the found agent to the request object for use in the route handler.
         // This avoids fetching the agent from the database again.
-        // @ts-ignore
         req.agent = agent;
 
         next();

@@ -19,6 +19,26 @@ export const sanitizeAgentDataForLogging = (data: any) => {
 };
 
 /**
+ * Sanitizes state machine event data for logging purposes.
+ * @param event The event object from the state machine.
+ * @returns A sanitized event object.
+ */
+export const sanitizeEventForLogging = (event: any) => {
+    if (!event) return event;
+    const sanitized = { ...event };
+
+    if (sanitized.data) {
+        const sanitizedData = { ...sanitized.data };
+        if (sanitizedData.txHash) sanitizedData.txHash = '[REDACTED]';
+        if (sanitizedData.tokenAddress) sanitizedData.tokenAddress = '[REDACTED]';
+        if (sanitizedData.poolAddress) sanitizedData.poolAddress = '[REDACTED]';
+        sanitized.data = sanitizedData;
+    }
+
+    return sanitized;
+};
+
+/**
  * Creates the initial deployment version object if deployment data is provided.
  * @param deploymentData The deployment data from the request.
  * @returns A DeploymentVersion object or undefined.

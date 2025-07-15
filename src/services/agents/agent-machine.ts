@@ -105,15 +105,9 @@ export const agentLifecycleMachine = setup({
         },
         PENDING_TOKEN_SIGNATURE: {
             on: {
-                TOKEN_CREATION_SUCCESS: { target: 'TOKEN_CREATED', actions: 'assignTokenCreationData' },
+                TOKEN_CREATION_SUCCESS: { target: 'PENDING_POOL_SIGNATURE', actions: 'assignTokenCreationData' },
                 FAIL: { target: 'FAILED', actions: 'assignError' },
                 CANCEL: { target: 'DRAFT' },
-            },
-        },
-        TOKEN_CREATED: {
-            always: { target: 'PENDING_POOL_SIGNATURE' },
-            on: {
-                CANCEL: { target: 'FAILED', actions: 'assignCancellationError' },
             },
         },
         PENDING_POOL_SIGNATURE: {

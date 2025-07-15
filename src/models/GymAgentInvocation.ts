@@ -28,4 +28,10 @@ const GymAgentInvocationSchema = new Schema<IGymAgentInvocation>(
 // Automatically prune data older than 30 days
 GymAgentInvocationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
+// Additional compound indexes for metrics queries
+GymAgentInvocationSchema.index({ agentId: 1, timestamp: -1 }); // For agent-specific metrics
+GymAgentInvocationSchema.index({ agentId: 1, versionTag: 1, timestamp: -1 }); // For version-specific metrics
+GymAgentInvocationSchema.index({ agentId: 1, isSuccess: 1, timestamp: -1 }); // For success/failure analysis
+GymAgentInvocationSchema.index({ timestamp: -1, isSuccess: 1 }); // For global success metrics
+
 export const GymAgentInvocationModel = mongoose.model<IGymAgentInvocation>('GymAgentInvocation', GymAgentInvocationSchema); 

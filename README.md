@@ -184,12 +184,9 @@ stateDiagram-v2
     DRAFT --> PENDING_TOKEN_SIGNATURE: INITIATE_DEPLOYMENT
     DRAFT --> ARCHIVED: ARCHIVE
 
-    PENDING_TOKEN_SIGNATURE --> TOKEN_CREATED: TOKEN_CREATION_SUCCESS
+    PENDING_TOKEN_SIGNATURE --> PENDING_POOL_SIGNATURE: TOKEN_CREATION_SUCCESS
     PENDING_TOKEN_SIGNATURE --> FAILED: FAIL
     PENDING_TOKEN_SIGNATURE --> DRAFT: CANCEL
-
-    TOKEN_CREATED --> FAILED: CANCEL
-    TOKEN_CREATED -.-> PENDING_POOL_SIGNATURE: Automatic
 
     PENDING_POOL_SIGNATURE --> DEPLOYED: POOL_CREATION_SUCCESS
     PENDING_POOL_SIGNATURE --> FAILED: FAIL / CANCEL
@@ -209,7 +206,6 @@ stateDiagram-v2
 
 -   **States**: Each `status` of an agent (`DRAFT`, `PENDING_TOKEN_SIGNATURE`, `DEPLOYED`, etc.) corresponds to a finite state in the machine. An agent can only be in one state at any given time.
 -   **Events**: Transitions are triggered by explicit events (e.g., `{ type: 'INITIATE_DEPLOYMENT' }`). An event can only cause a transition if it is valid from the current state. Any attempt to make an invalid transition is blocked.
--   **Automatic Transitions**: Some transitions occur automatically upon entering a state. For example, upon successful token creation (entering `TOKEN_CREATED`), the machine immediately transitions to `PENDING_POOL_SIGNATURE` to continue the workflow seamlessly without requiring another client-side action.
 -   **Context**: The state machine maintains a `context` that holds the full `agent` document. `Actions` can modify this object in response to an event. For example, the `FAIL` event triggers an action that updates the `lastError` field in the context.
 -   **Guards**: Certain transitions are conditional. For instance, the `RETRY` event only leads to `PENDING_TOKEN_SIGNATURE` if the `hasNoToken` guard is met (i.e., if a token has not yet been created). This enables intelligent recovery logic.
 
@@ -224,3 +220,64 @@ Interaction with the state machine is centralized in the `transitionAgentStatus`
 5.  **Persistence**: The service retrieves the updated context and saves the `agent` object with its new status to the database.
 
 This approach ensures that the complex business logic of the lifecycle is decoupled from the API handlers, is testable in isolation, and is highly reliable.
+
+---
+
+## Database Index Validation
+
+To ensure optimal performance and data integrity, the system includes comprehensive database indexes for all critical queries. A validation script is provided to verify that all required indexes are present.
+
+### Running Index Validation
+
+```bash
+# Run the index validation script
+npm run validate-indexes
+
+# Or run directly with Node.js
+node --loader ts-node/esm src/scripts/validate-indexes.ts
+```
+
+### Required Indexes
+
+The system requires the following indexes for optimal performance:
+
+**GymAgent Collection:**
+- `pool_id_1` - Unique constraint and ownership lookups
+- `deployment.status_1` - Status-based queries and marketplace filtering
+- `name_text_description_text` - Full-text search capabilities
+- `auditLog.timestamp_-1` - Audit log queries
+- `blockchain.tokenAddress_1` - Token address lookups
+- `blockchain.poolAddress_1` - Pool address lookups
+- `deployment.pendingTransaction.idempotencyKey_1` - Transaction idempotency
+- `deployment.transitionLock_1` - Distributed locking for state transitions
+- `deployment.status_1_createdAt_-1` - Compound index for status + date queries
+
+**GymAgentInvocation Collection:**
+- `agentId_1_timestamp_-1` - Agent-specific metrics queries
+- `agentId_1_versionTag_1_timestamp_-1` - Version-specific metrics
+- `agentId_1_isSuccess_1_timestamp_-1` - Success/failure analysis
+- `createdAt_1` with TTL - Automatic cleanup of old invocation data (30 days)
+
+### Performance Considerations
+
+1. **Distributed Locking**: The system uses MongoDB-based distributed locks for state transitions to prevent race conditions. These locks automatically expire after 30 seconds.
+
+2. **TTL Indexes**: Invocation data is automatically pruned after 30 days using MongoDB TTL indexes to maintain performance.
+
+3. **Query Optimization**: All critical queries are backed by appropriate indexes to ensure sub-millisecond response times.
+
+4. **Connection Pooling**: The system uses MongoDB connection pooling to handle concurrent requests efficiently.
+
+### Monitoring Index Usage
+
+```bash
+# Check index usage statistics (run in MongoDB shell)
+db.gym_agents.getIndexes()
+db.gym_agent_invocations.getIndexes()
+
+# Monitor slow queries
+db.setProfilingLevel(1, { slowms: 100 })
+db.system.profile.find().sort({ ts: -1 }).limit(5)
+```
+
+---

@@ -9,6 +9,7 @@ import { idValidationSchema } from '../../schemas/common.ts';
 import mongoose from 'mongoose';
 import rateLimit from 'express-rate-limit';
 import { requireAgentOwnership } from './middleware.ts';
+import { AuthenticatedRequest } from '../../../middleware/types/request.ts';
 
 const router: Router = express.Router();
 
@@ -77,14 +78,13 @@ router.get(
     requireWalletAddress,
     validateParams(idValidationSchema),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;
 
         const healthStatus = {
-            status: agent.deployment.status,
-            isOperational: agent.deployment.status === 'DEPLOYED',
-            lastError: agent.deployment.lastError,
+            status: agent!.deployment.status,
+            isOperational: agent!.deployment.status === 'DEPLOYED',
+            lastError: agent!.deployment.lastError,
         };
 
         res.status(200).json(successResponse(healthStatus));
@@ -98,9 +98,8 @@ router.get(
     validateParams(idValidationSchema),
     validateQuery(metricsQuerySchema),
     requireAgentOwnership,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore
-        const { agent } = req;
+    errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+        const { agent } = req; // agent is available for any logic that might need it.
         const { id } = req.params;
         const { timeframe = '24h', versionTag } = req.query as { timeframe?: string; versionTag?: string };
 
@@ -163,7 +162,14 @@ router.get(
 
         const results = await GymAgentInvocationModel.aggregate(pipeline);
 
-        let metrics;
+        let metrics: {
+            timeframe: string;
+            totalRequests: number;
+            errorRate: number;
+            averageResponseTimeMs: number;
+            versionTag?: string;
+        };
+
         if (results.length > 0) {
             metrics = {
                 timeframe,
@@ -179,7 +185,6 @@ router.get(
             };
         }
         if (versionTag) {
-            // @ts-ignore
             metrics.versionTag = versionTag;
         }
 
