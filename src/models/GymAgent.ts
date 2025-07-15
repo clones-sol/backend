@@ -229,7 +229,7 @@ GymAgentSchema.index({ 'deployment.pendingTransaction.idempotencyKey': 1 }); // 
 GymAgentSchema.index({ 'deployment.pendingTransaction.status': 1 }); // For pending transaction queries
 GymAgentSchema.index({ 'deployment.activeVersionTag': 1 }); // For active version lookups
 GymAgentSchema.index({ 'deployment.consecutiveFailures': 1 }); // For failure monitoring
-GymAgentSchema.index({ 'deployment.transitionLock': 1 }); // For distributed locking
+GymAgentSchema.index({ 'deployment.transitionLock': 1 }, { expireAfterSeconds: 3600 }); // For distributed locking with TTL
 GymAgentSchema.index({ createdAt: -1 }); // For sorting by creation date
 GymAgentSchema.index({ 'deployment.status': 1, createdAt: -1 }); // Compound index for status + date queries
 
