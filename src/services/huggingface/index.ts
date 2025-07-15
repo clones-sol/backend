@@ -33,7 +33,7 @@ export const validateHuggingFaceApiKey = async (apiKey: string): Promise<boolean
 
         // For any other error (e.g., timeout, network issue, 5xx server error from HF),
         // we log the error but allow the process to continue.
-        console.warn('Hugging Face API key validation could not be completed due to a service error. Proceeding with key storage.', error);
+        console.warn('Hugging Face API key validation could not be completed due to a service error. Proceeding with key storage.', axios.isAxiosError(error) ? error.message : 'Unknown error');
         return true;
     }
 }; 
