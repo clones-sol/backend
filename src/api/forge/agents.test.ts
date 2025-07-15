@@ -3,15 +3,11 @@ import supertest from 'supertest';
 import express, { Request, Response, NextFunction } from 'express';
 import mongoose, { Document } from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { forgeAgentsApi } from './agents.ts';
-import { errorHandler } from '../../middleware/errorHandler.ts';
 import { TrainingPoolModel, GymAgentModel } from '../../models/Models.ts';
 import { DBTrainingPool } from '../../types/index.ts';
 import { validateHuggingFaceApiKey } from '../../services/huggingface/index.ts';
 import { createTokenCreationTransaction } from '../../services/blockchain/splTokenService.ts';
 import { createPoolCreationTransaction } from '../../services/blockchain/raydiumService.ts';
-import BlockchainService from '../../services/blockchain/index.ts';
-import { requireWalletAddress } from '../../middleware/auth.ts';
 import { PublicKey } from '@solana/web3.js';
 
 const ownerAddress = 'GjY2YhNBYbYPUH5nB2p1K2sM9c1A3s8zQ5E6f7g8h9jK'; // A valid Base58 public key

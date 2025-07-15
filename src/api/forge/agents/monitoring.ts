@@ -3,7 +3,7 @@ import { requireWalletAddress } from '../../../middleware/auth.ts';
 import { errorHandlerAsync } from '../../../middleware/errorHandler.ts';
 import { validateParams, validateQuery } from '../../../middleware/validator.ts';
 import { metricsQuerySchema, searchAgentsSchema } from '../../schemas/forge-agents.ts';
-import { ApiError, successResponse } from '../../../middleware/types/errors.ts';
+import { successResponse } from '../../../middleware/types/errors.ts';
 import { GymAgentModel, GymAgentInvocationModel } from '../../../models/Models.ts';
 import { idValidationSchema } from '../../schemas/common.ts';
 import mongoose from 'mongoose';
