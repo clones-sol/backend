@@ -5,9 +5,10 @@ import { generateAppsForPool, updatePoolStatus } from '../../services/forge/inde
 import { ForgeAppModel, ForgeRaceSubmission, TrainingPoolModel } from '../../models/Models.ts';
 import { requireWalletAddress } from '../../middleware/auth.ts';
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
-import { validateBody, validateQuery } from '../../middleware/validator.ts';
+import { validateBody, validateQuery, validateParams } from '../../middleware/validator.ts';
 import {
   createPoolSchema,
+  getPoolByIdSchema,
   refreshPoolSchema,
   rewardQuerySchema,
   updatePoolEmail,
@@ -119,6 +120,46 @@ router.get(
     );
 
     res.status(200).json(successResponse(poolsWithDemos));
+  })
+);
+
+// Get a single training pool by ID
+router.get(
+  '/:id',
+  requireWalletAddress,
+  validateParams(getPoolByIdSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    // @ts-ignore - Get walletAddress from the request object
+    const address = req.walletAddress;
+    const { id } = req.params;
+
+    const pool = await TrainingPoolModel.findById(id).select('-depositPrivateKey'); // Exclude private key from response
+
+    if (!pool) {
+      throw ApiError.notFound('Training pool not found');
+    }
+
+    // Verify that the pool belongs to the user
+    if (pool.ownerAddress !== address) {
+      throw ApiError.forbidden('Not authorized to view this pool');
+    }
+
+    // Get demonstration count
+    const demoCount = await ForgeRaceSubmission.countDocuments({
+      'meta.quest.pool_id': pool._id.toString()
+    });
+
+    const { solBalance, funds: tokenBalance } = await updatePoolStatus(pool);
+
+    const poolObj = pool.toObject();
+    res.status(200).json(
+      successResponse({
+        ...poolObj,
+        demonstrations: demoCount,
+        solBalance,
+        tokenBalance
+      })
+    );
   })
 );
 
