@@ -1,4 +1,5 @@
 import { ValidationSchema, ValidationRules } from '../../middleware/validator.ts';
+
 /**
  * Schema for chat request
  */
@@ -64,6 +65,16 @@ export const createPoolSchema: ValidationSchema = {
   apps: {
     required: false,
     rules: [ValidationRules.isArray()]
+  }
+};
+
+export const getPoolByIdSchema: ValidationSchema = {
+  id: {
+    required: true,
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.pattern(/^[0-9a-fA-F]{24}$/, 'Invalid ID format')
+    ]
   }
 };
 
