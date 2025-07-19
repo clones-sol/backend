@@ -103,7 +103,7 @@ export const withdrawSplSchema: ValidationSchema = {
   },
   amount: {
     required: true,
-    rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
+    rules: [ValidationRules.isNumber(), ValidationRules.min(0.000001)] // must be > 0
   }
 };
 
@@ -117,6 +117,6 @@ export const withdrawSolSchema: ValidationSchema = {
   },
   amount: {
     required: true,
-    rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
+    rules: [ValidationRules.isNumber(), ValidationRules.min(0.000001)] // must be > 0
   }
 };
