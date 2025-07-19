@@ -1,49 +1,7 @@
 import { ValidationSchema, ValidationRules } from '../../middleware/validator.ts';
 
 /**
- * Schema for chat request
- */
-export const chatRequestSchema: ValidationSchema = {
-  messages: {
-    required: true,
-    rules: [ValidationRules.isArray()]
-  },
-  task_prompt: {
-    required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
-  },
-  app: {
-    required: true,
-    rules: [ValidationRules.isObject()]
-  }
-};
-
-/**
- * Schema for updating pool email
- */
-export const updatePoolEmail: ValidationSchema = {
-  id: {
-    required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
-  },
-  email: {
-    required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
-  }
-};
-
-/**
- * Schema for refreshing pool balance
- */
-export const refreshPoolSchema: ValidationSchema = {
-  id: {
-    required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
-  }
-};
-
-/**
- * Schema for creating a training pool
+ * Schema for creating a new training pool
  */
 export const createPoolSchema: ValidationSchema = {
   name: {
@@ -52,7 +10,7 @@ export const createPoolSchema: ValidationSchema = {
   },
   skills: {
     required: true,
-    rules: [ValidationRules.isString()]
+    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
   },
   token: {
     required: true,
@@ -68,18 +26,28 @@ export const createPoolSchema: ValidationSchema = {
   }
 };
 
+/**
+ * Schema for getting a pool by ID
+ */
 export const getPoolByIdSchema: ValidationSchema = {
   id: {
     required: true,
-    rules: [
-      ValidationRules.isString(),
-      ValidationRules.pattern(/^[0-9a-fA-F]{24}$/, 'Invalid ID format')
-    ]
+    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
   }
 };
 
 /**
- * Schema for updating a training pool
+ * Schema for refreshing a pool
+ */
+export const refreshPoolSchema: ValidationSchema = {
+  id: {
+    required: true,
+    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
+  }
+};
+
+/**
+ * Schema for updating a pool
  */
 export const updatePoolSchema: ValidationSchema = {
   id: {
@@ -116,7 +84,7 @@ export const updatePoolSchema: ValidationSchema = {
 };
 
 /**
- * Schema for reward calculation query
+ * Schema for reward query
  */
 export const rewardQuerySchema: ValidationSchema = {
   poolId: {
@@ -126,47 +94,7 @@ export const rewardQuerySchema: ValidationSchema = {
 };
 
 /**
- * Schema for generating content
- */
-export const generateContentSchema: ValidationSchema = {
-  prompt: {
-    required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
-  }
-};
-
-/**
- * Schema for getting tasks
- */
-export const getTasksSchema: ValidationSchema = {
-  pool_id: {
-    required: false,
-    rules: [ValidationRules.isString()]
-  },
-  min_reward: {
-    required: false,
-    rules: [ValidationRules.isString()]
-  },
-  max_reward: {
-    required: false,
-    rules: [ValidationRules.isString()]
-  },
-  categories: {
-    required: false,
-    rules: [ValidationRules.isString()]
-  },
-  query: {
-    required: false,
-    rules: [ValidationRules.isString()]
-  },
-  hide_adult: {
-    required: false,
-    rules: [ValidationRules.isString()]
-  }
-};
-
-/**
- * Schema for withdrawing SPL tokens from a pool
+ * Schema for withdrawing SPL tokens
  */
 export const withdrawSplSchema: ValidationSchema = {
   poolId: {
@@ -175,12 +103,12 @@ export const withdrawSplSchema: ValidationSchema = {
   },
   amount: {
     required: true,
-    rules: [ValidationRules.isNumber(), ValidationRules.min(0.000001)] // must be > 0
+    rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
   }
 };
 
 /**
- * Schema for withdrawing SOL from a pool
+ * Schema for withdrawing SOL
  */
 export const withdrawSolSchema: ValidationSchema = {
   poolId: {
@@ -189,6 +117,6 @@ export const withdrawSolSchema: ValidationSchema = {
   },
   amount: {
     required: true,
-    rules: [ValidationRules.isNumber(), ValidationRules.min(0.000001)] // must be > 0
+    rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
   }
 };
