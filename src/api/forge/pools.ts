@@ -11,7 +11,6 @@ import {
   getPoolByIdSchema,
   refreshPoolSchema,
   rewardQuerySchema,
-  updatePoolEmail,
   updatePoolSchema,
   withdrawSplSchema,
   withdrawSolSchema
@@ -24,7 +23,6 @@ import {
 } from '../../types/index.ts';
 import { Keypair } from '@solana/web3.js';
 import { Webhook } from '../../services/webhook/index.ts';
-import { sendEmail } from '../../services/email/index.ts';
 import { decrypt, encrypt } from '../../services/security/crypto.ts';
 import { getTokenAddress, getSupportedTokenSymbols, supportedTokens } from '../../services/blockchain/tokens.ts';
 import BlockchainService from '../../services/blockchain/index.ts';
@@ -382,38 +380,6 @@ router.get(
         pricePerDemo: pool.pricePerDemo
       })
     );
-  })
-);
-
-router.put(
-  '/email',
-  requireWalletAddress,
-  validateBody(updatePoolEmail),
-  errorHandlerAsync(async (req: Request, res: Response) => {
-    const { id, email } = req.body;
-    const pool = await TrainingPoolModel.findById(id);
-    if (!pool) {
-      throw ApiError.notFound('Pool not found');
-    }
-    // @ts-ignore - Get walletAddress from the request object
-    if (pool.ownerAddress !== req.walletAddress) {
-      throw ApiError.forbidden('Not authorized to edit this pool.');
-    }
-    if (pool.ownerEmail === email) {
-      throw ApiError.conflict('This email is already linked to this pool.');
-    }
-    pool.ownerEmail = email;
-    await pool.save();
-    await sendEmail({
-      to: email,
-      subject: 'Forge Notifications Active',
-      text: 'Thank you for enabling Clones Forge notifications.\nThe next time your gym runs out of $VIRAL or gas you will get an email in this inbox.\n\n - The Clones Team'
-    }).catch((e) => {
-      console.log(e);
-      throw ApiError.badRequest('There was an error verifying your email.');
-    });
-
-    res.status(200).end();
   })
 );
 

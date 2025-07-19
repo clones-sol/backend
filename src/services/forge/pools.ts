@@ -5,7 +5,6 @@ import BlockchainService from '../blockchain/index.ts';
 import { Webhook } from '../webhook/index.ts';
 import { APP_TASK_GENERATION_PROMPT } from './prompts.ts';
 import { Document, Types } from 'mongoose';
-import { sendEmail } from '../email/index.ts';
 import { getTokenAddress } from '../blockchain/tokens.ts';
 
 // setup the pool refresher
@@ -181,32 +180,5 @@ export async function updatePoolStatus(
   }
 
   await pool.save();
-  if (statusChanged && pool.ownerEmail) {
-    if (pool.status === TrainingPoolStatus.noGas) {
-      sendEmail({
-        to: pool.ownerEmail,
-        subject: `Clones Forge '${pool.name}' Out of Gas`,
-        text: `The wallet for your forge ${pool.name} does not have enough SOL to pay the gas for token transactions.\nPlease send some SOL to your forge via the Clones App.\n\nThank you for contributing to open computer use data!\n - The Clones Team`
-      }).catch((e) => {
-        console.log(e);
-      });
-    } else if (pool.status === TrainingPoolStatus.noFunds) {
-      sendEmail({
-        to: pool.ownerEmail,
-        subject: `Clones Forge '${pool.name}' Out of Funds`,
-        text: `The wallet for your forge ${pool.name} does not have enough ${pool.token.symbol} to send rewards for successful task completions.\nPlease deposit more ${pool.token.symbol} to your forge via the Clones App.\n\nThank you for contributing to open computer use data!\n - The Clones Team`
-      }).catch((e) => {
-        console.log(e);
-      });
-    } else if (pool.status === TrainingPoolStatus.paused) {
-      sendEmail({
-        to: pool.ownerEmail,
-        subject: `Clones Forge '${pool.name}' Successfully Funded`,
-        text: `The wallet for your forge ${pool.name} has been successfully funded. Your tasks will now appear in the desktop app.\n\nThank you for contributing to open computer use data!\n - The Clones Team`
-      }).catch((e) => {
-        console.log(e);
-      });
-    }
-  }
   return { solBalance, funds: balance, status: pool.status };
 }
