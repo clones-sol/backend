@@ -72,7 +72,6 @@ export interface DBTrainingPool {
     symbol: string;
   };
   skills: string;
-  ownerEmail?: string;
   ownerAddress: string;
   depositAddress: string;
   depositPrivateKey: string; // Store private key securely
