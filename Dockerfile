@@ -33,7 +33,7 @@ RUN npm prune --omit=dev
 # Final stage for app image
 FROM base
 
-ADD https://github.com/clones-sol/vm-pipeline/releases/latest/download/pipeline-linux-x64 /app/pipeline
+ADD https://github.com/clones-sol/pipeline/releases/latest/download/pipeline-linux-x64 /app/pipeline
 RUN chmod +x /app/pipeline
 
 # Install runtime dependencies
