@@ -121,6 +121,47 @@ router.get(
   })
 );
 
+// Get reward calculation
+// todo: this needs to be updated for the new reward system
+router.get(
+  '/reward',
+  validateQuery(rewardQuerySchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { poolId } = req.query;
+
+    // Get the pool to check pricePerDemo
+    const pool = await TrainingPoolModel.findById(poolId);
+    if (!pool) {
+      throw ApiError.notFound('Pool not found');
+    }
+
+    // Check if pool has enough funds for at least one demo
+    if (pool.funds < pool.pricePerDemo) {
+      throw ApiError.paymentRequired('Pool has insufficient funds');
+    }
+
+    // Round time down to last minute
+    const currentTime = Math.floor(Date.now() / 60000) * 60000;
+    // Create hash using poolId + address + time + secret
+    // const hash = createHash('sha256')
+    //   .update(`${poolId}${address}${currentTime}${process.env.IPC_SECRET}`)
+    //   .digest('hex');
+    // // Convert first 8 chars of hash to number between 0-1
+    // const rng = parseInt(hash.slice(0, 8), 16) / 0xffffffff;
+
+    // Use pricePerDemo as the base reward value
+    const reward = pool.pricePerDemo;
+
+    res.status(200).json(
+      successResponse({
+        time: currentTime,
+        maxReward: reward,
+        pricePerDemo: pool.pricePerDemo
+      })
+    );
+  })
+);
+
 // Get a single training pool by ID
 router.get(
   '/:id',
@@ -339,47 +380,6 @@ router.put(
     }
 
     res.status(200).json(successResponse(updatedPool));
-  })
-);
-
-// Get reward calculation
-// todo: this needs to be updated for the new reward system
-router.get(
-  '/reward',
-  validateQuery(rewardQuerySchema),
-  errorHandlerAsync(async (req: Request, res: Response) => {
-    const { poolId } = req.query;
-
-    // Get the pool to check pricePerDemo
-    const pool = await TrainingPoolModel.findById(poolId);
-    if (!pool) {
-      throw ApiError.notFound('Pool not found');
-    }
-
-    // Check if pool has enough funds for at least one demo
-    if (pool.funds < pool.pricePerDemo) {
-      throw ApiError.paymentRequired('Pool has insufficient funds');
-    }
-
-    // Round time down to last minute
-    const currentTime = Math.floor(Date.now() / 60000) * 60000;
-    // Create hash using poolId + address + time + secret
-    // const hash = createHash('sha256')
-    //   .update(`${poolId}${address}${currentTime}${process.env.IPC_SECRET}`)
-    //   .digest('hex');
-    // // Convert first 8 chars of hash to number between 0-1
-    // const rng = parseInt(hash.slice(0, 8), 16) / 0xffffffff;
-
-    // Use pricePerDemo as the base reward value
-    const reward = pool.pricePerDemo;
-
-    res.status(200).json(
-      successResponse({
-        time: currentTime,
-        maxReward: reward,
-        pricePerDemo: pool.pricePerDemo
-      })
-    );
   })
 );
 
