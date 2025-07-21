@@ -1,7 +1,35 @@
 import { ValidationSchema, ValidationRules } from '../../middleware/validator.ts';
 
 /**
- * Schema for creating a new training pool
+ * Schema for chat request
+ */
+export const chatRequestSchema: ValidationSchema = {
+  messages: {
+    required: true,
+    rules: [ValidationRules.isArray()]
+  },
+  task_prompt: {
+    required: true,
+    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
+  },
+  app: {
+    required: true,
+    rules: [ValidationRules.isObject()]
+  }
+};
+
+/**
+ * Schema for refreshing pool balance
+ */
+export const refreshPoolSchema: ValidationSchema = {
+  id: {
+    required: true,
+    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
+  }
+};
+
+/**
+ * Schema for creating a training pool
  */
 export const createPoolSchema: ValidationSchema = {
   name: {
@@ -10,7 +38,7 @@ export const createPoolSchema: ValidationSchema = {
   },
   skills: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
+    rules: [ValidationRules.isString()]
   },
   token: {
     required: true,
@@ -26,28 +54,18 @@ export const createPoolSchema: ValidationSchema = {
   }
 };
 
-/**
- * Schema for getting a pool by ID
- */
 export const getPoolByIdSchema: ValidationSchema = {
   id: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.pattern(/^[0-9a-fA-F]{24}$/, 'Invalid ID format')
+    ]
   }
 };
 
 /**
- * Schema for refreshing a pool
- */
-export const refreshPoolSchema: ValidationSchema = {
-  id: {
-    required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
-  }
-};
-
-/**
- * Schema for updating a pool
+ * Schema for updating a training pool
  */
 export const updatePoolSchema: ValidationSchema = {
   id: {
@@ -84,7 +102,7 @@ export const updatePoolSchema: ValidationSchema = {
 };
 
 /**
- * Schema for reward query
+ * Schema for reward calculation query
  */
 export const rewardQuerySchema: ValidationSchema = {
   poolId: {
@@ -94,7 +112,47 @@ export const rewardQuerySchema: ValidationSchema = {
 };
 
 /**
- * Schema for withdrawing SPL tokens
+ * Schema for generating content
+ */
+export const generateContentSchema: ValidationSchema = {
+  prompt: {
+    required: true,
+    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
+  }
+};
+
+/**
+ * Schema for getting tasks
+ */
+export const getTasksSchema: ValidationSchema = {
+  pool_id: {
+    required: false,
+    rules: [ValidationRules.isString()]
+  },
+  min_reward: {
+    required: false,
+    rules: [ValidationRules.isString()]
+  },
+  max_reward: {
+    required: false,
+    rules: [ValidationRules.isString()]
+  },
+  categories: {
+    required: false,
+    rules: [ValidationRules.isString()]
+  },
+  query: {
+    required: false,
+    rules: [ValidationRules.isString()]
+  },
+  hide_adult: {
+    required: false,
+    rules: [ValidationRules.isString()]
+  }
+};
+
+/**
+ * Schema for withdrawing SPL tokens from a pool
  */
 export const withdrawSplSchema: ValidationSchema = {
   poolId: {
@@ -108,7 +166,7 @@ export const withdrawSplSchema: ValidationSchema = {
 };
 
 /**
- * Schema for withdrawing SOL
+ * Schema for withdrawing SOL from a pool
  */
 export const withdrawSolSchema: ValidationSchema = {
   poolId: {
