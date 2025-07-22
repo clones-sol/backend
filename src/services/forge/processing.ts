@@ -302,8 +302,6 @@ export async function processNextInQueue() {
               console.log('Creating treasury transfer for reward:', treasuryTransfer);
               console.log('Creating treasury transfer to address:', submission.address);
 
-              if (process.env.NODE_ENV === 'development') break;
-
               try {
                 console.log('Attempting blockchain transfer');
 
