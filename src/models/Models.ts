@@ -6,3 +6,5 @@ export * from './TrainingPool.ts';
 export * from './WalletConnection.ts';
 export * from './GymAgent.ts';
 export * from './GymAgentInvocation.ts';
+export * from './Referral.ts';
+export * from './ReferralCode.ts';
