@@ -12,6 +12,7 @@ import nacl from 'tweetnacl';
 import { WalletConnectionModel } from '../models/Models.ts';
 import { ConnectBody } from '../types/index.ts';
 import BlockchainService from '../services/blockchain/index.ts';
+import { referralService } from '../services/referral/index.ts';
 import {
   checkConnectionSchema,
   connectWalletSchema,
@@ -76,7 +77,39 @@ router.post(
       { upsert: true }
     );
 
-    res.status(200).json(successResponse({}));
+    // Handle referral if this is a new wallet connection
+    let referralCreated = false;
+    if (req.body.referralCode) {
+      try {
+        // Check if this wallet has already been referred
+        const hasBeenReferred = await referralService.hasBeenReferred(address);
+        
+        if (!hasBeenReferred) {
+          // Validate the referral code and get referrer
+          const referrerAddress = await referralService.validateReferralCode(req.body.referralCode);
+          
+          if (referrerAddress && referrerAddress !== address) {
+            // Create referral relationship
+            await referralService.createReferral(
+              referrerAddress,
+              address,
+              req.body.referralCode,
+              'wallet_connect',
+              { connectionToken: token }
+            );
+            referralCreated = true;
+          }
+        }
+      } catch (error) {
+        console.error('Referral creation failed:', error);
+        // Don't fail the wallet connection if referral fails
+      }
+    }
+
+    res.status(200).json(successResponse({
+      referralCreated,
+      referralCode: req.body.referralCode || null
+    }));
   })
 );
 
