@@ -85,7 +85,8 @@ router.post(
       referreeAddress, 
       referralCode, 
       firstActionType, 
-      firstActionData 
+      firstActionData,
+      actionValue 
     } = req.body;
 
     if (!referrerAddress || !referreeAddress || !referralCode || !firstActionType) {
@@ -97,7 +98,8 @@ router.post(
       referreeAddress,
       referralCode,
       firstActionType,
-      firstActionData
+      firstActionData,
+      actionValue
     );
 
     // Store on-chain (async)
@@ -109,7 +111,9 @@ router.post(
       referrerAddress: referral.referrerAddress,
       referreeAddress: referral.referreeAddress,
       status: referral.status,
-      firstActionType: referral.firstActionType
+      firstActionType: referral.firstActionType,
+      rewardAmount: referral.rewardAmount,
+      rewardProcessed: referral.rewardProcessed
     }));
   })
 );
@@ -156,6 +160,142 @@ router.get(
 
     return res.status(200).json(successResponse({
       referrer
+    }));
+  })
+);
+
+// Get reward statistics for a wallet
+router.get(
+  '/rewards/:walletAddress',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { walletAddress } = req.params;
+
+    const rewardStats = await referralService.getRewardStats(walletAddress);
+
+    return res.status(200).json(successResponse(rewardStats));
+  })
+);
+
+// Get reward configuration
+router.get(
+  '/rewards/config',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const config = await referralService.getRewardConfig();
+
+    return res.status(200).json(successResponse(config));
+  })
+);
+
+// Update reward configuration (admin only)
+router.post(
+  '/rewards/config',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { baseReward, bonusMultiplier, maxReferrals, minActionValue, cooldownPeriod } = req.body;
+
+    // TODO: Add admin authentication
+    const updatedConfig = await referralService.updateRewardConfig({
+      baseReward,
+      bonusMultiplier,
+      maxReferrals,
+      minActionValue,
+      cooldownPeriod
+    });
+
+    return res.status(200).json(successResponse({
+      message: 'Reward configuration updated successfully',
+      config: updatedConfig
+    }));
+  })
+);
+
+// Process reward for a specific action
+router.post(
+  '/rewards/process',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { 
+      referrerAddress, 
+      referreeAddress, 
+      actionType, 
+      actionValue 
+    } = req.body;
+
+    if (!referrerAddress || !referreeAddress || !actionType) {
+      throw ApiError.badRequest('Missing required fields');
+    }
+
+    const rewardEvent = await referralService.processReward(
+      referrerAddress,
+      referreeAddress,
+      actionType,
+      actionValue || 0
+    );
+
+    return res.status(200).json(successResponse({
+      rewardEvent,
+      processed: !!rewardEvent
+    }));
+  })
+);
+
+// Cleanup endpoints (admin only)
+router.post(
+  '/cleanup/expired-codes',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    // TODO: Add admin authentication
+    const cleanedCount = await referralService.cleanupExpiredCodes();
+
+    return res.status(200).json(successResponse({
+      message: `Cleaned up ${cleanedCount} expired referral codes`,
+      cleanedCount
+    }));
+  })
+);
+
+router.get(
+  '/cleanup/stats',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const stats = await referralService.getCleanupStats();
+
+    return res.status(200).json(successResponse(stats));
+  })
+);
+
+router.post(
+  '/cleanup/extend-expiration',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { walletAddress, extensionDays } = req.body;
+
+    if (!walletAddress) {
+      throw ApiError.badRequest('Wallet address is required');
+    }
+
+    const success = await referralService.extendExpiration(
+      walletAddress,
+      extensionDays || 30
+    );
+
+    return res.status(200).json(successResponse({
+      success,
+      message: success ? 'Expiration extended successfully' : 'Failed to extend expiration'
+    }));
+  })
+);
+
+router.post(
+  '/cleanup/regenerate-code',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { walletAddress } = req.body;
+
+    if (!walletAddress) {
+      throw ApiError.badRequest('Wallet address is required');
+    }
+
+    const newCode = await referralService.regenerateExpiredCode(walletAddress);
+
+    return res.status(200).json(successResponse({
+      success: !!newCode,
+      newCode,
+      message: newCode ? 'Code regenerated successfully' : 'Failed to regenerate code'
     }));
   })
 );
