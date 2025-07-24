@@ -7,6 +7,7 @@ export interface IReferralCode {
   isActive: boolean; // Whether this referral code is active
   totalReferrals: number; // Total number of successful referrals
   totalRewards: number; // Total rewards earned from referrals
+  expiresAt?: Date; // When the referral code expires
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +37,10 @@ const ReferralCodeSchema = new mongoose.Schema<IReferralCode>(
     totalRewards: { 
       type: Number, 
       default: 0 
+    },
+    expiresAt: {
+      type: Date,
+      index: true
     }
   },
   {
