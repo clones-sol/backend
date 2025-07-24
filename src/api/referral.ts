@@ -208,6 +208,22 @@ router.post(
   })
 );
 
+// Get reward statistics for a wallet
+router.get(
+  '/rewards/stats/:walletAddress',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { walletAddress } = req.params;
+
+    if (!walletAddress) {
+      throw ApiError.badRequest('Wallet address is required');
+    }
+
+    const stats = await referralService.getRewardStats(walletAddress);
+
+    return res.status(200).json(successResponse(stats));
+  })
+);
+
 // Process reward for a specific action
 router.post(
   '/rewards/process',
