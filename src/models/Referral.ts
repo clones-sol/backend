@@ -10,6 +10,8 @@ export interface IReferral {
   firstActionData?: any; // Additional data about the first action
   onChainTxHash?: string; // Transaction hash when stored on-chain
   onChainSlot?: number; // Solana slot when stored on-chain
+  rewardAmount?: number; // Amount of reward distributed
+  rewardProcessed?: boolean; // Whether reward has been processed
   status: 'pending' | 'confirmed' | 'failed';
   createdAt: Date;
   updatedAt: Date;
@@ -50,6 +52,14 @@ const ReferralSchema = new mongoose.Schema<IReferral>(
     },
     onChainSlot: { 
       type: Number 
+    },
+    rewardAmount: {
+      type: Number,
+      default: 0
+    },
+    rewardProcessed: {
+      type: Boolean,
+      default: false
     },
     status: { 
       type: String, 
