@@ -1,16 +1,31 @@
 import { ReferralModel, IReferral } from '../../models/Referral.ts';
 import { ReferralCodeModel, IReferralCode } from '../../models/ReferralCode.ts';
 import BlockchainService from '../blockchain/index.ts';
+import { ReferralProgramService } from '../blockchain/referralProgram.ts';
+import { RewardService } from './rewardService.ts';
+import { ReferralCleanupService } from './cleanupService.ts';
 import crypto from 'crypto';
 
 export class ReferralService {
   private blockchainService: BlockchainService;
+  private referralProgramService: ReferralProgramService;
+  private rewardService: RewardService;
+  private cleanupService: ReferralCleanupService;
 
   constructor() {
     this.blockchainService = new BlockchainService(
       process.env.RPC_URL || '',
       ''
     );
+    this.referralProgramService = new ReferralProgramService(
+      process.env.RPC_URL || '',
+      process.env.REFERRAL_PROGRAM_ID || '11111111111111111111111111111111'
+    );
+    this.rewardService = new RewardService(
+      process.env.RPC_URL || '',
+      process.env.REFERRAL_PROGRAM_ID || '11111111111111111111111111111111'
+    );
+    this.cleanupService = new ReferralCleanupService();
   }
 
   /**
@@ -23,18 +38,30 @@ export class ReferralService {
       return existingCode.referralCode;
     }
 
-    // Generate a unique 8-character referral code
+    // Generate a unique 6-character alphanumeric referral code
     let referralCode: string;
     let isUnique = false;
+    let attempts = 0;
+    const maxAttempts = 100;
     
-    while (!isUnique) {
-      referralCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+    while (!isUnique && attempts < maxAttempts) {
+      // Generate 6-character alphanumeric code (uppercase letters and numbers)
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      referralCode = '';
+      for (let i = 0; i < 6; i++) {
+        referralCode += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
       
       // Check if code already exists
       const existing = await ReferralCodeModel.findOne({ referralCode });
       if (!existing) {
         isUnique = true;
       }
+      attempts++;
+    }
+
+    if (!isUnique) {
+      throw new Error('Failed to generate unique referral code after maximum attempts');
     }
 
     // Create referral code record
@@ -43,7 +70,8 @@ export class ReferralService {
       referralCode: referralCode!,
       isActive: true,
       totalReferrals: 0,
-      totalRewards: 0
+      totalRewards: 0,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
     });
 
     return referralCode!;
@@ -65,7 +93,18 @@ export class ReferralService {
       isActive: true 
     });
     
-    return codeRecord ? codeRecord.walletAddress : null;
+    if (!codeRecord) {
+      return null;
+    }
+
+    // Check if code has expired
+    if (codeRecord.expiresAt && codeRecord.expiresAt < new Date()) {
+      // Mark code as inactive
+      await ReferralCodeModel.findByIdAndUpdate(codeRecord._id, { isActive: false });
+      return null;
+    }
+    
+    return codeRecord.walletAddress;
   }
 
   /**
@@ -76,7 +115,8 @@ export class ReferralService {
     referreeAddress: string,
     referralCode: string,
     firstActionType: string,
-    firstActionData?: any
+    firstActionData?: any,
+    actionValue?: number
   ): Promise<IReferral> {
     // Check if referree has already been referred
     const existingReferral = await ReferralModel.findOne({ referreeAddress });
@@ -112,6 +152,29 @@ export class ReferralService {
       { $inc: { totalReferrals: 1 } }
     );
 
+    // Process reward if action value is provided
+    if (actionValue !== undefined) {
+      try {
+        const rewardEvent = await this.rewardService.processReward(
+          referrerAddress,
+          referreeAddress,
+          firstActionType,
+          actionValue
+        );
+        
+        if (rewardEvent) {
+          // Update referral with reward information
+          await ReferralModel.findByIdAndUpdate(referral._id, {
+            rewardAmount: rewardEvent.rewardAmount,
+            rewardProcessed: true
+          });
+        }
+      } catch (error) {
+        console.error('Failed to process reward:', error);
+        // Continue without reward processing
+      }
+    }
+
     return referral;
   }
 
@@ -124,21 +187,33 @@ export class ReferralService {
       throw new Error('Referral not found');
     }
 
-    // TODO: Implement on-chain storage using Solana program
-    // This would involve creating a transaction to store the referral data
-    // For now, we'll simulate the on-chain storage
-    
-    const mockTxHash = crypto.randomBytes(32).toString('hex');
-    const mockSlot = Math.floor(Date.now() / 1000);
+    try {
+      // Store referral data on-chain
+      const referralData = {
+        referrerAddress: referral.referrerAddress,
+        referreeAddress: referral.referreeAddress,
+        referralCode: referral.referralCode,
+        timestamp: Math.floor(referral.createdAt.getTime() / 1000),
+        rewardAmount: 0 // Will be set when rewards are distributed
+      };
 
-    // Update referral with on-chain data
-    await ReferralModel.findByIdAndUpdate(referralId, {
-      onChainTxHash: mockTxHash,
-      onChainSlot: mockSlot,
-      status: 'confirmed'
-    });
+      const onChainResult = await this.referralProgramService.storeReferral(referralData);
 
-    return { txHash: mockTxHash, slot: mockSlot };
+      // Update referral with on-chain data
+      await ReferralModel.findByIdAndUpdate(referralId, {
+        onChainTxHash: onChainResult.txHash,
+        onChainSlot: onChainResult.slot,
+        status: 'confirmed'
+      });
+
+      return onChainResult;
+    } catch (error) {
+      // Update referral status to failed
+      await ReferralModel.findByIdAndUpdate(referralId, {
+        status: 'failed'
+      });
+      throw error;
+    }
   }
 
   /**
@@ -178,6 +253,64 @@ export class ReferralService {
   async getReferrer(walletAddress: string): Promise<string | null> {
     const referral = await ReferralModel.findOne({ referreeAddress: walletAddress });
     return referral ? referral.referrerAddress : null;
+  }
+
+  /**
+   * Get reward statistics for a wallet
+   */
+  async getRewardStats(walletAddress: string) {
+    return await this.rewardService.getRewardStats(walletAddress);
+  }
+
+  /**
+   * Get reward configuration
+   */
+  async getRewardConfig() {
+    return this.rewardService.getRewardConfig();
+  }
+
+  /**
+   * Update reward configuration
+   */
+  async updateRewardConfig(newConfig: any) {
+    this.rewardService.updateRewardConfig(newConfig);
+    return this.rewardService.getRewardConfig();
+  }
+
+  /**
+   * Process reward for a specific action
+   */
+  async processReward(
+    referrerAddress: string,
+    referreeAddress: string,
+    actionType: string,
+    actionValue: number
+  ) {
+    return await this.rewardService.processReward(
+      referrerAddress,
+      referreeAddress,
+      actionType,
+      actionValue
+    );
+  }
+
+  /**
+   * Cleanup methods
+   */
+  async cleanupExpiredCodes(): Promise<number> {
+    return await this.cleanupService.cleanupExpiredCodes();
+  }
+
+  async getCleanupStats() {
+    return await this.cleanupService.getExpiredCodeStats();
+  }
+
+  async extendExpiration(walletAddress: string, extensionDays: number = 30): Promise<boolean> {
+    return await this.cleanupService.extendExpiration(walletAddress, extensionDays);
+  }
+
+  async regenerateExpiredCode(walletAddress: string): Promise<string | null> {
+    return await this.cleanupService.regenerateExpiredCode(walletAddress);
   }
 }
 
