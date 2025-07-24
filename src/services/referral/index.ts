@@ -114,6 +114,7 @@ export class ReferralService {
     referrerAddress: string,
     referreeAddress: string,
     referralCode: string,
+    referralLink: string,
     firstActionType: string,
     firstActionData?: any,
     actionValue?: number
@@ -140,7 +141,7 @@ export class ReferralService {
       referrerAddress,
       referreeAddress,
       referralCode: referralCode.toUpperCase(),
-      referralLink: `${process.env.FRONTEND_URL || 'https://clones.sol'}/ref/${referralCode}`,
+      referralLink,
       firstActionType,
       firstActionData,
       status: 'pending'
