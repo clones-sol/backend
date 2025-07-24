@@ -93,10 +93,14 @@ router.post(
       throw ApiError.badRequest('Missing required fields');
     }
 
+    // Generate referral link
+    const referralLink = `${process.env.FRONTEND_URL || 'https://clones.sol'}/ref/${referralCode}`;
+    
     const referral = await referralService.createReferral(
       referrerAddress,
       referreeAddress,
       referralCode,
+      referralLink,
       firstActionType,
       firstActionData,
       actionValue
