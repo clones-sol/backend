@@ -1,5 +1,6 @@
 import { Connection, PublicKey, Transaction, SystemProgram, Keypair } from '@solana/web3.js';
-import { Program, AnchorProvider, web3, BN } from '@project-serum/anchor';
+import { Program, BN } from '@project-serum/anchor';
+import { AnchorProvider } from '@coral-xyz/anchor';
 import { IDL } from './referral-program-idl';
 
 export interface ReferralData {
