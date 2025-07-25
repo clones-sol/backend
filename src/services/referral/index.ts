@@ -39,44 +39,62 @@ export class ReferralService {
       return existingCode.referralCode;
     }
 
-    // Generate a unique 6-character alphanumeric referral code
-    let referralCode: string;
-    let isUnique = false;
-    let attempts = 0;
-    const maxAttempts = 100;
-    
-    while (!isUnique && attempts < maxAttempts) {
-      // Generate 6-character alphanumeric code (uppercase letters and numbers)
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      referralCode = '';
-      const randomBytes = crypto.randomBytes(6);
-      for (let i = 0; i < 6; i++) {
-        referralCode += chars.charAt(randomBytes[i] % chars.length);
+    // Generate a unique 6-character alphanumeric referral code with collision handling
+    const maxRetries = 10;
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Generate 6-character alphanumeric code (uppercase letters and numbers)
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let referralCode = '';
+        const randomBytes = crypto.randomBytes(6);
+        for (let i = 0; i < 6; i++) {
+          referralCode += chars.charAt(randomBytes[i] % chars.length);
+        }
+
+        // Attempt to create the referral code record
+        // This will fail with a duplicate key error if the code already exists
+        await ReferralCodeModel.create({
+          walletAddress,
+          referralCode,
+          isActive: true,
+          totalReferrals: 0,
+          totalRewards: 0,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
+        });
+
+        // If we get here, the code was successfully created
+        return referralCode;
+
+      } catch (error: any) {
+        lastError = error;
+        
+        // Check if this is a duplicate key error (MongoDB error code 11000)
+        if (error.code === 11000) {
+          // This is a collision - the generated code already exists
+          // We'll retry with a new code on the next iteration
+          console.warn(`Referral code collision detected on attempt ${attempt + 1}, retrying...`);
+          continue;
+        }
+        
+        // If it's not a duplicate key error, it's a different issue
+        // Check if it's a duplicate wallet address (user already has a code)
+        if (error.code === 11000 && error.keyPattern?.walletAddress) {
+          // User already has a referral code, fetch and return it
+          const existingCode = await ReferralCodeModel.findOne({ walletAddress });
+          if (existingCode) {
+            return existingCode.referralCode;
+          }
+        }
+        
+        // For any other error, throw it immediately
+        throw error;
       }
-      
-      // Check if code already exists
-      const existing = await ReferralCodeModel.findOne({ referralCode });
-      if (!existing) {
-        isUnique = true;
-      }
-      attempts++;
     }
 
-    if (!isUnique) {
-      throw new Error('Failed to generate unique referral code after maximum attempts');
-    }
-
-    // Create referral code record
-    await ReferralCodeModel.create({
-      walletAddress,
-      referralCode: referralCode!,
-      isActive: true,
-      totalReferrals: 0,
-      totalRewards: 0,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
-    });
-
-    return referralCode!;
+    // If we've exhausted all retries, throw an error
+    throw new Error(`Failed to generate unique referral code after ${maxRetries} attempts. Last error: ${lastError?.message}`);
   }
 
   /**
