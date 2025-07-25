@@ -1,5 +1,6 @@
 import { Connection, PublicKey, Transaction, SystemProgram, Keypair } from '@solana/web3.js';
 import BN from 'bn.js';
+import crypto from 'crypto';
 
 export interface ReferralData {
   referrerAddress: string;
@@ -47,7 +48,7 @@ export class ReferralProgramService {
       // const signature = await this.connection.sendTransaction(tx, [wallet]);
 
       // For now, return mock data
-      const mockTxHash = Buffer.from(Math.random().toString()).toString('hex');
+      const mockTxHash = crypto.randomBytes(32).toString('hex');
       const mockSlot = latestBlockhash.lastValidBlockHeight || 0;
 
       return {
