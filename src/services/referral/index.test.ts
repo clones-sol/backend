@@ -152,7 +152,7 @@ describe('ReferralService', () => {
             });
 
             await expect(referralService.generateReferralCode('new-wallet')).rejects.toThrow(
-                'Failed to generate unique referral code after maximum attempts'
+                'Failed to generate unique referral code after 10 attempts'
             );
 
             // Restore original function
