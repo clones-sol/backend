@@ -3,6 +3,7 @@ import { referralService } from '../services/referral/index.ts';
 import { errorHandlerAsync } from '../middleware/errorHandler.ts';
 import { validateBody } from '../middleware/validator.ts';
 import { ApiError, successResponse } from '../middleware/types/errors.ts';
+import { requireAdminAuth } from '../middleware/auth.ts';
 
 const router = express.Router();
 
@@ -17,7 +18,7 @@ router.post(
     }
 
     const referralCode = await referralService.generateReferralCode(walletAddress);
-    const referralLink = `${process.env.FRONTEND_URL || 'https://clones.sol'}/ref/${referralCode}`;
+    const referralLink = `${process.env.FRONTEND_URL || 'https://clones-ai.com'}/ref/${referralCode}`;
 
     return res.status(200).json(successResponse({
       referralCode,
@@ -193,16 +194,17 @@ router.get(
 // Update reward configuration (admin only)
 router.post(
   '/rewards/config',
+  requireAdminAuth,
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { baseReward, bonusMultiplier, maxReferrals, minActionValue, cooldownPeriod } = req.body;
+    const { baseReward, bonusMultiplier, maxReferrals, minActionValue, cooldownPeriod, maxReferralsInCooldown } = req.body;
 
-    // TODO: Add admin authentication
     const updatedConfig = await referralService.updateRewardConfig({
       baseReward,
       bonusMultiplier,
       maxReferrals,
       minActionValue,
-      cooldownPeriod
+      cooldownPeriod,
+      maxReferralsInCooldown
     });
 
     return res.status(200).json(successResponse({
@@ -260,8 +262,8 @@ router.post(
 // Cleanup endpoints (admin only)
 router.post(
   '/cleanup/expired-codes',
+  requireAdminAuth,
   errorHandlerAsync(async (req: Request, res: Response) => {
-    // TODO: Add admin authentication
     const cleanedCount = await referralService.cleanupExpiredCodes();
 
     return res.status(200).json(successResponse({
@@ -273,6 +275,7 @@ router.post(
 
 router.get(
   '/cleanup/stats',
+  requireAdminAuth,
   errorHandlerAsync(async (req: Request, res: Response) => {
     const stats = await referralService.getCleanupStats();
 

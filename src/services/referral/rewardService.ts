@@ -8,6 +8,7 @@ export interface RewardConfig {
   maxReferrals: number; // Maximum referrals for bonus
   minActionValue: number; // Minimum value of first action to qualify
   cooldownPeriod: number; // Cooldown period in milliseconds
+  maxReferralsInCooldown: number; // Maximum referrals allowed in cooldown period
 }
 
 export interface RewardEvent {
@@ -30,7 +31,8 @@ export class RewardService {
       bonusMultiplier: 1.5, // 50% bonus
       maxReferrals: 10, // Max referrals for bonus
       minActionValue: 10, // Minimum 10 tokens worth of action
-      cooldownPeriod: 24 * 60 * 60 * 1000 // 24 hours
+      cooldownPeriod: 24 * 60 * 60 * 1000, // 24 hours
+      maxReferralsInCooldown: 5 // Maximum referrals in cooldown period
     };
   }
 
@@ -69,7 +71,7 @@ export class RewardService {
       createdAt: { $gte: new Date(Date.now() - this.rewardConfig.cooldownPeriod) }
     });
 
-    if (recentReferrals.length >= 5) {
+    if (recentReferrals.length >= this.rewardConfig.maxReferralsInCooldown) {
       return false; // Too many referrals in cooldown period
     }
 

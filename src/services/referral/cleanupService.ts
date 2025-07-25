@@ -1,5 +1,6 @@
 import { ReferralCodeModel, IReferralCode } from '../../models/ReferralCode.ts';
 import { ReferralModel, IReferral } from '../../models/Referral.ts';
+import crypto from 'crypto';
 
 export class ReferralCleanupService {
   /**
@@ -119,7 +120,7 @@ export class ReferralCleanupService {
       return null; // Not expired or doesn't exist
     }
 
-    // Generate new code (this would use the same logic as generateReferralCode)
+    // Generate new code using secure random generation
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let newCode: string;
     let isUnique = false;
@@ -128,8 +129,9 @@ export class ReferralCleanupService {
     
     while (!isUnique && attempts < maxAttempts) {
       newCode = '';
+      const randomBytes = crypto.randomBytes(6);
       for (let i = 0; i < 6; i++) {
-        newCode += chars.charAt(Math.floor(Math.random() * chars.length));
+        newCode += chars.charAt(randomBytes[i] % chars.length);
       }
       
       const existing = await ReferralCodeModel.findOne({ referralCode: newCode });
