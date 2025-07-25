@@ -269,4 +269,71 @@ describe('RewardService', () => {
             expect(rewardEvent).toBeNull();
         });
     });
+
+    describe('Race condition prevention', () => {
+        it('should prevent race conditions when multiple referrals are processed concurrently', async () => {
+            // Create a referrer with no existing referrals
+            await ReferralCodeModel.create({
+                walletAddress: 'race-referrer',
+                referralCode: 'RACE123',
+                isActive: true,
+                totalReferrals: 0,
+                totalRewards: 0
+            });
+
+            // Simulate concurrent referral processing
+            const concurrentPromises = [
+                rewardService.processReward('race-referrer', 'referree1', 'wallet_connect', 100),
+                rewardService.processReward('race-referrer', 'referree2', 'wallet_connect', 100),
+                rewardService.processReward('race-referrer', 'referree3', 'wallet_connect', 100),
+                rewardService.processReward('race-referrer', 'referree4', 'wallet_connect', 100),
+                rewardService.processReward('race-referrer', 'referree5', 'wallet_connect', 100)
+            ];
+
+            // Execute all promises concurrently
+            const results = await Promise.all(concurrentPromises);
+
+            // Count successful rewards
+            const successfulRewards = results.filter(result => result !== null);
+            
+            // Only one reward should be processed due to cooldown limit (maxReferralsInCooldown: 5)
+            // But since we're testing the race condition fix, we expect all to be processed
+            // because they're for different referrees
+            expect(successfulRewards.length).toBeGreaterThan(0);
+            
+            // Verify that the total rewards were updated correctly
+            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'race-referrer' });
+            const totalRewards = successfulRewards.reduce((sum, reward) => sum + reward!.rewardAmount, 0);
+            expect(updatedCode?.totalRewards).toBe(totalRewards);
+        });
+
+        it('should prevent duplicate referrals for the same referree', async () => {
+            // Create a referrer
+            await ReferralCodeModel.create({
+                walletAddress: 'dupe-referrer',
+                referralCode: 'DUPE123',
+                isActive: true,
+                totalReferrals: 0,
+                totalRewards: 0
+            });
+
+            // Simulate concurrent attempts to refer the same person
+            const concurrentPromises = [
+                rewardService.processReward('dupe-referrer', 'same-referree', 'wallet_connect', 100),
+                rewardService.processReward('dupe-referrer', 'same-referree', 'wallet_connect', 100),
+                rewardService.processReward('dupe-referrer', 'same-referree', 'wallet_connect', 100)
+            ];
+
+            // Execute all promises concurrently
+            const results = await Promise.all(concurrentPromises);
+
+            // Only one should succeed, others should be null
+            const successfulRewards = results.filter(result => result !== null);
+            expect(successfulRewards.length).toBe(1);
+
+            // Verify that only one reward was processed
+            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'dupe-referrer' });
+            expect(updatedCode?.totalRewards).toBe(successfulRewards[0]?.rewardAmount);
+        });
+    });
 }); 
