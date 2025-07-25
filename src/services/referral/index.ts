@@ -46,7 +46,8 @@ export class ReferralService {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         // Generate 6-character alphanumeric code (uppercase letters and numbers)
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        // Excluding visually similar characters: O, 0, L, 1, I to avoid human transcription errors
+        const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
         let referralCode = '';
         const randomBytes = crypto.randomBytes(6);
         for (let i = 0; i < 6; i++) {
