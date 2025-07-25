@@ -2,6 +2,26 @@ import { ApiError } from './types/errors.ts';
 import { NextFunction, Request, Response } from 'express';
 import { WalletConnectionModel } from '../models/Models.ts';
 
+// Admin authentication middleware
+export function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    const adminToken = req.headers['x-admin-token'];
+    const expectedToken = process.env.ADMIN_TOKEN;
+    
+    if (!adminToken || typeof adminToken !== 'string') {
+      throw ApiError.unauthorized('Admin token is required');
+    }
+    
+    if (!expectedToken || adminToken !== expectedToken) {
+      throw ApiError.unauthorized('Invalid admin token');
+    }
+    
+    next();
+  } catch (e) {
+    next(e);
+  }
+}
+
 // Middleware to resolve connect token to wallet address
 export async function requireWalletAddress(req: Request, res: Response, next: NextFunction) {
   try {

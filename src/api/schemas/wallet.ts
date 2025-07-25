@@ -20,6 +20,10 @@ export const connectWalletSchema: ValidationSchema = {
   timestamp: {
     required: false,
     rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
+  },
+  referralCode: {
+    required: false,
+    rules: [ValidationRules.isString(), ValidationRules.maxLength(20)]
   }
 };
 

@@ -44,6 +44,7 @@ export interface ConnectBody {
   address: string;
   signature?: string;
   timestamp?: number;
+  referralCode?: string;
 }
 
 export interface CreatePoolBody {

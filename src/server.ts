@@ -10,6 +10,7 @@ import { startRefreshInterval } from './services/forge/pools.ts';
 import { gymApi } from './api/gym.ts';
 import { forgeApi } from './api/forge/index.ts';
 import { walletApi } from './api/wallet.ts';
+import { referralApi } from './api/referral.ts';
 import { errorHandler } from './middleware/errorHandler.ts';
 import { initializeWebSocketServer } from './services/websockets/socketManager.ts';
 import { catchErrors } from './hooks/errors.ts';
@@ -71,6 +72,7 @@ app.use('/api/recordings', express.static(path.join(__dirname, 'public', 'record
 app.use('/api/v1/gym', gymApi);
 app.use('/api/v1/forge', forgeApi);
 app.use('/api/v1/wallet', walletApi);
+app.use('/api/v1/referral', referralApi);
 
 // Swagger API documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

@@ -22,3 +22,8 @@ process.env.STORAGE_REGION = 'us-east-1';
 process.env.STORAGE_BUCKET = 'training-gym';
 process.env.PIPELINE_PATH = '/app/pipeline';
 process.env.ANTHROPIC_API_KEY = 'mock-anthropic-api-key';
+
+// Referral system environment variables
+process.env.REFERRAL_PROGRAM_ID = '11111111111111111111111111111111';
+process.env.FRONTEND_URL = 'https://clones.sol';
+process.env.ADMIN_TOKEN = 'mock-admin-token-for-tests';
