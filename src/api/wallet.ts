@@ -90,12 +90,15 @@ router.post(
           
           if (referrerAddress && referrerAddress !== address) {
             // Create referral relationship
+            const referralLink = `${process.env.FRONTEND_URL || 'https://clones.sol'}/ref/${req.body.referralCode}`;
             await referralService.createReferral(
               referrerAddress,
               address,
               req.body.referralCode,
+              referralLink,
               'wallet_connect',
-              { connectionToken: token }
+              { connectionToken: token },
+              0 // actionValue - wallet connection has no monetary value
             );
             referralCreated = true;
           }
