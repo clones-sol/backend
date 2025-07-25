@@ -5,6 +5,7 @@ import { ReferralProgramService } from '../blockchain/referralProgram.ts';
 import { RewardService } from './rewardService.ts';
 import { ReferralCleanupService } from './cleanupService.ts';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 
 export class ReferralService {
   private blockchainService: BlockchainService;
@@ -112,6 +113,111 @@ export class ReferralService {
    * Create a referral relationship when a user performs their first action
    */
   async createReferral(
+    referrerAddress: string,
+    referreeAddress: string,
+    referralCode: string,
+    referralLink: string,
+    firstActionType: string,
+    firstActionData?: any,
+    actionValue?: number
+  ): Promise<IReferral> {
+    try {
+      // Try to use transactions if available (replica set)
+      const session = await mongoose.startSession();
+      
+      try {
+        const result = await session.withTransaction(async () => {
+          // Check if referree has already been referred (atomic within transaction)
+          const existingReferral = await ReferralModel.findOne({ referreeAddress }).session(session);
+          if (existingReferral) {
+            throw new Error('User has already been referred');
+          }
+
+          // Validate referral code
+          const validReferrer = await this.validateReferralCode(referralCode);
+          if (!validReferrer || validReferrer !== referrerAddress) {
+            throw new Error('Invalid referral code');
+          }
+
+          // Prevent self-referral
+          if (referrerAddress === referreeAddress) {
+            throw new Error('Cannot refer yourself');
+          }
+
+          // Create referral record (atomic within transaction)
+          const referral = await ReferralModel.create([{
+            referrerAddress,
+            referreeAddress,
+            referralCode: referralCode.toUpperCase(),
+            referralLink,
+            firstActionType,
+            firstActionData,
+            status: 'pending'
+          }], { session });
+
+          // Update referrer's stats (atomic within transaction)
+          await ReferralCodeModel.findOneAndUpdate(
+            { walletAddress: referrerAddress },
+            { $inc: { totalReferrals: 1 } },
+            { session }
+          );
+
+          return referral[0];
+        });
+
+        // Process reward if action value is provided (outside transaction for reliability)
+        if (actionValue !== undefined) {
+          try {
+            const rewardEvent = await this.rewardService.processReward(
+              referrerAddress,
+              referreeAddress,
+              firstActionType,
+              actionValue
+            );
+            
+            if (rewardEvent) {
+              // Update referral with reward information
+              await ReferralModel.findByIdAndUpdate(result._id, {
+                rewardAmount: rewardEvent.rewardAmount,
+                rewardProcessed: true
+              });
+            }
+          } catch (error) {
+            console.error('Failed to process reward:', error);
+            // Continue without reward processing
+          }
+        }
+
+        return result;
+
+      } finally {
+        await session.endSession();
+      }
+
+    } catch (error: any) {
+      // If transactions are not supported (standalone MongoDB), fall back to non-transactional approach
+      if (error.code === 20 || error.message?.includes('Transaction numbers are only allowed')) {
+        console.warn('Transactions not supported, falling back to non-transactional approach');
+        return await this.createReferralWithoutTransaction(
+          referrerAddress,
+          referreeAddress,
+          referralCode,
+          referralLink,
+          firstActionType,
+          firstActionData,
+          actionValue
+        );
+      }
+      
+      console.error('Failed to create referral:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fallback method for creating referrals without transactions (for standalone MongoDB)
+   */
+  private async createReferralWithoutTransaction(
     referrerAddress: string,
     referreeAddress: string,
     referralCode: string,
