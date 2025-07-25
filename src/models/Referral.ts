@@ -74,7 +74,6 @@ const ReferralSchema = new mongoose.Schema<IReferral>(
   }
 );
 
-// Compound index to ensure unique referrer-referree pairs
-ReferralSchema.index({ referrerAddress: 1, referreeAddress: 1 }, { unique: true });
+
 
 export const ReferralModel = mongoose.model<IReferral>('Referral', ReferralSchema); 
