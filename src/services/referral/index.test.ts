@@ -336,4 +336,124 @@ describe('ReferralService', () => {
             expect(stats.expiringSoon).toBe(3);
         });
     });
+
+    describe('Race condition prevention', () => {
+        it('should prevent race conditions when creating multiple referrals concurrently', async () => {
+            // Create a referrer
+            await ReferralCodeModel.create({
+                walletAddress: 'race-referrer',
+                referralCode: 'RACE123',
+                isActive: true,
+                totalReferrals: 0,
+                totalRewards: 0
+            });
+
+            // Simulate concurrent referral creation attempts
+            const concurrentPromises = [
+                referralService.createReferral(
+                    'race-referrer',
+                    'referree1',
+                    'RACE123',
+                    'https://clones.sol/ref/RACE123',
+                    'wallet_connect',
+                    { connectionToken: 'token1' },
+                    100
+                ),
+                referralService.createReferral(
+                    'race-referrer',
+                    'referree2',
+                    'RACE123',
+                    'https://clones.sol/ref/RACE123',
+                    'wallet_connect',
+                    { connectionToken: 'token2' },
+                    100
+                ),
+                referralService.createReferral(
+                    'race-referrer',
+                    'referree3',
+                    'RACE123',
+                    'https://clones.sol/ref/RACE123',
+                    'wallet_connect',
+                    { connectionToken: 'token3' },
+                    100
+                )
+            ];
+
+            // Execute all promises concurrently
+            const results = await Promise.all(concurrentPromises);
+
+            // All should succeed since they're for different referrees
+            expect(results).toHaveLength(3);
+            expect(results.every(result => result !== null)).toBe(true);
+
+            // Verify that all referrals were created
+            const referrals = await ReferralModel.find({ referrerAddress: 'race-referrer' });
+            expect(referrals).toHaveLength(3);
+
+            // Verify that referrer stats were updated correctly
+            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'race-referrer' });
+            expect(updatedCode?.totalReferrals).toBe(3);
+        });
+
+        it('should prevent duplicate referrals for the same referree', async () => {
+            // Create a referrer
+            await ReferralCodeModel.create({
+                walletAddress: 'dupe-referrer',
+                referralCode: 'DUPE123',
+                isActive: true,
+                totalReferrals: 0,
+                totalRewards: 0
+            });
+
+            // Simulate concurrent attempts to refer the same person
+            const concurrentPromises = [
+                referralService.createReferral(
+                    'dupe-referrer',
+                    'same-referree',
+                    'DUPE123',
+                    'https://clones.sol/ref/DUPE123',
+                    'wallet_connect',
+                    { connectionToken: 'token1' },
+                    100
+                ),
+                referralService.createReferral(
+                    'dupe-referrer',
+                    'same-referree',
+                    'DUPE123',
+                    'https://clones.sol/ref/DUPE123',
+                    'wallet_connect',
+                    { connectionToken: 'token2' },
+                    100
+                ),
+                referralService.createReferral(
+                    'dupe-referrer',
+                    'same-referree',
+                    'DUPE123',
+                    'https://clones.sol/ref/DUPE123',
+                    'wallet_connect',
+                    { connectionToken: 'token3' },
+                    100
+                )
+            ];
+
+            // Execute all promises concurrently - only one should succeed
+            const results = await Promise.allSettled(concurrentPromises);
+
+            // Count successful and failed results
+            const successful = results.filter(result => result.status === 'fulfilled');
+            const failed = results.filter(result => result.status === 'rejected');
+
+            // Only one should succeed, others should fail with "User has already been referred"
+            expect(successful).toHaveLength(1);
+            expect(failed).toHaveLength(2);
+
+            // Verify that only one referral was created
+            const referrals = await ReferralModel.find({ referrerAddress: 'dupe-referrer' });
+            expect(referrals).toHaveLength(1);
+
+            // Verify that referrer stats were updated correctly
+            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'dupe-referrer' });
+            expect(updatedCode?.totalReferrals).toBe(1);
+        });
+    });
 }); 

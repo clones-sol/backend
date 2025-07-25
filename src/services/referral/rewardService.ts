@@ -1,6 +1,7 @@
 import { ReferralModel, IReferral } from '../../models/Referral.ts';
 import { ReferralCodeModel, IReferralCode } from '../../models/ReferralCode.ts';
 import { ReferralProgramService } from '../blockchain/referralProgram.ts';
+import mongoose from 'mongoose';
 
 export interface RewardConfig {
   baseReward: number; // Base reward amount in tokens
@@ -81,7 +82,7 @@ export class RewardService {
   }
 
   /**
-   * Process reward for a referral action
+   * Process reward for a referral action with atomic transaction
    */
   async processReward(
     referrerAddress: string,
@@ -90,9 +91,115 @@ export class RewardService {
     actionValue: number
   ): Promise<RewardEvent | null> {
     try {
-      // Check eligibility
-      if (!(await this.isEligibleForReward(referrerAddress, referreeAddress))) {
-        return null;
+      // Try to use transactions if available (replica set)
+      const session = await mongoose.startSession();
+      
+      try {
+        const result = await session.withTransaction(async () => {
+          // Check if referree has been referred before (atomic within transaction)
+          const existingReferral = await ReferralModel.findOne({ referreeAddress }).session(session);
+          if (existingReferral) {
+            return null; // Already referred, no reward
+          }
+
+          // Check cooldown period for referrer (atomic within transaction)
+          const recentReferrals = await ReferralModel.find({
+            referrerAddress,
+            createdAt: { $gte: new Date(Date.now() - this.rewardConfig.cooldownPeriod) }
+          }).session(session);
+
+          if (recentReferrals.length >= this.rewardConfig.maxReferralsInCooldown) {
+            return null; // Too many referrals in cooldown period
+          }
+
+          // Get referrer's current referral count (atomic within transaction)
+          const referralCount = await ReferralModel.countDocuments({
+            referrerAddress,
+            status: 'confirmed'
+          }).session(session);
+
+          // Calculate reward
+          const rewardAmount = this.calculateReward(referralCount + 1, actionValue);
+          
+          if (rewardAmount === 0) {
+            return null; // No reward for this action
+          }
+
+          // Create reward event
+          const rewardEvent: RewardEvent = {
+            referrerAddress,
+            referreeAddress,
+            actionType,
+            actionValue,
+            rewardAmount,
+            timestamp: new Date()
+          };
+
+          // Update referrer's total rewards (atomic within transaction)
+          await ReferralCodeModel.findOneAndUpdate(
+            { walletAddress: referrerAddress },
+            { $inc: { totalRewards: rewardAmount } },
+            { session }
+          );
+
+          return rewardEvent;
+        });
+
+        // If we have a reward event, distribute it on-chain (outside transaction for reliability)
+        if (result) {
+          try {
+            await this.referralProgramService.distributeReward(
+              referrerAddress,
+              result.rewardAmount
+            );
+          } catch (error) {
+            console.error('Failed to distribute reward on-chain:', error);
+            // Continue with off-chain reward tracking
+          }
+        }
+
+        return result;
+
+      } finally {
+        await session.endSession();
+      }
+
+    } catch (error: any) {
+      // If transactions are not supported (standalone MongoDB), fall back to non-transactional approach
+      if (error.code === 20 || error.message?.includes('Transaction numbers are only allowed')) {
+        console.warn('Transactions not supported, falling back to non-transactional approach');
+        return await this.processRewardWithoutTransaction(referrerAddress, referreeAddress, actionType, actionValue);
+      }
+      
+      console.error('Failed to process reward:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fallback method for processing rewards without transactions (for standalone MongoDB)
+   */
+  private async processRewardWithoutTransaction(
+    referrerAddress: string,
+    referreeAddress: string,
+    actionType: string,
+    actionValue: number
+  ): Promise<RewardEvent | null> {
+    try {
+      // Check if referree has been referred before
+      const existingReferral = await ReferralModel.findOne({ referreeAddress });
+      if (existingReferral) {
+        return null; // Already referred, no reward
+      }
+
+      // Check cooldown period for referrer
+      const recentReferrals = await ReferralModel.find({
+        referrerAddress,
+        createdAt: { $gte: new Date(Date.now() - this.rewardConfig.cooldownPeriod) }
+      });
+
+      if (recentReferrals.length >= this.rewardConfig.maxReferralsInCooldown) {
+        return null; // Too many referrals in cooldown period
       }
 
       // Get referrer's current referral count
@@ -138,7 +245,7 @@ export class RewardService {
       return rewardEvent;
 
     } catch (error) {
-      console.error('Failed to process reward:', error);
+      console.error('Failed to process reward without transaction:', error);
       return null;
     }
   }
