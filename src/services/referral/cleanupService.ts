@@ -121,7 +121,8 @@ export class ReferralCleanupService {
     }
 
     // Generate new code using secure random generation
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    // Excluding visually similar characters: O, 0, L, 1, I to avoid human transcription errors
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     let newCode: string;
     let isUnique = false;
     let attempts = 0;
