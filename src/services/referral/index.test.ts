@@ -9,13 +9,13 @@ import { connectToDatabase } from '../database.ts';
 // Mock external services
 vi.mock('../blockchain/index.ts', () => ({
     default: class MockBlockchainService {
-        constructor() {}
+        constructor() { }
     }
 }));
 
 vi.mock('../blockchain/referralProgram.ts', () => ({
     ReferralProgramService: class MockReferralProgramService {
-        constructor() {}
+        constructor() { }
         async storeReferral() {
             return { txHash: 'mock-tx-hash', slot: 12345 };
         }
@@ -27,7 +27,7 @@ vi.mock('../blockchain/referralProgram.ts', () => ({
 
 vi.mock('./rewardService.ts', () => ({
     RewardService: class MockRewardService {
-        constructor() {}
+        constructor() { }
         async processReward() {
             return {
                 referrerAddress: 'referrer123',
@@ -48,13 +48,13 @@ vi.mock('./rewardService.ts', () => ({
                 maxReferralsInCooldown: 5
             };
         }
-        updateRewardConfig() {}
+        updateRewardConfig() { }
     }
 }));
 
 vi.mock('./cleanupService.ts', () => ({
     ReferralCleanupService: class MockCleanupService {
-        constructor() {}
+        constructor() { }
         async cleanupExpiredCodes() {
             return 5;
         }
@@ -78,7 +78,17 @@ describe('ReferralService', () => {
         mongoServer = await MongoMemoryServer.create();
         const mongoUri = mongoServer.getUri();
         process.env.DB_URI = mongoUri;
-        await connectToDatabase();
+
+        // Connect with explicit options to handle mixed ID types
+        await mongoose.connect(mongoUri, {
+            // Ensure proper handling of mixed ID types
+            maxPoolSize: 1,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+        });
+
+        // Wait for connection to be ready
+        await mongoose.connection.asPromise();
 
         referralService = new ReferralService();
     });
@@ -128,7 +138,7 @@ describe('ReferralService', () => {
 
         it('should generate a new unique referral code for new wallet', async () => {
             const newCode = await referralService.generateReferralCode('new-wallet-456');
-            
+
             expect(newCode).toBeDefined();
             expect(newCode.length).toBe(6);
             expect(newCode).toMatch(/^[A-Z0-9]{6}$/);
@@ -292,7 +302,7 @@ describe('ReferralService', () => {
     describe('getReferralStats', () => {
         it('should return referral statistics for wallet', async () => {
             const stats = await referralService.getReferralStats('referrer123');
-            
+
             expect(stats.totalReferrals).toBe(0); // Will be 1 after referral is confirmed
             expect(stats.totalRewards).toBe(0);
             expect(stats.referralCode).toBe('TEST123');
@@ -301,7 +311,7 @@ describe('ReferralService', () => {
 
         it('should return empty stats for wallet without referral code', async () => {
             const stats = await referralService.getReferralStats('no-code-wallet');
-            
+
             expect(stats.totalReferrals).toBe(0);
             expect(stats.totalRewards).toBe(0);
             expect(stats.referralCode).toBe('');
@@ -312,7 +322,7 @@ describe('ReferralService', () => {
     describe('storeReferralOnChain', () => {
         it('should store referral on-chain successfully', async () => {
             const result = await referralService.storeReferralOnChain(testReferral._id!.toString());
-            
+
             expect(result.txHash).toBe('mock-tx-hash');
             expect(result.slot).toBe(12345);
 
