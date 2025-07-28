@@ -109,7 +109,7 @@ describe('ReferralService', () => {
             referrerAddress: 'referrer123',
             referreeAddress: 'referree123',
             referralCode: 'TEST123',
-            referralLink: 'https://clones.sol/ref/TEST123',
+            referralLink: 'https://clones-ai.com/ref/TEST123',
             firstActionType: 'wallet_connect',
             firstActionData: { connectionToken: 'test-token' },
             status: 'pending'
@@ -200,7 +200,7 @@ describe('ReferralService', () => {
                 'referrer123',
                 'new-referree',
                 'TEST123',
-                'https://clones.sol/ref/TEST123',
+                'https://clones-ai.com/ref/TEST123',
                 'wallet_connect',
                 { connectionToken: 'new-token' },
                 100
@@ -222,7 +222,7 @@ describe('ReferralService', () => {
                     'referrer123',
                     'referree123', // Already referred
                     'TEST123',
-                    'https://clones.sol/ref/TEST123',
+                    'https://clones-ai.com/ref/TEST123',
                     'wallet_connect',
                     { connectionToken: 'token' },
                     100
@@ -236,7 +236,7 @@ describe('ReferralService', () => {
                     'referrer123',
                     'new-referree',
                     'INVALID',
-                    'https://clones.sol/ref/INVALID',
+                    'https://clones-ai.com/ref/INVALID',
                     'wallet_connect',
                     { connectionToken: 'token' },
                     100
@@ -250,7 +250,7 @@ describe('ReferralService', () => {
                     'referrer123',
                     'referrer123', // Same as referrer
                     'TEST123',
-                    'https://clones.sol/ref/TEST123',
+                    'https://clones-ai.com/ref/TEST123',
                     'wallet_connect',
                     { connectionToken: 'token' },
                     100
@@ -354,7 +354,7 @@ describe('ReferralService', () => {
                     'race-referrer',
                     'referree1',
                     'RACE123',
-                    'https://clones.sol/ref/RACE123',
+                    'https://clones-ai.com/ref/RACE123',
                     'wallet_connect',
                     { connectionToken: 'token1' },
                     100
@@ -363,7 +363,7 @@ describe('ReferralService', () => {
                     'race-referrer',
                     'referree2',
                     'RACE123',
-                    'https://clones.sol/ref/RACE123',
+                    'https://clones-ai.com/ref/RACE123',
                     'wallet_connect',
                     { connectionToken: 'token2' },
                     100
@@ -372,7 +372,7 @@ describe('ReferralService', () => {
                     'race-referrer',
                     'referree3',
                     'RACE123',
-                    'https://clones.sol/ref/RACE123',
+                    'https://clones-ai.com/ref/RACE123',
                     'wallet_connect',
                     { connectionToken: 'token3' },
                     100
@@ -411,7 +411,7 @@ describe('ReferralService', () => {
                     'dupe-referrer',
                     'same-referree',
                     'DUPE123',
-                    'https://clones.sol/ref/DUPE123',
+                    'https://clones-ai.com/ref/DUPE123',
                     'wallet_connect',
                     { connectionToken: 'token1' },
                     100
@@ -420,7 +420,7 @@ describe('ReferralService', () => {
                     'dupe-referrer',
                     'same-referree',
                     'DUPE123',
-                    'https://clones.sol/ref/DUPE123',
+                    'https://clones-ai.com/ref/DUPE123',
                     'wallet_connect',
                     { connectionToken: 'token2' },
                     100
@@ -429,7 +429,7 @@ describe('ReferralService', () => {
                     'dupe-referrer',
                     'same-referree',
                     'DUPE123',
-                    'https://clones.sol/ref/DUPE123',
+                    'https://clones-ai.com/ref/DUPE123',
                     'wallet_connect',
                     { connectionToken: 'token3' },
                     100
