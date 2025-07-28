@@ -1,6 +1,7 @@
 import { ReferralCodeModel, IReferralCode } from '../../models/ReferralCode.ts';
 import { ReferralModel, IReferral } from '../../models/Referral.ts';
 import crypto from 'crypto';
+import { MAX_REFERRAL_CODE_ATTEMPTS, REFERRAL_CODE_CHARS, REFERRAL_CODE_LENGTH } from '../../constants/referral.ts';
 
 export class ReferralCleanupService {
   /**
@@ -122,16 +123,16 @@ export class ReferralCleanupService {
 
     // Generate new code using secure random generation
     // Excluding visually similar characters: O, 0, L, 1, I to avoid human transcription errors
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    const chars = REFERRAL_CODE_CHARS;
     let newCode: string;
     let isUnique = false;
     let attempts = 0;
-    const maxAttempts = 100;
+    const maxAttempts = MAX_REFERRAL_CODE_ATTEMPTS;
     
     while (!isUnique && attempts < maxAttempts) {
       newCode = '';
-      const randomBytes = crypto.randomBytes(6);
-      for (let i = 0; i < 6; i++) {
+      const randomBytes = crypto.randomBytes(REFERRAL_CODE_LENGTH);
+      for (let i = 0; i < REFERRAL_CODE_LENGTH; i++) {
         newCode += chars.charAt(randomBytes[i] % chars.length);
       }
       
