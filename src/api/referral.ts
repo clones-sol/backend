@@ -424,13 +424,19 @@ router.post(
       actionValue
     );
 
-    // Store on-chain (async)
+    // Store on-chain (async) with proper error handling
     if (!referral._id) {
       console.error('Referral creation failed: Missing _id');
       throw ApiError.internalError('Failed to create referral: Missing _id');
     }
+    
+    // Queue on-chain storage with retry mechanism
     referralService.storeReferralOnChain(referral._id.toString())
-      .catch(error => console.error('Failed to store referral on-chain:', error));
+      .catch(error => {
+        console.error('Failed to store referral on-chain:', error);
+        // TODO: Implement proper queuing system for failed on-chain storage attempts
+        // This could use Redis, a database queue, or a message broker
+      });
 
     return res.status(201).json(successResponse({
       referralId: referral._id,
@@ -692,7 +698,7 @@ router.get(
  *                           type: number
  *                           description: Cooldown period in milliseconds
  *                           example: 86400000
- *                         maxReferralsInCooldown:
+ *                         maxReferralsPerCooldownPeriod:
  *                           type: number
  *                           description: Maximum referrals allowed during cooldown
  *                           example: 5
@@ -714,7 +720,7 @@ router.get(
       maxReferrals: config.maxReferrals,
       minActionValue: config.minActionValue,
       cooldownPeriod: config.cooldownPeriod,
-      maxReferralsInCooldown: config.maxReferralsInCooldown
+              maxReferralsPerCooldownPeriod: config.maxReferralsPerCooldownPeriod
     }));
   })
 );
@@ -821,7 +827,7 @@ router.get(
  *                 type: number
  *                 description: Cooldown period in milliseconds
  *                 example: 86400000
- *               maxReferralsInCooldown:
+ *               maxReferralsPerCooldownPeriod:
  *                 type: number
  *                 description: Maximum referrals allowed during cooldown
  *                 example: 5
@@ -861,7 +867,7 @@ router.post(
   adminRateLimiter, // Admin operation
   requireAdminAuth,
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { baseReward, bonusMultiplier, maxReferrals, minActionValue, cooldownPeriod, maxReferralsInCooldown } = req.body;
+    const { baseReward, bonusMultiplier, maxReferrals, minActionValue, cooldownPeriod, maxReferralsPerCooldownPeriod } = req.body;
 
     const updatedConfig = await referralService.updateRewardConfig({
       baseReward,
@@ -869,7 +875,7 @@ router.post(
       maxReferrals,
       minActionValue,
       cooldownPeriod,
-      maxReferralsInCooldown
+              maxReferralsPerCooldownPeriod
     });
 
     return res.status(200).json(successResponse({

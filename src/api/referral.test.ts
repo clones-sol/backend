@@ -40,7 +40,7 @@ vi.mock('../services/referral/rewardService.ts', () => ({
             maxReferrals: 10,
             minActionValue: 10,
             cooldownPeriod: 24 * 60 * 60 * 1000,
-            maxReferralsInCooldown: 5
+            maxReferralsPerCooldownPeriod: 5
         };
 
         constructor() {}
@@ -196,7 +196,7 @@ vi.mock('../services/referral/index.ts', () => ({
                 maxReferrals: 10,
                 minActionValue: 10,
                 cooldownPeriod: 24 * 60 * 60 * 1000,
-                maxReferralsInCooldown: 5
+                maxReferralsPerCooldownPeriod: 5
             };
         }
         async updateRewardConfig(newConfig: any) {
@@ -206,7 +206,7 @@ vi.mock('../services/referral/index.ts', () => ({
                 maxReferrals: newConfig.maxReferrals || 10,
                 minActionValue: newConfig.minActionValue || 10,
                 cooldownPeriod: newConfig.cooldownPeriod || 24 * 60 * 60 * 1000,
-                maxReferralsInCooldown: newConfig.maxReferralsInCooldown || 5
+                maxReferralsPerCooldownPeriod: newConfig.maxReferralsPerCooldownPeriod || 5
             };
         }
         async processReward() {
@@ -326,7 +326,7 @@ vi.mock('../services/referral/index.ts', () => ({
             maxReferrals: 10,
             minActionValue: 10,
             cooldownPeriod: 24 * 60 * 60 * 1000,
-            maxReferralsInCooldown: 5
+            maxReferralsPerCooldownPeriod: 5
         }),
         updateRewardConfig: async (newConfig: any) => ({
             baseReward: newConfig.baseReward || 100,
@@ -334,7 +334,7 @@ vi.mock('../services/referral/index.ts', () => ({
             maxReferrals: newConfig.maxReferrals || 10,
             minActionValue: newConfig.minActionValue || 10,
             cooldownPeriod: newConfig.cooldownPeriod || 24 * 60 * 60 * 1000,
-            maxReferralsInCooldown: newConfig.maxReferralsInCooldown || 5
+            maxReferralsPerCooldownPeriod: newConfig.maxReferralsPerCooldownPeriod || 5
         }),
         processReward: async () => ({
             referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
@@ -684,7 +684,7 @@ describe('Referral API', () => {
             expect(response.body.data.maxReferrals).toBe(10);
             expect(response.body.data.minActionValue).toBe(10);
             expect(response.body.data.cooldownPeriod).toBe(24 * 60 * 60 * 1000);
-            expect(response.body.data.maxReferralsInCooldown).toBe(5);
+            expect(response.body.data.maxReferralsPerCooldownPeriod).toBe(5);
         });
     });
 
@@ -693,7 +693,7 @@ describe('Referral API', () => {
             const newConfig = {
                 baseReward: 200,
                 bonusMultiplier: 2.0,
-                maxReferralsInCooldown: 10
+                maxReferralsPerCooldownPeriod: 10
             };
 
             const response = await supertest(app)
@@ -706,7 +706,7 @@ describe('Referral API', () => {
             expect(response.body.data.message).toContain('Reward configuration updated successfully');
             expect(response.body.data.config.baseReward).toBe(200);
             expect(response.body.data.config.bonusMultiplier).toBe(2.0);
-            expect(response.body.data.config.maxReferralsInCooldown).toBe(10);
+            expect(response.body.data.config.maxReferralsPerCooldownPeriod).toBe(10);
         });
 
         it('should fail with 401 for invalid admin token', async () => {

@@ -49,8 +49,9 @@ export class ReferralProgramService {
       transaction.recentBlockhash = latestBlockhash.blockhash;
       transaction.feePayer = referrerPubkey;
 
-      // Sign and send the transaction
-      const wallet = Keypair.generate(); // Replace with actual wallet handling
+      // TODO: Replace with proper wallet integration
+      // Using a randomly generated keypair is insecure and will fail
+      throw new Error('Wallet integration not implemented. Please implement proper wallet signing.');
       transaction.sign(wallet);
       const signature = await this.connection.sendRawTransaction(transaction.serialize());
 
@@ -119,8 +120,7 @@ export class ReferralProgramService {
     try {
       const referrerPubkey = new PublicKey(referrerAddress);
       
-      // Mock transaction for reward distribution
-      // In production, you would create and send the actual transaction here
+      // TODO: Replace mock transaction with actual reward distribution logic
       const latestBlockhash = await this.connection.getLatestBlockhash();
 
       // Mock response for now

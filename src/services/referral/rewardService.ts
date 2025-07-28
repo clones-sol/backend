@@ -10,7 +10,7 @@ export interface RewardConfig {
   maxReferrals: number; // Maximum referrals for bonus
   minActionValue: number; // Minimum value of first action to qualify
   cooldownPeriod: number; // Cooldown period in milliseconds
-  maxReferralsInCooldown: number; // Maximum referrals allowed in cooldown period
+  maxReferralsPerCooldownPeriod: number; // Maximum referrals allowed in cooldown period
 }
 
 export interface RewardEvent {
@@ -34,7 +34,7 @@ export class RewardService {
       maxReferrals: 10, // Max referrals for bonus
       minActionValue: 10, // Minimum 10 tokens worth of action
       cooldownPeriod: 24 * 60 * 60 * 1000, // 24 hours
-      maxReferralsInCooldown: 5 // Maximum referrals in cooldown period
+      maxReferralsPerCooldownPeriod: 5 // Maximum referrals per cooldown period
     };
   }
 
@@ -73,7 +73,7 @@ export class RewardService {
       createdAt: { $gte: new Date(Date.now() - this.rewardConfig.cooldownPeriod) }
     });
 
-    if (recentReferrals.length >= this.rewardConfig.maxReferralsInCooldown) {
+    if (recentReferrals.length >= this.rewardConfig.maxReferralsPerCooldownPeriod) {
       return false; // Too many referrals in cooldown period
     }
 
@@ -109,7 +109,7 @@ export class RewardService {
             createdAt: { $gte: new Date(Date.now() - this.rewardConfig.cooldownPeriod) }
           }).session(session);
 
-          if (recentReferrals.length >= this.rewardConfig.maxReferralsInCooldown) {
+          if (recentReferrals.length >= this.rewardConfig.maxReferralsPerCooldownPeriod) {
             return null; // Too many referrals in cooldown period
           }
 
@@ -167,7 +167,7 @@ export class RewardService {
 
     } catch (error: any) {
       // If transactions are not supported (standalone MongoDB), fall back to non-transactional approach
-      if (error.code === MONGODB_TRANSACTION_ERROR_CODE || error.message?.includes('Transaction numbers are only allowed')) {
+      if (error.code === MONGODB_TRANSACTION_ERROR_CODE) {
         console.warn('Transactions not supported, falling back to non-transactional approach');
         return await this.processRewardWithoutTransaction(referrerAddress, referreeAddress, actionType, actionValue);
       }
@@ -199,7 +199,7 @@ export class RewardService {
         createdAt: { $gte: new Date(Date.now() - this.rewardConfig.cooldownPeriod) }
       });
 
-      if (recentReferrals.length >= this.rewardConfig.maxReferralsInCooldown) {
+              if (recentReferrals.length >= this.rewardConfig.maxReferralsPerCooldownPeriod) {
         return null; // Too many referrals in cooldown period
       }
 

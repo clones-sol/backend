@@ -11,7 +11,7 @@ export async function handleTransactionError<T>(
   fallbackFunction: () => Promise<T>
 ): Promise<T> {
   // If transactions are not supported (standalone MongoDB), fall back to non-transactional approach
-  if (error.code === MONGODB_TRANSACTION_ERROR_CODE || error.message?.includes('Transaction numbers are only allowed')) {
+  if (error.code === MONGODB_TRANSACTION_ERROR_CODE) {
     console.warn('Transactions not supported, falling back to non-transactional approach');
     return await fallbackFunction();
   }
