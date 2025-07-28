@@ -37,23 +37,29 @@ export class ReferralProgramService {
         this.programId
       );
 
-      // For now, we'll simulate the transaction
-      // In production, you'd need proper wallet signing
+      // Create and send the actual transaction
       const latestBlockhash = await this.connection.getLatestBlockhash();
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: referrerPubkey,
+          toPubkey: referralAccount,
+          lamports: new BN(referralData.rewardAmount || 0).toNumber(),
+        })
+      );
+      transaction.recentBlockhash = latestBlockhash.blockhash;
+      transaction.feePayer = referrerPubkey;
 
-      // Mock transaction simulation
-      // In production, you would create and send the actual transaction here
-      // const tx = new Transaction();
-      // Add your program instructions here
-      // const signature = await this.connection.sendTransaction(tx, [wallet]);
+      // Sign and send the transaction
+      const wallet = Keypair.generate(); // Replace with actual wallet handling
+      transaction.sign(wallet);
+      const signature = await this.connection.sendRawTransaction(transaction.serialize());
 
-      // For now, return mock data
-      const mockTxHash = crypto.randomBytes(32).toString('hex');
-      const mockSlot = latestBlockhash.lastValidBlockHeight || 0;
+      // Confirm the transaction
+      const confirmation = await this.connection.confirmTransaction(signature, 'confirmed');
 
       return {
-        txHash: mockTxHash,
-        slot: mockSlot
+        txHash: signature,
+        slot: confirmation.context.slot
       };
 
     } catch (error) {

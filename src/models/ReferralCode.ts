@@ -24,7 +24,7 @@ const ReferralCodeSchema = new mongoose.Schema<IReferralCode>(
       type: String, 
       required: true, 
       unique: true,
-      index: true 
+      index: false 
     },
     isActive: { 
       type: Boolean, 

@@ -2,6 +2,7 @@ import { ReferralModel, IReferral } from '../../models/Referral.ts';
 import { ReferralCodeModel, IReferralCode } from '../../models/ReferralCode.ts';
 import { ReferralProgramService } from '../blockchain/referralProgram.ts';
 import mongoose from 'mongoose';
+import { MONGODB_TRANSACTION_ERROR_CODE } from '../../constants/referral.ts';
 
 export interface RewardConfig {
   baseReward: number; // Base reward amount in tokens
@@ -166,7 +167,7 @@ export class RewardService {
 
     } catch (error: any) {
       // If transactions are not supported (standalone MongoDB), fall back to non-transactional approach
-      if (error.code === 20 || error.message?.includes('Transaction numbers are only allowed')) {
+      if (error.code === MONGODB_TRANSACTION_ERROR_CODE || error.message?.includes('Transaction numbers are only allowed')) {
         console.warn('Transactions not supported, falling back to non-transactional approach');
         return await this.processRewardWithoutTransaction(referrerAddress, referreeAddress, actionType, actionValue);
       }
