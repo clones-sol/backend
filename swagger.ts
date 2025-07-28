@@ -12,7 +12,7 @@ const options: swaggerJsdoc.Options = {
         info: {
             title: 'Clones AI Agent Forge API',
             version: '1.0.0',
-            description: 'API for creating, managing, and deploying AI Agents on the Solana blockchain. This documentation provides details on all available endpoints for agent lifecycle management, on-chain orchestration, versioning, and monitoring.',
+            description: 'API for creating, managing, and deploying AI Agents on the Solana blockchain. This documentation provides details on all available endpoints for agent lifecycle management, on-chain orchestration, versioning, monitoring, and referral system management.',
             contact: {
                 name: 'Clones Support'
             },
@@ -32,6 +32,47 @@ const options: swaggerJsdoc.Options = {
                     description: 'The wallet address of the authenticated user. This is a placeholder for a more robust authentication mechanism like JWT in the future.',
                 },
             },
+            schemas: {
+                Error: {
+                    type: 'object',
+                    properties: {
+                        success: {
+                            type: 'boolean',
+                            example: false
+                        },
+                        error: {
+                            type: 'object',
+                            properties: {
+                                message: {
+                                    type: 'string',
+                                    example: 'Error message'
+                                },
+                                code: {
+                                    type: 'string',
+                                    example: 'BAD_REQUEST'
+                                },
+                                statusCode: {
+                                    type: 'number',
+                                    example: 400
+                                }
+                            }
+                        }
+                    }
+                },
+                SuccessResponse: {
+                    type: 'object',
+                    properties: {
+                        success: {
+                            type: 'boolean',
+                            example: true
+                        },
+                        data: {
+                            type: 'object',
+                            description: 'Response data'
+                        }
+                    }
+                }
+            }
         },
         security: [
             {
@@ -40,7 +81,10 @@ const options: swaggerJsdoc.Options = {
         ],
     },
     // Path to the API docs files
-    apis: [path.join(__dirname, './src/api/forge/agents/*.ts')],
+    apis: [
+        path.join(__dirname, './src/api/forge/agents/*.ts'),
+        path.join(__dirname, './src/api/referral.ts')
+    ],
 };
 
 const swaggerSpec = swaggerJsdoc(options);
