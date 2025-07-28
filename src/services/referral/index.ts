@@ -398,7 +398,7 @@ export class ReferralService {
       maxReferrals: config.maxReferrals,
       minActionValue: config.minActionValue,
       cooldownPeriod: config.cooldownPeriod,
-      maxReferralsInCooldown: config.maxReferralsInCooldown
+      maxReferralsPerCooldownPeriod: config.maxReferralsPerCooldownPeriod
     };
   }
 
@@ -414,7 +414,7 @@ export class ReferralService {
       maxReferrals: updatedConfig.maxReferrals,
       minActionValue: updatedConfig.minActionValue,
       cooldownPeriod: updatedConfig.cooldownPeriod,
-      maxReferralsInCooldown: updatedConfig.maxReferralsInCooldown
+      maxReferralsPerCooldownPeriod: updatedConfig.maxReferralsPerCooldownPeriod
     };
   }
 
