@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { referralService } from '../services/referral/index.ts';
 import { errorHandlerAsync } from '../middleware/errorHandler.ts';
 import { validateBody, validateParams } from '../middleware/validator.ts';
@@ -17,9 +18,35 @@ import {
 
 const router = express.Router();
 
+// Rate limiters for different endpoint types
+const generalRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests from this IP, please try again later.'
+});
+
+const sensitiveRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 requests per windowMs for sensitive operations
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many sensitive operations from this IP, please try again later.'
+});
+
+const adminRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // Limit each IP to 30 requests per windowMs for admin operations
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many admin operations from this IP, please try again later.'
+});
+
 // Generate referral code for a wallet
 router.post(
   '/generate-code',
+  sensitiveRateLimiter, // Sensitive operation - generating codes
   validateBody(generateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.body;
@@ -38,6 +65,7 @@ router.post(
 // Get referral code for a wallet
 router.get(
   '/code/:walletAddress',
+  generalRateLimiter, // General read operation
   validateParams(walletAddressParamSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
@@ -64,6 +92,7 @@ router.get(
 // Validate a referral code
 router.post(
   '/validate-code',
+  generalRateLimiter, // General validation operation
   validateBody(validateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { referralCode } = req.body;
@@ -85,6 +114,7 @@ router.post(
 // Create referral relationship (called when user performs first action)
 router.post(
   '/create',
+  sensitiveRateLimiter, // Sensitive operation - creating referrals
   validateBody(createReferralSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { 
@@ -132,6 +162,7 @@ router.post(
 // Get referral statistics for a wallet
 router.get(
   '/stats/:walletAddress',
+  generalRateLimiter, // General read operation
   validateParams(walletAddressParamSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
@@ -145,6 +176,7 @@ router.get(
 // Check if a wallet has been referred
 router.get(
   '/referred/:walletAddress',
+  generalRateLimiter, // General read operation
   validateParams(walletAddressParamSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
@@ -162,6 +194,7 @@ router.get(
 // Get referrer for a wallet
 router.get(
   '/referrer/:walletAddress',
+  generalRateLimiter, // General read operation
   validateParams(walletAddressParamSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
@@ -181,6 +214,7 @@ router.get(
 // Get reward statistics for a wallet
 router.get(
   '/rewards/:walletAddress',
+  generalRateLimiter, // General read operation
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
 
@@ -193,6 +227,7 @@ router.get(
 // Get reward configuration
 router.get(
   '/rewards/config',
+  generalRateLimiter, // General read operation
   errorHandlerAsync(async (req: Request, res: Response) => {
     const config = await referralService.getRewardConfig();
 
@@ -203,6 +238,7 @@ router.get(
 // Update reward configuration (admin only)
 router.post(
   '/rewards/config',
+  adminRateLimiter, // Admin operation
   requireAdminAuth,
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { baseReward, bonusMultiplier, maxReferrals, minActionValue, cooldownPeriod, maxReferralsInCooldown } = req.body;
@@ -226,6 +262,7 @@ router.post(
 // Get reward statistics for a wallet
 router.get(
   '/rewards/stats/:walletAddress',
+  generalRateLimiter, // General read operation
   validateParams(walletAddressParamSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
@@ -239,6 +276,7 @@ router.get(
 // Process reward for a specific action
 router.post(
   '/rewards/process',
+  sensitiveRateLimiter, // Sensitive operation - processing rewards
   validateBody(processRewardSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { 
@@ -265,6 +303,7 @@ router.post(
 // Cleanup endpoints (admin only)
 router.post(
   '/cleanup/expired-codes',
+  adminRateLimiter, // Admin operation
   requireAdminAuth,
   errorHandlerAsync(async (req: Request, res: Response) => {
     const cleanedCount = await referralService.cleanupExpiredCodes();
@@ -278,6 +317,7 @@ router.post(
 
 router.get(
   '/cleanup/stats',
+  adminRateLimiter, // Admin operation
   requireAdminAuth,
   errorHandlerAsync(async (req: Request, res: Response) => {
     const stats = await referralService.getCleanupStats();
@@ -288,6 +328,7 @@ router.get(
 
 router.post(
   '/cleanup/extend-expiration',
+  adminRateLimiter, // Admin operation
   validateBody(extendExpirationSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress, extensionDays } = req.body;
@@ -306,6 +347,7 @@ router.post(
 
 router.post(
   '/cleanup/regenerate-code',
+  adminRateLimiter, // Admin operation
   validateBody(regenerateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.body;
