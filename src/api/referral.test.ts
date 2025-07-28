@@ -10,6 +10,16 @@ import { connectToDatabase } from '../services/database.ts';
 import { referralApi } from './referral.ts';
 import { errorHandler } from '../middleware/errorHandler.ts';
 
+// Valid Solana wallet addresses for testing
+const TEST_WALLETS = {
+    referrer: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
+    referree: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
+    newWallet: 'DKf6oSTPyp9h7V4KcTiouYeormMEQ8dCjmodZLDc73Jv',
+    expiredWallet: '66oWkuMRwh8YXEDvgtnBTEJ7ixfiEwx7nqsoQAaWJsx8',
+    unreferredWallet: '24kzcdFM1WEXdqgeq5kGXzmVdk6wPM77a7BbqFcs8Rhq',
+    noCodeWallet: '7mYm9PMV5xg5LJ1LN99hMVRBg7bGfqfU5QBcwMhGAHzg'
+};
+
 // Mock Redis service
 vi.mock('../services/redis.ts', () => {
     const redisMock = new Redis();
@@ -43,8 +53,8 @@ vi.mock('../services/referral/rewardService.ts', () => ({
         constructor() {}
         async processReward() {
             return {
-                referrerAddress: 'referrer123',
-                referreeAddress: 'referree123',
+                referrerAddress: TEST_WALLETS.referrer,
+                referreeAddress: TEST_WALLETS.referree,
                 actionType: 'test_action',
                 actionValue: 100,
                 rewardAmount: 50,
@@ -134,7 +144,7 @@ describe('Referral API', () => {
 
         // Create test data
         testReferralCode = await ReferralCodeModel.create({
-            walletAddress: 'referrer123',
+            walletAddress: TEST_WALLETS.referrer,
             referralCode: 'TEST123',
             isActive: true,
             totalReferrals: 0,
@@ -143,8 +153,8 @@ describe('Referral API', () => {
         });
 
         testReferral = await ReferralModel.create({
-            referrerAddress: 'referrer123',
-            referreeAddress: 'referree123',
+            referrerAddress: TEST_WALLETS.referrer,
+            referreeAddress: TEST_WALLETS.referree,
             referralCode: 'TEST123',
             referralLink: 'https://clones.sol/ref/TEST123',
             firstActionType: 'wallet_connect',
@@ -161,26 +171,26 @@ describe('Referral API', () => {
         it('should generate referral code successfully', async () => {
             const response = await supertest(app)
                 .post('/api/v1/referral/generate-code')
-                .send({ walletAddress: 'new-wallet-456' })
+                .send({ walletAddress: TEST_WALLETS.newWallet })
                 .expect(200);
 
             expect(response.body.success).toBe(true);
             expect(response.body.data.referralCode).toBeDefined();
             expect(response.body.data.referralCode.length).toBe(6);
             expect(response.body.data.referralCode).toMatch(/^[A-Z0-9]{6}$/);
-            expect(response.body.data.walletAddress).toBe('new-wallet-456');
+            expect(response.body.data.walletAddress).toBe(TEST_WALLETS.newWallet);
             expect(response.body.data.referralLink).toContain(response.body.data.referralCode);
         });
 
         it('should return existing code if wallet already has one', async () => {
             const response = await supertest(app)
                 .post('/api/v1/referral/generate-code')
-                .send({ walletAddress: 'referrer123' })
+                .send({ walletAddress: TEST_WALLETS.referrer })
                 .expect(200);
 
             expect(response.body.success).toBe(true);
             expect(response.body.data.referralCode).toBe('TEST123');
-            expect(response.body.data.walletAddress).toBe('referrer123');
+            expect(response.body.data.walletAddress).toBe(TEST_WALLETS.referrer);
         });
 
         it('should fail with 400 for missing wallet address', async () => {
@@ -196,12 +206,12 @@ describe('Referral API', () => {
     describe('GET /api/v1/referral/code/:walletAddress', () => {
         it('should return referral code for existing wallet', async () => {
             const response = await supertest(app)
-                .get('/api/v1/referral/code/referrer123')
+                .get(`/api/v1/referral/code/${TEST_WALLETS.referrer}`)
                 .expect(200);
 
             expect(response.body.success).toBe(true);
             expect(response.body.data.referralCode).toBe('TEST123');
-            expect(response.body.data.walletAddress).toBe('referrer123');
+            expect(response.body.data.walletAddress).toBe(TEST_WALLETS.referrer);
             expect(response.body.data.totalReferrals).toBe(0);
             expect(response.body.data.totalRewards).toBe(0);
             expect(response.body.data.isActive).toBe(true);
@@ -209,7 +219,7 @@ describe('Referral API', () => {
 
         it('should fail with 404 for non-existent wallet', async () => {
             const response = await supertest(app)
-                .get('/api/v1/referral/code/non-existent-wallet')
+                .get(`/api/v1/referral/code/${TEST_WALLETS.noCodeWallet}`)
                 .expect(404);
 
             expect(response.body.error.message).toContain('Referral code not found');
@@ -225,7 +235,7 @@ describe('Referral API', () => {
 
             expect(response.body.success).toBe(true);
             expect(response.body.data.isValid).toBe(true);
-            expect(response.body.data.referrerAddress).toBe('referrer123');
+            expect(response.body.data.referrerAddress).toBe(TEST_WALLETS.referrer);
             expect(response.body.data.referralCode).toBe('TEST123');
         });
 
@@ -261,8 +271,8 @@ describe('Referral API', () => {
     describe('POST /api/v1/referral/create', () => {
         it('should create referral relationship successfully', async () => {
             const referralData = {
-                referrerAddress: 'referrer123',
-                referreeAddress: 'new-referree',
+                referrerAddress: TEST_WALLETS.referrer,
+                referreeAddress: TEST_WALLETS.newWallet,
                 referralCode: 'TEST123',
                 firstActionType: 'wallet_connect',
                 firstActionData: { connectionToken: 'new-token' },
@@ -275,8 +285,8 @@ describe('Referral API', () => {
                 .expect(201);
 
             expect(response.body.success).toBe(true);
-            expect(response.body.data.referrerAddress).toBe('referrer123');
-            expect(response.body.data.referreeAddress).toBe('new-referree');
+            expect(response.body.data.referrerAddress).toBe(TEST_WALLETS.referrer);
+            expect(response.body.data.referreeAddress).toBe(TEST_WALLETS.newWallet);
             expect(response.body.data.status).toBe('pending');
             expect(response.body.data.firstActionType).toBe('wallet_connect');
         });
@@ -285,8 +295,8 @@ describe('Referral API', () => {
             const response = await supertest(app)
                 .post('/api/v1/referral/create')
                 .send({
-                    referrerAddress: 'referrer123',
-                    referreeAddress: 'new-referree'
+                    referrerAddress: TEST_WALLETS.referrer,
+                    referreeAddress: TEST_WALLETS.newWallet
                     // Missing referralCode and firstActionType
                 })
                 .expect(400);
@@ -296,8 +306,8 @@ describe('Referral API', () => {
 
         it('should fail with 400 for invalid referral code', async () => {
             const referralData = {
-                referrerAddress: 'referrer123',
-                referreeAddress: 'new-referree',
+                referrerAddress: TEST_WALLETS.referrer,
+                referreeAddress: TEST_WALLETS.newWallet,
                 referralCode: 'INVALID',
                 firstActionType: 'wallet_connect',
                 firstActionData: { connectionToken: 'new-token' }
@@ -315,7 +325,7 @@ describe('Referral API', () => {
     describe('GET /api/v1/referral/stats/:walletAddress', () => {
         it('should return referral statistics', async () => {
             const response = await supertest(app)
-                .get('/api/v1/referral/stats/referrer123')
+                .get(`/api/v1/referral/stats/${TEST_WALLETS.referrer}`)
                 .expect(200);
 
             expect(response.body.success).toBe(true);
@@ -327,7 +337,7 @@ describe('Referral API', () => {
 
         it('should return empty stats for wallet without referral code', async () => {
             const response = await supertest(app)
-                .get('/api/v1/referral/stats/no-code-wallet')
+                .get(`/api/v1/referral/stats/${TEST_WALLETS.noCodeWallet}`)
                 .expect(200);
 
             expect(response.body.success).toBe(true);
@@ -341,17 +351,17 @@ describe('Referral API', () => {
     describe('GET /api/v1/referral/referred/:walletAddress', () => {
         it('should return referral status for referred wallet', async () => {
             const response = await supertest(app)
-                .get('/api/v1/referral/referred/referree123')
+                .get(`/api/v1/referral/referred/${TEST_WALLETS.referree}`)
                 .expect(200);
 
             expect(response.body.success).toBe(true);
             expect(response.body.data.hasBeenReferred).toBe(true);
-            expect(response.body.data.referrer).toBe('referrer123');
+            expect(response.body.data.referrer).toBe(TEST_WALLETS.referrer);
         });
 
         it('should return false for unreferred wallet', async () => {
             const response = await supertest(app)
-                .get('/api/v1/referral/referred/unreferred-wallet')
+                .get(`/api/v1/referral/referred/${TEST_WALLETS.unreferredWallet}`)
                 .expect(200);
 
             expect(response.body.success).toBe(true);
@@ -363,16 +373,16 @@ describe('Referral API', () => {
     describe('GET /api/v1/referral/referrer/:walletAddress', () => {
         it('should return referrer for referred wallet', async () => {
             const response = await supertest(app)
-                .get('/api/v1/referral/referrer/referree123')
+                .get(`/api/v1/referral/referrer/${TEST_WALLETS.referree}`)
                 .expect(200);
 
             expect(response.body.success).toBe(true);
-            expect(response.body.data.referrer).toBe('referrer123');
+            expect(response.body.data.referrer).toBe(TEST_WALLETS.referrer);
         });
 
         it('should fail with 404 for unreferred wallet', async () => {
             const response = await supertest(app)
-                .get('/api/v1/referral/referrer/unreferred-wallet')
+                .get(`/api/v1/referral/referrer/${TEST_WALLETS.unreferredWallet}`)
                 .expect(404);
 
             expect(response.body.error.message).toContain('No referrer found');
@@ -382,7 +392,7 @@ describe('Referral API', () => {
     describe('GET /api/v1/referral/rewards/:walletAddress', () => {
         it('should return reward statistics', async () => {
             const response = await supertest(app)
-                .get('/api/v1/referral/rewards/referrer123')
+                .get(`/api/v1/referral/rewards/${TEST_WALLETS.referrer}`)
                 .expect(200);
 
             expect(response.body.success).toBe(true);
@@ -452,8 +462,8 @@ describe('Referral API', () => {
     describe('POST /api/v1/referral/rewards/process', () => {
         it('should process reward successfully', async () => {
             const rewardData = {
-                referrerAddress: 'referrer123',
-                referreeAddress: 'new-referree',
+                referrerAddress: TEST_WALLETS.referrer,
+                referreeAddress: TEST_WALLETS.newWallet,
                 actionType: 'wallet_connect',
                 actionValue: 100
             };
@@ -472,7 +482,7 @@ describe('Referral API', () => {
             const response = await supertest(app)
                 .post('/api/v1/referral/rewards/process')
                 .send({
-                    referrerAddress: 'referrer123'
+                    referrerAddress: TEST_WALLETS.referrer
                     // Missing referreeAddress and actionType
                 })
                 .expect(400);
@@ -531,7 +541,7 @@ describe('Referral API', () => {
             const response = await supertest(app)
                 .post('/api/v1/referral/cleanup/extend-expiration')
                 .send({
-                    walletAddress: 'referrer123',
+                    walletAddress: TEST_WALLETS.referrer,
                     extensionDays: 30
                 })
                 .expect(200);
@@ -555,7 +565,7 @@ describe('Referral API', () => {
         it('should regenerate expired code successfully', async () => {
             // Create expired code
             await ReferralCodeModel.create({
-                walletAddress: 'expired-wallet',
+                walletAddress: TEST_WALLETS.expiredWallet,
                 referralCode: 'EXPIRED',
                 isActive: true,
                 expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000) // 1 day ago
@@ -563,7 +573,7 @@ describe('Referral API', () => {
 
             const response = await supertest(app)
                 .post('/api/v1/referral/cleanup/regenerate-code')
-                .send({ walletAddress: 'expired-wallet' })
+                .send({ walletAddress: TEST_WALLETS.expiredWallet })
                 .expect(200);
 
             expect(response.body.success).toBe(true);
@@ -584,7 +594,7 @@ describe('Referral API', () => {
         it('should return failure for non-expired code', async () => {
             const response = await supertest(app)
                 .post('/api/v1/referral/cleanup/regenerate-code')
-                .send({ walletAddress: 'referrer123' })
+                .send({ walletAddress: TEST_WALLETS.referrer })
                 .expect(200);
 
             expect(response.body.success).toBe(true);
