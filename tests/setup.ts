@@ -25,5 +25,5 @@ process.env.ANTHROPIC_API_KEY = 'mock-anthropic-api-key';
 
 // Referral system environment variables
 process.env.REFERRAL_PROGRAM_ID = '11111111111111111111111111111111';
-process.env.FRONTEND_URL = 'https://clones.sol';
+process.env.FRONTEND_URL = 'https://clones-ai.com';
 process.env.ADMIN_TOKEN = 'mock-admin-token-for-tests';
