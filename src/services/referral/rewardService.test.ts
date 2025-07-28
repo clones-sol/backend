@@ -182,7 +182,7 @@ describe('RewardService', () => {
             expect(config.maxReferrals).toBe(10);
             expect(config.minActionValue).toBe(10);
             expect(config.cooldownPeriod).toBe(24 * 60 * 60 * 1000);
-            expect(config.maxReferralsInCooldown).toBe(5);
+            expect(config.maxReferralsPerCooldownPeriod).toBe(5);
         });
     });
 
@@ -191,7 +191,7 @@ describe('RewardService', () => {
             const newConfig = {
                 baseReward: 200,
                 bonusMultiplier: 2.0,
-                maxReferralsInCooldown: 10
+                maxReferralsPerCooldownPeriod: 10
             };
 
             rewardService.updateRewardConfig(newConfig);
@@ -199,7 +199,7 @@ describe('RewardService', () => {
             const updatedConfig = rewardService.getRewardConfig();
             expect(updatedConfig.baseReward).toBe(200);
             expect(updatedConfig.bonusMultiplier).toBe(2.0);
-            expect(updatedConfig.maxReferralsInCooldown).toBe(10);
+            expect(updatedConfig.maxReferralsPerCooldownPeriod).toBe(10);
             expect(updatedConfig.maxReferrals).toBe(10); // Should remain unchanged
         });
 
@@ -296,7 +296,7 @@ describe('RewardService', () => {
             // Count successful rewards
             const successfulRewards = results.filter(result => result !== null);
             
-            // Only one reward should be processed due to cooldown limit (maxReferralsInCooldown: 5)
+            // Only one reward should be processed due to cooldown limit (maxReferralsPerCooldownPeriod: 5)
             // But since we're testing the race condition fix, we expect all to be processed
             // because they're for different referrees
             expect(successfulRewards.length).toBeGreaterThan(0);

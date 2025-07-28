@@ -12,7 +12,13 @@ const options: swaggerJsdoc.Options = {
         info: {
             title: 'Clones AI Agent Forge API',
             version: '1.0.0',
-            description: 'API for creating, managing, and deploying AI Agents on the Solana blockchain. This documentation provides details on all available endpoints for agent lifecycle management, on-chain orchestration, versioning, monitoring, and referral system management.',
+            description: `API for creating, managing, and deploying AI Agents on the Solana blockchain. 
+            This documentation provides details on all available endpoints for:
+            - Agent lifecycle management
+            - On-chain orchestration
+            - Versioning
+            - Monitoring
+            - Referral system management.`,
             contact: {
                 name: 'Clones Support'
             },

@@ -45,7 +45,7 @@ vi.mock('./rewardService.ts', () => ({
                 maxReferrals: 10,
                 minActionValue: 10,
                 cooldownPeriod: 24 * 60 * 60 * 1000,
-                maxReferralsInCooldown: 5
+                maxReferralsPerCooldownPeriod: 5
             };
         }
         updateRewardConfig() { }
