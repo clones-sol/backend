@@ -211,19 +211,6 @@ router.get(
   })
 );
 
-// Get reward statistics for a wallet
-router.get(
-  '/rewards/:walletAddress',
-  generalRateLimiter, // General read operation
-  errorHandlerAsync(async (req: Request, res: Response) => {
-    const { walletAddress } = req.params;
-
-    const rewardStats = await referralService.getRewardStats(walletAddress);
-
-    return res.status(200).json(successResponse(rewardStats));
-  })
-);
-
 // Get reward configuration
 router.get(
   '/rewards/config',
@@ -231,7 +218,28 @@ router.get(
   errorHandlerAsync(async (req: Request, res: Response) => {
     const config = await referralService.getRewardConfig();
 
-    return res.status(200).json(successResponse(config));
+    return res.status(200).json(successResponse({
+      baseReward: config.baseReward,
+      bonusMultiplier: config.bonusMultiplier,
+      maxReferrals: config.maxReferrals,
+      minActionValue: config.minActionValue,
+      cooldownPeriod: config.cooldownPeriod,
+      maxReferralsInCooldown: config.maxReferralsInCooldown
+    }));
+  })
+);
+
+// Get reward statistics for a wallet
+router.get(
+  '/rewards/:walletAddress',
+  generalRateLimiter, // General read operation
+  validateParams(walletAddressParamSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { walletAddress } = req.params;
+
+    const rewardStats = await referralService.getRewardStats(walletAddress);
+
+    return res.status(200).json(successResponse(rewardStats));
   })
 );
 
@@ -259,7 +267,7 @@ router.post(
   })
 );
 
-// Get reward statistics for a wallet
+// Get reward statistics for a wallet (detailed)
 router.get(
   '/rewards/stats/:walletAddress',
   generalRateLimiter, // General read operation
