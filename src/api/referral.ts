@@ -4,6 +4,7 @@ import { errorHandlerAsync } from '../middleware/errorHandler.ts';
 import { validateBody } from '../middleware/validator.ts';
 import { ApiError, successResponse } from '../middleware/types/errors.ts';
 import { requireAdminAuth } from '../middleware/auth.ts';
+import { DEFAULT_FRONTEND_URL } from '../constants/referral.ts';
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ router.post(
     }
 
     const referralCode = await referralService.generateReferralCode(walletAddress);
-    const referralLink = `${process.env.FRONTEND_URL || 'https://clones-ai.com'}/ref/${referralCode}`;
+    const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCode}`;
 
     return res.status(200).json(successResponse({
       referralCode,
@@ -40,7 +41,7 @@ router.get(
       throw ApiError.notFound('Referral code not found for this wallet');
     }
 
-    const referralLink = `${process.env.FRONTEND_URL || 'https://clones.sol'}/ref/${referralCode.referralCode}`;
+    const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCode.referralCode}`;
 
     return res.status(200).json(successResponse({
       referralCode: referralCode.referralCode,
@@ -95,7 +96,7 @@ router.post(
     }
 
     // Generate referral link
-    const referralLink = `${process.env.FRONTEND_URL || 'https://clones.sol'}/ref/${referralCode}`;
+    const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCode}`;
     
     const referral = await referralService.createReferral(
       referrerAddress,
@@ -108,7 +109,11 @@ router.post(
     );
 
     // Store on-chain (async)
-    referralService.storeReferralOnChain(referral._id!.toString())
+    if (!referral._id) {
+      console.error('Referral creation failed: Missing _id');
+      throw ApiError.internalError('Failed to create referral: Missing _id');
+    }
+    referralService.storeReferralOnChain(referral._id.toString())
       .catch(error => console.error('Failed to store referral on-chain:', error));
 
     return res.status(201).json(successResponse({
