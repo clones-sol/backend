@@ -156,7 +156,7 @@ describe('Referral API', () => {
             referrerAddress: TEST_WALLETS.referrer,
             referreeAddress: TEST_WALLETS.referree,
             referralCode: 'TEST123',
-            referralLink: 'https://clones.sol/ref/TEST123',
+            referralLink: 'https://clones-ai.com/ref/TEST123',
             firstActionType: 'wallet_connect',
             firstActionData: { connectionToken: 'test-token' },
             status: 'pending'

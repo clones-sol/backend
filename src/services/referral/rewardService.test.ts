@@ -57,7 +57,7 @@ describe('RewardService', () => {
             referrerAddress: 'referrer123',
             referreeAddress: 'referree123',
             referralCode: 'TEST123',
-            referralLink: 'https://clones.sol/ref/TEST123',
+            referralLink: 'https://clones-ai.com/ref/TEST123',
             firstActionType: 'wallet_connect',
             firstActionData: { connectionToken: 'test-token' },
             status: 'confirmed'
@@ -117,7 +117,7 @@ describe('RewardService', () => {
                 referrerAddress: 'referrer123',
                 referreeAddress: `referree${i}`,
                 referralCode: 'TEST123',
-                referralLink: 'https://clones.sol/ref/TEST123',
+                referralLink: 'https://clones-ai.com/ref/TEST123',
                 firstActionType: 'wallet_connect',
                 firstActionData: { connectionToken: `token${i}` },
                 status: 'confirmed',
@@ -144,7 +144,7 @@ describe('RewardService', () => {
                 referrerAddress: 'referrer123',
                 referreeAddress: 'referree2',
                 referralCode: 'TEST123',
-                referralLink: 'https://clones.sol/ref/TEST123',
+                referralLink: 'https://clones-ai.com/ref/TEST123',
                 firstActionType: 'wallet_connect',
                 firstActionData: { connectionToken: 'token2' },
                 status: 'confirmed'
@@ -240,7 +240,7 @@ describe('RewardService', () => {
                 referrerAddress: 'referrer123',
                 referreeAddress: 'referree1',
                 referralCode: 'TEST123',
-                referralLink: 'https://clones.sol/ref/TEST123',
+                referralLink: 'https://clones-ai.com/ref/TEST123',
                 firstActionType: 'wallet_connect',
                 firstActionData: { connectionToken: 'token1' },
                 status: 'confirmed'

@@ -90,7 +90,7 @@ router.post(
           
           if (referrerAddress && referrerAddress !== address) {
             // Create referral relationship
-            const referralLink = `${process.env.FRONTEND_URL || 'https://clones.sol'}/ref/${req.body.referralCode}`;
+            const referralLink = `${process.env.FRONTEND_URL || 'https://clones-ai.com'}/ref/${req.body.referralCode}`;
             await referralService.createReferral(
               referrerAddress,
               address,
