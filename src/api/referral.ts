@@ -1,22 +1,28 @@
 import express, { Request, Response } from 'express';
 import { referralService } from '../services/referral/index.ts';
 import { errorHandlerAsync } from '../middleware/errorHandler.ts';
-import { validateBody } from '../middleware/validator.ts';
+import { validateBody, validateParams } from '../middleware/validator.ts';
 import { ApiError, successResponse } from '../middleware/types/errors.ts';
 import { requireAdminAuth } from '../middleware/auth.ts';
 import { DEFAULT_FRONTEND_URL } from '../constants/referral.ts';
+import {
+  generateCodeSchema,
+  validateCodeSchema,
+  createReferralSchema,
+  processRewardSchema,
+  extendExpirationSchema,
+  regenerateCodeSchema,
+  walletAddressParamSchema
+} from './schemas/referral.ts';
 
 const router = express.Router();
 
 // Generate referral code for a wallet
 router.post(
   '/generate-code',
+  validateBody(generateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.body;
-
-    if (!walletAddress) {
-      throw ApiError.badRequest('Wallet address is required');
-    }
 
     const referralCode = await referralService.generateReferralCode(walletAddress);
     const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCode}`;
@@ -32,6 +38,7 @@ router.post(
 // Get referral code for a wallet
 router.get(
   '/code/:walletAddress',
+  validateParams(walletAddressParamSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
 
@@ -57,12 +64,9 @@ router.get(
 // Validate a referral code
 router.post(
   '/validate-code',
+  validateBody(validateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { referralCode } = req.body;
-
-    if (!referralCode) {
-      throw ApiError.badRequest('Referral code is required');
-    }
 
     const referrerAddress = await referralService.validateReferralCode(referralCode);
     
@@ -81,6 +85,7 @@ router.post(
 // Create referral relationship (called when user performs first action)
 router.post(
   '/create',
+  validateBody(createReferralSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { 
       referrerAddress, 
@@ -90,10 +95,6 @@ router.post(
       firstActionData,
       actionValue 
     } = req.body;
-
-    if (!referrerAddress || !referreeAddress || !referralCode || !firstActionType) {
-      throw ApiError.badRequest('Missing required fields');
-    }
 
     // Generate referral link
     const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCode}`;
@@ -131,6 +132,7 @@ router.post(
 // Get referral statistics for a wallet
 router.get(
   '/stats/:walletAddress',
+  validateParams(walletAddressParamSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
 
@@ -143,6 +145,7 @@ router.get(
 // Check if a wallet has been referred
 router.get(
   '/referred/:walletAddress',
+  validateParams(walletAddressParamSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
 
@@ -159,6 +162,7 @@ router.get(
 // Get referrer for a wallet
 router.get(
   '/referrer/:walletAddress',
+  validateParams(walletAddressParamSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
 
@@ -222,12 +226,9 @@ router.post(
 // Get reward statistics for a wallet
 router.get(
   '/rewards/stats/:walletAddress',
+  validateParams(walletAddressParamSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
-
-    if (!walletAddress) {
-      throw ApiError.badRequest('Wallet address is required');
-    }
 
     const stats = await referralService.getRewardStats(walletAddress);
 
@@ -238,6 +239,7 @@ router.get(
 // Process reward for a specific action
 router.post(
   '/rewards/process',
+  validateBody(processRewardSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { 
       referrerAddress, 
@@ -245,10 +247,6 @@ router.post(
       actionType, 
       actionValue 
     } = req.body;
-
-    if (!referrerAddress || !referreeAddress || !actionType) {
-      throw ApiError.badRequest('Missing required fields');
-    }
 
     const rewardEvent = await referralService.processReward(
       referrerAddress,
@@ -290,12 +288,9 @@ router.get(
 
 router.post(
   '/cleanup/extend-expiration',
+  validateBody(extendExpirationSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress, extensionDays } = req.body;
-
-    if (!walletAddress) {
-      throw ApiError.badRequest('Wallet address is required');
-    }
 
     const success = await referralService.extendExpiration(
       walletAddress,
@@ -311,12 +306,9 @@ router.post(
 
 router.post(
   '/cleanup/regenerate-code',
+  validateBody(regenerateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.body;
-
-    if (!walletAddress) {
-      throw ApiError.badRequest('Wallet address is required');
-    }
 
     const newCode = await referralService.regenerateExpiredCode(walletAddress);
 
