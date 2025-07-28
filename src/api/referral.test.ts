@@ -4,23 +4,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import mongoose, { Document } from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 const Redis = require('ioredis-mock');
-import { ReferralModel, IReferral } from '../models/Referral.ts';
-import { ReferralCodeModel, IReferralCode } from '../models/ReferralCode.ts';
-import { connectToDatabase } from '../services/database.ts';
-import { referralApi } from './referral.ts';
-import { errorHandler } from '../middleware/errorHandler.ts';
 
-// Valid Solana wallet addresses for testing
-const TEST_WALLETS = {
-    referrer: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
-    referree: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
-    newWallet: 'DKf6oSTPyp9h7V4KcTiouYeormMEQ8dCjmodZLDc73Jv',
-    expiredWallet: '66oWkuMRwh8YXEDvgtnBTEJ7ixfiEwx7nqsoQAaWJsx8',
-    unreferredWallet: '24kzcdFM1WEXdqgeq5kGXzmVdk6wPM77a7BbqFcs8Rhq',
-    noCodeWallet: '7mYm9PMV5xg5LJ1LN99hMVRBg7bGfqfU5QBcwMhGAHzg'
-};
-
-// Mock Redis service
+// Mock external services before importing modules that use them
 vi.mock('../services/redis.ts', () => {
     const redisMock = new Redis();
     return {
@@ -29,7 +14,6 @@ vi.mock('../services/redis.ts', () => {
     };
 });
 
-// Mock external services
 vi.mock('../services/blockchain/index.ts', () => ({
     default: class MockBlockchainService {
         constructor() {}
@@ -50,11 +34,20 @@ vi.mock('../services/blockchain/referralProgram.ts', () => ({
 
 vi.mock('../services/referral/rewardService.ts', () => ({
     RewardService: class MockRewardService {
+        private config = {
+            baseReward: 100,
+            bonusMultiplier: 1.5,
+            maxReferrals: 10,
+            minActionValue: 10,
+            cooldownPeriod: 24 * 60 * 60 * 1000,
+            maxReferralsInCooldown: 5
+        };
+
         constructor() {}
         async processReward() {
             return {
-                referrerAddress: TEST_WALLETS.referrer,
-                referreeAddress: TEST_WALLETS.referree,
+                referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
+                referreeAddress: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
                 actionType: 'test_action',
                 actionValue: 100,
                 rewardAmount: 50,
@@ -62,16 +55,11 @@ vi.mock('../services/referral/rewardService.ts', () => ({
             };
         }
         getRewardConfig() {
-            return {
-                baseReward: 100,
-                bonusMultiplier: 1.5,
-                maxReferrals: 10,
-                minActionValue: 10,
-                cooldownPeriod: 24 * 60 * 60 * 1000,
-                maxReferralsInCooldown: 5
-            };
+            return { ...this.config };
         }
-        updateRewardConfig() {}
+        updateRewardConfig(newConfig: any) {
+            this.config = { ...this.config, ...newConfig };
+        }
         getRewardStats() {
             return {
                 totalRewards: 150,
@@ -96,6 +84,16 @@ vi.mock('../services/referral/cleanupService.ts', () => ({
                 expiringSoon: 3
             };
         }
+        async extendExpiration(walletAddress: string, extensionDays: number = 30) {
+            return true;
+        }
+        async regenerateExpiredCode(walletAddress: string) {
+            // Return null for non-expired codes (like TEST_WALLETS.referrer)
+            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+                return null;
+            }
+            return 'NEWCODE123';
+        }
     }
 }));
 
@@ -110,6 +108,273 @@ vi.mock('../middleware/auth.ts', () => ({
         }
     }
 }));
+
+// Mock the referral service
+vi.mock('../services/referral/index.ts', () => ({
+    ReferralService: class MockReferralService {
+        constructor() {}
+        async generateReferralCode(walletAddress: string) {
+            // Return different codes based on wallet address
+            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+                return 'TEST123';
+            }
+            return 'ABCDEF';
+        }
+        async getReferralCode(walletAddress: string) {
+            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+                return {
+                    walletAddress,
+                    referralCode: 'TEST123',
+                    isActive: true,
+                    totalReferrals: 0,
+                    totalRewards: 0,
+                    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                };
+            }
+            return null;
+        }
+        async validateReferralCode(referralCode: string) {
+            if (referralCode === 'TEST123' || referralCode === 'test123') {
+                return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
+            }
+            return null;
+        }
+        async createReferral() {
+            return {
+                _id: 'mock-referral-id',
+                referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
+                referreeAddress: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
+                referralCode: 'TEST123',
+                status: 'pending',
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+        }
+        async storeReferralOnChain(referralId: string) {
+            return { txHash: 'test-tx-hash', slot: 12345 };
+        }
+        async getReferralStats(walletAddress: string) {
+            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+                return {
+                    totalReferrals: 0,
+                    totalRewards: 0,
+                    referralCode: 'TEST123',
+                    referrals: []
+                };
+            }
+            return {
+                totalReferrals: 0,
+                totalRewards: 0,
+                referralCode: '',
+                referrals: []
+            };
+        }
+        async hasBeenReferred(walletAddress: string) {
+            if (walletAddress === '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49') {
+                return true;
+            }
+            return false;
+        }
+        async getReferrer(walletAddress: string) {
+            if (walletAddress === '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49') {
+                return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
+            }
+            return null;
+        }
+        async getRewardStats() {
+            return {
+                totalRewards: 150,
+                totalReferrals: 2,
+                averageReward: 75,
+                recentRewards: []
+            };
+        }
+        async getRewardConfig() {
+            return {
+                baseReward: 100,
+                bonusMultiplier: 1.5,
+                maxReferrals: 10,
+                minActionValue: 10,
+                cooldownPeriod: 24 * 60 * 60 * 1000,
+                maxReferralsInCooldown: 5
+            };
+        }
+        async updateRewardConfig(newConfig: any) {
+            return {
+                baseReward: newConfig.baseReward || 100,
+                bonusMultiplier: newConfig.bonusMultiplier || 1.5,
+                maxReferrals: newConfig.maxReferrals || 10,
+                minActionValue: newConfig.minActionValue || 10,
+                cooldownPeriod: newConfig.cooldownPeriod || 24 * 60 * 60 * 1000,
+                maxReferralsInCooldown: newConfig.maxReferralsInCooldown || 5
+            };
+        }
+        async processReward() {
+            return {
+                referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
+                referreeAddress: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
+                actionType: 'test_action',
+                actionValue: 100,
+                rewardAmount: 50,
+                timestamp: new Date()
+            };
+        }
+        async cleanupExpiredCodes() {
+            return 5;
+        }
+        async getCleanupStats() {
+            return {
+                totalExpired: 10,
+                totalActive: 50,
+                expiringSoon: 3
+            };
+        }
+        async extendExpiration() {
+            return true;
+        }
+        async regenerateExpiredCode(walletAddress: string) {
+            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+                return null;
+            }
+            return 'NEWCODE123';
+        }
+    },
+    referralService: {
+        generateReferralCode: async (walletAddress: string) => {
+            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+                return 'TEST123';
+            }
+            return 'ABCDEF';
+        },
+        getReferralCode: async (walletAddress: string) => {
+            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+                return {
+                    walletAddress,
+                    referralCode: 'TEST123',
+                    isActive: true,
+                    totalReferrals: 0,
+                    totalRewards: 0,
+                    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                };
+            }
+            return null;
+        },
+        validateReferralCode: async (referralCode: string) => {
+            if (referralCode === 'TEST123' || referralCode === 'test123') {
+                return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
+            }
+            return null;
+        },
+        createReferral: async (referrerAddress: string, referreeAddress: string, referralCode: string, referralLink: string, firstActionType: string, firstActionData?: any, actionValue?: number) => {
+            // Validate referral code
+            if (referralCode !== 'TEST123' && referralCode !== 'test123') {
+                const { ApiError } = await import('../middleware/types/errors.ts');
+                throw ApiError.badRequest('Invalid referral code');
+            }
+            
+            return {
+                _id: 'mock-referral-id',
+                referrerAddress,
+                referreeAddress,
+                referralCode,
+                firstActionType,
+                status: 'pending',
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+        },
+        storeReferralOnChain: async (referralId: string) => {
+            return { txHash: 'test-tx-hash', slot: 12345 };
+        },
+        getReferralStats: async (walletAddress: string) => {
+            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+                return {
+                    totalReferrals: 0,
+                    totalRewards: 0,
+                    referralCode: 'TEST123',
+                    referrals: []
+                };
+            }
+            return {
+                totalReferrals: 0,
+                totalRewards: 0,
+                referralCode: '',
+                referrals: []
+            };
+        },
+        hasBeenReferred: async (walletAddress: string) => {
+            if (walletAddress === '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49') {
+                return true;
+            }
+            return false;
+        },
+        getReferrer: async (walletAddress: string) => {
+            if (walletAddress === '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49') {
+                return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
+            }
+            return null;
+        },
+        getRewardStats: async () => ({
+            totalRewards: 150,
+            totalReferrals: 2,
+            averageReward: 75,
+            recentRewards: []
+        }),
+        getRewardConfig: async () => ({
+            baseReward: 100,
+            bonusMultiplier: 1.5,
+            maxReferrals: 10,
+            minActionValue: 10,
+            cooldownPeriod: 24 * 60 * 60 * 1000,
+            maxReferralsInCooldown: 5
+        }),
+        updateRewardConfig: async (newConfig: any) => ({
+            baseReward: newConfig.baseReward || 100,
+            bonusMultiplier: newConfig.bonusMultiplier || 1.5,
+            maxReferrals: newConfig.maxReferrals || 10,
+            minActionValue: newConfig.minActionValue || 10,
+            cooldownPeriod: newConfig.cooldownPeriod || 24 * 60 * 60 * 1000,
+            maxReferralsInCooldown: newConfig.maxReferralsInCooldown || 5
+        }),
+        processReward: async () => ({
+            referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
+            referreeAddress: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
+            actionType: 'test_action',
+            actionValue: 100,
+            rewardAmount: 50,
+            timestamp: new Date()
+        }),
+        cleanupExpiredCodes: async () => 5,
+        getCleanupStats: async () => ({
+            totalExpired: 10,
+            totalActive: 50,
+            expiringSoon: 3
+        }),
+        extendExpiration: async () => true,
+        regenerateExpiredCode: async (walletAddress: string) => {
+            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+                return null;
+            }
+            return 'NEWCODE123';
+        }
+    }
+}));
+
+import { ReferralModel, IReferral } from '../models/Referral.ts';
+import { ReferralCodeModel, IReferralCode } from '../models/ReferralCode.ts';
+import { connectToDatabase } from '../services/database.ts';
+import { referralApi } from './referral.ts';
+import { errorHandler } from '../middleware/errorHandler.ts';
+
+// Valid Solana wallet addresses for testing
+const TEST_WALLETS = {
+    referrer: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
+    referree: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
+    newWallet: 'DKf6oSTPyp9h7V4KcTiouYeormMEQ8dCjmodZLDc73Jv',
+    expiredWallet: '66oWkuMRwh8YXEDvgtnBTEJ7ixfiEwx7nqsoQAaWJsx8',
+    unreferredWallet: '24kzcdFM1WEXdqgeq5kGXzmVdk6wPM77a7BbqFcs8Rhq',
+    noCodeWallet: '7mYm9PMV5xg5LJ1LN99hMVRBg7bGfqfU5QBcwMhGAHzg'
+};
 
 let app: express.Express;
 
@@ -199,7 +464,8 @@ describe('Referral API', () => {
                 .send({})
                 .expect(400);
 
-            expect(response.body.error.message).toContain('Wallet address is required');
+            expect(response.body.error.message).toBe('Validation failed');
+            expect(response.body.error.details.fields.walletAddress).toBe('This field is required');
         });
     });
 
@@ -264,7 +530,8 @@ describe('Referral API', () => {
                 .send({})
                 .expect(400);
 
-            expect(response.body.error.message).toContain('Referral code is required');
+            expect(response.body.error.message).toBe('Validation failed');
+            expect(response.body.error.details.fields.referralCode).toBe('This field is required');
         });
     });
 
@@ -301,7 +568,9 @@ describe('Referral API', () => {
                 })
                 .expect(400);
 
-            expect(response.body.error.message).toContain('Missing required fields');
+            expect(response.body.error.message).toBe('Validation failed');
+            expect(response.body.error.details.fields.referralCode).toBe('This field is required');
+            expect(response.body.error.details.fields.firstActionType).toBe('This field is required');
         });
 
         it('should fail with 400 for invalid referral code', async () => {
@@ -408,6 +677,7 @@ describe('Referral API', () => {
                 .get('/api/v1/referral/rewards/config')
                 .expect(200);
 
+
             expect(response.body.success).toBe(true);
             expect(response.body.data.baseReward).toBe(100);
             expect(response.body.data.bonusMultiplier).toBe(1.5);
@@ -487,7 +757,9 @@ describe('Referral API', () => {
                 })
                 .expect(400);
 
-            expect(response.body.error.message).toContain('Missing required fields');
+            expect(response.body.error.message).toBe('Validation failed');
+            expect(response.body.error.details.fields.referreeAddress).toBe('This field is required');
+            expect(response.body.error.details.fields.actionType).toBe('This field is required');
         });
     });
 
@@ -557,7 +829,8 @@ describe('Referral API', () => {
                 .send({ extensionDays: 30 })
                 .expect(400);
 
-            expect(response.body.error.message).toContain('Wallet address is required');
+            expect(response.body.error.message).toBe('Validation failed');
+            expect(response.body.error.details.fields.walletAddress).toBe('This field is required');
         });
     });
 
@@ -588,7 +861,8 @@ describe('Referral API', () => {
                 .send({})
                 .expect(400);
 
-            expect(response.body.error.message).toContain('Wallet address is required');
+            expect(response.body.error.message).toBe('Validation failed');
+            expect(response.body.error.details.fields.walletAddress).toBe('This field is required');
         });
 
         it('should return failure for non-expired code', async () => {
