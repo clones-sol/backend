@@ -5,7 +5,8 @@ import { ReferralProgramService } from '../blockchain/referralProgram.ts';
 import { RewardService } from './rewardService.ts';
 import { ReferralCleanupService } from './cleanupService.ts';
 import { handleTransactionError } from '../../utils/transactionUtils.ts';
-import { REFERRAL_CODE_CHARS, REFERRAL_CODE_LENGTH } from '../../constants/referral.ts';
+import { REFERRAL_CODE_CHARS, REFERRAL_CODE_LENGTH, MAX_REFERRAL_CODE_ATTEMPTS } from '../../constants/referral.ts';
+import { ApiError } from '../../middleware/types/errors.ts';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 
@@ -42,7 +43,7 @@ export class ReferralService {
     }
 
     // Generate a unique 6-character alphanumeric referral code with collision handling
-    const maxRetries = 10;
+    const maxRetries = MAX_REFERRAL_CODE_ATTEMPTS;
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -75,20 +76,19 @@ export class ReferralService {
         
         // Check if this is a duplicate key error (MongoDB error code 11000)
         if (error.code === 11000) {
+          // Check if it's a duplicate wallet address (user already has a code)
+          if (error.keyPattern?.walletAddress) {
+            // User already has a referral code, fetch and return it
+            const existingCode = await ReferralCodeModel.findOne({ walletAddress });
+            if (existingCode) {
+              return existingCode.referralCode;
+            }
+          }
+          
           // This is a collision - the generated code already exists
           // We'll retry with a new code on the next iteration
           console.warn(`Referral code collision detected on attempt ${attempt + 1}, retrying...`);
           continue;
-        }
-        
-        // If it's not a duplicate key error, it's a different issue
-        // Check if it's a duplicate wallet address (user already has a code)
-        if (error.code === 11000 && error.keyPattern?.walletAddress) {
-          // User already has a referral code, fetch and return it
-          const existingCode = await ReferralCodeModel.findOne({ walletAddress });
-          if (existingCode) {
-            return existingCode.referralCode;
-          }
         }
         
         // For any other error, throw it immediately
@@ -252,7 +252,7 @@ export class ReferralService {
     // Validate referral code
     const validReferrer = await this.validateReferralCode(referralCode);
     if (!validReferrer || validReferrer !== referrerAddress) {
-      throw new Error('Invalid referral code');
+      throw ApiError.badRequest('Invalid referral code');
     }
 
     // Prevent self-referral
@@ -391,7 +391,15 @@ export class ReferralService {
    * Get reward configuration
    */
   async getRewardConfig() {
-    return this.rewardService.getRewardConfig();
+    const config = this.rewardService.getRewardConfig();
+    return {
+      baseReward: config.baseReward,
+      bonusMultiplier: config.bonusMultiplier,
+      maxReferrals: config.maxReferrals,
+      minActionValue: config.minActionValue,
+      cooldownPeriod: config.cooldownPeriod,
+      maxReferralsInCooldown: config.maxReferralsInCooldown
+    };
   }
 
   /**
@@ -399,7 +407,15 @@ export class ReferralService {
    */
   async updateRewardConfig(newConfig: any) {
     this.rewardService.updateRewardConfig(newConfig);
-    return this.rewardService.getRewardConfig();
+    const updatedConfig = this.rewardService.getRewardConfig();
+    return {
+      baseReward: updatedConfig.baseReward,
+      bonusMultiplier: updatedConfig.bonusMultiplier,
+      maxReferrals: updatedConfig.maxReferrals,
+      minActionValue: updatedConfig.minActionValue,
+      cooldownPeriod: updatedConfig.cooldownPeriod,
+      maxReferralsInCooldown: updatedConfig.maxReferralsInCooldown
+    };
   }
 
   /**

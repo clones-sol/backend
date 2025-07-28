@@ -144,15 +144,21 @@ describe('ReferralService', () => {
             const originalRandomBytes = require('crypto').randomBytes;
             require('crypto').randomBytes = vi.fn().mockReturnValue(Buffer.from([0, 0, 0, 0, 0, 0]));
 
-            // Create a referral code with the same pattern
+            // Create one referral code with the same pattern that the mock will generate
             await ReferralCodeModel.create({
                 walletAddress: 'existing-wallet',
                 referralCode: 'AAAAAA',
-                isActive: true
+                isActive: true,
+                totalReferrals: 0,
+                totalRewards: 0,
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
             });
 
+            // Clear any existing code for the test wallet
+            await ReferralCodeModel.deleteOne({ walletAddress: 'new-wallet' });
+
             await expect(referralService.generateReferralCode('new-wallet')).rejects.toThrow(
-                'Failed to generate unique referral code after 10 attempts'
+                'Failed to generate unique referral code after 100 attempts'
             );
 
             // Restore original function

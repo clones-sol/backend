@@ -72,7 +72,12 @@ export class ReferralCleanupService {
       return false;
     }
 
-    const newExpiration = new Date();
+    // Extend from the current expiration date, or from now if no expiration set
+    const baseDate = referralCode.expiresAt && referralCode.expiresAt > new Date() 
+      ? referralCode.expiresAt 
+      : new Date();
+    
+    const newExpiration = new Date(baseDate);
     newExpiration.setDate(newExpiration.getDate() + extensionDays);
 
     await ReferralCodeModel.findByIdAndUpdate(referralCode._id, {
