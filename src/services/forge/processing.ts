@@ -595,7 +595,7 @@ async function notifyForgeWebhook(
     if (data.reward !== undefined && data.maxReward) {
       fields.push({
         name: '💎 Reward',
-        value: `${data.reward.toFixed(2)} ${data.pool?.token.symbol || '$VIRAL'} (${data.clampedScore
+        value: `${data.reward.toFixed(2)} ${data.pool?.token.symbol || '$CLONES'} (${data.clampedScore
           }% of ${data.maxReward.toFixed(2)})`,
         inline: true
       });

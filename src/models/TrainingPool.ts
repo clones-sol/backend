@@ -16,8 +16,7 @@ const trainingPoolSchema = new Schema<DBTrainingPool>(
     token: {
       type: {
         type: String,
-        // TODO: VIRAL is not a valid token type, but we need to add it to the enum for now for retro-compatibility
-        enum: ['SOL', 'SPL', 'VIRAL'],
+        enum: ['SOL', 'SPL'],
         required: true
       },
       symbol: { type: String, required: true }

@@ -165,7 +165,7 @@ export async function updatePoolStatus(
       statusChanged = true;
     }
   } else if (balance === 0 || balance < pool.pricePerDemo) {
-    // pool has no $VIRAL
+    // pool has no token funds
     if (pool.status !== TrainingPoolStatus.noFunds) {
       pool.status = TrainingPoolStatus.noFunds;
       statusChanged = true;

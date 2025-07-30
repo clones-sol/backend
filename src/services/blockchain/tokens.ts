@@ -13,15 +13,6 @@ export interface TokenConfig {
 }
 
 export const supportedTokens: TokenConfig = {
-    VIRAL: {
-        name: 'Viral',
-        decimals: 6,
-        mintAddress: {
-            development: 'FndpD76kqsCU7RqPRgu2bdcPCNNAzfFW3x8zFBuejuEG',
-            test: 'FndpD76kqsCU7RqPRgu2bdcPCNNAzfFW3x8zFBuejuEG',
-            production: 'HW7D5MyYG4Dz2C98axfjVBeLWpsEnofrqy6ZUwqwpump'
-        }
-    },
     USDC: {
         name: 'USDC',
         decimals: 6,
