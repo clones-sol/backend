@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 import {
   ForgeSubmissionGradeResult,
-  ForgeTreasuryTransfer,
   DBForgeRaceSubmission,
   ForgeSubmissionProcessingStatus,
   WebhookColor,
@@ -15,7 +14,7 @@ import * as path from 'path';
 import { Keypair } from '@solana/web3.js';
 import { spawn } from 'child_process';
 import { Webhook } from '../webhook/index.ts';
-import { decrypt, encrypt, LATEST_KEY_VERSION } from '../security/crypto.ts';
+
 import { getTokenAddress } from '../blockchain/tokens.ts';
 import { RewardPoolService } from '../blockchain/rewardPool.ts';
 
@@ -158,7 +157,6 @@ export async function processNextInQueue() {
       let reward = undefined;
       let maxReward = undefined;
       let clampedScore = undefined;
-      let treasuryTransfer: ForgeTreasuryTransfer | undefined = undefined;
       let retries = 3;
 
       // Get pool details if poolId exists
@@ -404,7 +402,6 @@ export async function processNextInQueue() {
       submission.reward = reward;
       submission.maxReward = maxReward;
       submission.clampedScore = clampedScore;
-      submission.treasuryTransfer = treasuryTransfer;
       
       // Add smart contract reward data if available
       if (reward && reward > 0 && smartContractReward) {
@@ -416,7 +413,7 @@ export async function processNextInQueue() {
 
       // Always send a webhook notification for successful processing, even if there was no reward
       // Only send if it wasn't already sent during the reward processing
-      if (!reward || reward === 0 || !treasuryTransfer) {
+      if (!reward || reward === 0) {
         await notifyForgeWebhook('success', {
           title: submission?.meta?.quest.title,
           app: submission?.meta?.quest.app,
@@ -482,7 +479,6 @@ async function notifyForgeWebhook(
     summary?: string;
     feedback?: string;
     error?: string;
-    treasuryTransfer?: ForgeTreasuryTransfer;
     address?: string;
     pool?: {
       name: string;
@@ -490,7 +486,6 @@ async function notifyForgeWebhook(
         symbol: string;
         address: string;
       };
-      treasuryBalance?: number;
     };
   }
 ) {
@@ -572,13 +567,13 @@ async function notifyForgeWebhook(
       }
     }
 
-    if (data.treasuryTransfer?.txHash) {
-      fields.push({
-        name: '🔗 Transaction',
-        value: `[View on Solscan](https://solscan.io/tx/${data.treasuryTransfer.txHash})`,
-        inline: true
-      });
-    }
+          if (data.pool) {
+        fields.push({
+          name: '🔗 Smart Contract',
+          value: `Reward recorded on-chain`,
+          inline: true
+        });
+      }
 
     if (data.summary) {
       fields.push({
