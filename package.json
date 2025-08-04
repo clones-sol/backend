@@ -28,6 +28,7 @@
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.95.8",
     "axios": "^1.7.8",
+    "bn.js": "^5.2.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "esbuild": "^0.25.1",
@@ -44,7 +45,8 @@
     "unzipper": "^0.12.3",
     "uuid": "^11.1.0",
     "ws": "^8.18.3",
-    "xstate": "^5.20.1"
+    "xstate": "^5.20.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/bn.js": "^5.2.0",
