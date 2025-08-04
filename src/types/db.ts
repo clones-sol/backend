@@ -46,6 +46,21 @@ export interface DBForgeRaceSubmission {
     timestamp?: number;
     txHash?: string;
   };
+  // New fields for smart contract reward system
+  smartContractReward?: {
+    taskId?: string; // Unique identifier for the task
+    rewardAmount?: number; // Calculated reward amount
+    tokenMint?: string; // Token mint address
+    poolId?: string; // Pool ID
+    isRecorded?: boolean; // Whether recorded on smart contract
+    recordSignature?: string; // Transaction signature when recorded
+    recordSlot?: number; // Slot when recorded
+    isWithdrawn?: boolean; // Whether farmer has withdrawn
+    withdrawalSignature?: string; // Transaction signature when withdrawn
+    withdrawalSlot?: number; // Slot when withdrawn
+    platformFeeAmount?: number; // Platform fee amount (10%)
+    farmerRewardAmount?: number; // Actual amount farmer receives (90%)
+  };
   createdAt?: Date;
   updatedAt?: Date;
 }
