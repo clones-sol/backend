@@ -6,6 +6,7 @@ import { forgeAppsApi } from './apps.ts';
 import { forgeUploadApi } from './upload.ts';
 import { forgeAgentsApi } from './agents.ts';
 import rewardPoolApi from './rewardPool.ts';
+import migrationApi from './migration.ts';
 
 const router: Router = express.Router();
 
@@ -17,5 +18,6 @@ router.use('/apps', forgeAppsApi);
 router.use('/upload', forgeUploadApi);
 router.use('/agents', forgeAgentsApi);
 router.use('/reward-pool', rewardPoolApi);
+router.use('/migration', migrationApi);
 
 export { router as forgeApi };
