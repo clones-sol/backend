@@ -39,13 +39,6 @@ export interface DBForgeRaceSubmission {
   reward?: number;
   maxReward?: number;
   clampedScore?: number;
-  treasuryTransfer?: {
-    tokenAddress?: string;
-    treasuryWallet?: string;
-    amount?: number;
-    timestamp?: number;
-    txHash?: string;
-  };
   // New fields for smart contract reward system
   smartContractReward?: {
     taskId?: string; // Unique identifier for the task

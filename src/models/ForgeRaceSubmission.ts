@@ -30,16 +30,7 @@ export const forgeRaceSubmissionSchema = new mongoose.Schema<DBForgeRaceSubmissi
     reward: { type: Number, required: false },
     maxReward: { type: Number, required: false },
     clampedScore: { type: Number, required: false },
-    treasuryTransfer: {
-      type: {
-        tokenAddress: String,
-        treasuryWallet: String,
-        amount: Number,
-        timestamp: Number,
-        txHash: String
-      },
-      required: false
-    },
+
     // New fields for smart contract reward system
     smartContractReward: {
       type: {
