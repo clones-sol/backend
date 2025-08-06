@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Build script for native Solana program (without Anchor)
+
+set -e
+
+echo "Building Solana program..."
+
+# Check if solana is installed
+if ! command -v solana &> /dev/null; then
+    echo "Solana CLI not found. Please install it first."
+    echo "Visit: https://docs.solana.com/cli/install-solana-cli-tools"
+    exit 1
+fi
+
+# Build the program
+echo "Building reward-pool program..."
+cargo build-sbf --manifest-path programs/reward-pool/Cargo.toml
+
+echo "Build completed successfully!"
+echo "Program binary location: target/deploy/reward_pool.so"
