@@ -121,8 +121,63 @@ router.get(
   })
 );
 
-// Get reward calculation
-// todo: this needs to be updated for the new reward system
+/**
+ * @swagger
+ * /forge/pools/reward:
+ *   get:
+ *     summary: Get reward calculation for a pool
+ *     description: Calculates the potential reward amount for completing a task in a specific training pool. This endpoint provides the maximum reward that can be earned.
+ *     tags: [Forge Pools]
+ *     parameters:
+ *       - in: query
+ *         name: poolId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the training pool
+ *         example: "507f1f77bcf86cd799439011"
+ *     responses:
+ *       200:
+ *         description: Reward calculation retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         time:
+ *                           type: number
+ *                           description: Current timestamp rounded to the last minute
+ *                           example: 1704067200000
+ *                         maxReward:
+ *                           type: number
+ *                           description: Maximum reward amount for completing a task
+ *                           example: 100
+ *                         pricePerDemo:
+ *                           type: number
+ *                           description: Price per demonstration in the pool
+ *                           example: 100
+ *       404:
+ *         description: Pool not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       402:
+ *         description: Pool has insufficient funds
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       429:
+ *         description: Too many requests
+ *       500:
+ *         description: Internal server error
+ */
 router.get(
   '/reward',
   validateQuery(rewardQuerySchema),
