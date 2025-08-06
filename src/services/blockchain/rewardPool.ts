@@ -1,6 +1,6 @@
-import { Connection, PublicKey, Keypair, Transaction } from '@solana/web3.js';
-import { Program, AnchorProvider, web3 } from '@coral-xyz/anchor';
-import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { Connection, PublicKey, Keypair, Transaction, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount } from '@solana/spl-token';
+import { RewardPoolClient } from '../../solana-client';
 import BN from 'bn.js';
 
 // Types for the reward pool program
@@ -42,8 +42,9 @@ export interface WithdrawalRequest {
 
 export class RewardPoolService {
   private connection: Connection;
-  private program: Program;
+  private client: RewardPoolClient | null = null;
   private platformAuthority: Keypair;
+  private programId: PublicKey | null = null;
 
   constructor(
     connection: Connection,
@@ -53,16 +54,29 @@ export class RewardPoolService {
     this.connection = connection;
     this.platformAuthority = platformAuthorityKeypair;
     
-    // Initialize the program (this will be updated when the actual program is deployed)
-    const provider = new AnchorProvider(
-      connection,
-      { publicKey: platformAuthorityKeypair.publicKey, signTransaction: async (tx) => tx },
-      { commitment: 'confirmed' }
-    );
-    
-    // TODO: Replace with actual program IDL when deployed
-    this.program = {} as Program;
+    // Only initialize if we have a valid program ID (not the placeholder)
+    if (programId && programId !== '11111111111111111111111111111111') {
+      try {
+        this.programId = new PublicKey(programId);
+        this.client = new RewardPoolClient(connection);
+        console.log(`[REWARD_POOL] Initialized with program ID: ${this.programId.toString()}`);
+      } catch (error) {
+        console.warn(`[REWARD_POOL] Failed to initialize program with ID ${programId}:`, error);
+        console.log('[REWARD_POOL] Running in mock mode - set REWARD_POOL_PROGRAM_ID to enable real smart contract interactions');
+      }
+    } else {
+      console.log('[REWARD_POOL] No valid program ID provided - running in mock mode');
+    }
   }
+
+  /**
+   * Check if the service is properly initialized with a real program
+   */
+  private isInitialized(): boolean {
+    return this.client !== null && this.programId !== null;
+  }
+
+
 
   /**
    * Record a completed task and calculate pending rewards
@@ -76,25 +90,44 @@ export class RewardPoolService {
     tokenMint: string
   ): Promise<{ signature: string; slot: number }> {
     try {
+      // If program is not initialized, return mock response
+      if (!this.isInitialized()) {
+        const mockSignature = Buffer.from(Math.random().toString()).toString('hex');
+        const mockSlot = await this.connection.getSlot();
+
+        console.log(`[REWARD_POOL] Mock recorded task completion:`, {
+          taskId,
+          farmerAddress,
+          poolId,
+          rewardAmount,
+          tokenMint,
+          signature: mockSignature,
+          slot: mockSlot
+        });
+
+        return {
+          signature: mockSignature,
+          slot: mockSlot
+        };
+      }
+
       const farmerPubkey = new PublicKey(farmerAddress);
       const tokenMintPubkey = new PublicKey(tokenMint);
-      
-      // Create task completion record
-      const taskRecord: TaskCompletionRecord = {
-        taskId,
-        farmerAddress: farmerPubkey,
-        poolId,
-        rewardAmount: new BN(rewardAmount * Math.pow(10, 6)), // Convert to token decimals
-        tokenMint: tokenMintPubkey,
-        isClaimed: false,
-        completionSlot: await this.connection.getSlot(),
-        signature: '' // Will be filled after transaction
-      };
 
-      // TODO: Implement actual smart contract call to record task completion
-      // For now, return mock response
-      const mockSignature = Buffer.from(Math.random().toString()).toString('hex');
-      const mockSlot = await this.connection.getSlot();
+      // Convert reward amount to token decimals (assuming 6 decimals like USDC)
+      const rewardAmountBN = new BN(rewardAmount * Math.pow(10, 6));
+
+      // Create transaction using native client
+      const tx = await this.client!.recordTaskCompletion(
+        taskId,
+        poolId,
+        rewardAmountBN,
+        farmerPubkey,
+        tokenMintPubkey,
+        this.platformAuthority
+      );
+
+      const slot = await this.connection.getSlot();
 
       console.log(`[REWARD_POOL] Recorded task completion:`, {
         taskId,
@@ -102,13 +135,13 @@ export class RewardPoolService {
         poolId,
         rewardAmount,
         tokenMint,
-        signature: mockSignature,
-        slot: mockSlot
+        signature: tx,
+        slot
       });
 
       return {
-        signature: mockSignature,
-        slot: mockSlot
+        signature: tx,
+        slot
       };
 
     } catch (error) {
@@ -126,18 +159,56 @@ export class RewardPoolService {
     tokenBreakdown: Record<string, number>;
   }> {
     try {
+      // If program is not initialized, return mock data
+      if (!this.isInitialized()) {
+        const mockData = {
+          totalPending: 0,
+          taskCount: 0,
+          tokenBreakdown: {}
+        };
+
+        console.log(`[REWARD_POOL] Mock retrieved pending rewards for ${farmerAddress}:`, mockData);
+        return mockData;
+      }
+
       const farmerPubkey = new PublicKey(farmerAddress);
       
-      // TODO: Implement actual smart contract call to get pending rewards
-      // For now, return mock data
-      const mockData = {
-        totalPending: 0,
-        taskCount: 0,
-        tokenBreakdown: {}
-      };
+      // Get farmer account
+      const [farmerAccountPDA] = this.getFarmerAccountPDA(farmerPubkey);
+      
+      try {
+        const farmerAccount = await this.client!.getFarmerAccount(farmerPubkey);
+        
+        if (!farmerAccount) {
+          return {
+            totalPending: 0,
+            taskCount: 0,
+            tokenBreakdown: {}
+          };
+        }
+        
+        // Calculate pending rewards (earned - withdrawn)
+        const totalPending = farmerAccount.totalRewardsEarned.sub(farmerAccount.totalRewardsWithdrawn);
+        
+        // For now, return basic data. In a full implementation, you'd query all task records
+        const result = {
+          totalPending: totalPending.toNumber() / Math.pow(10, 6), // Convert from token decimals
+          taskCount: 0, // Would need to query task records
+          tokenBreakdown: {} // Would need to group by token mint
+        };
 
-      console.log(`[REWARD_POOL] Retrieved pending rewards for ${farmerAddress}:`, mockData);
-      return mockData;
+        console.log(`[REWARD_POOL] Retrieved pending rewards for ${farmerAddress}:`, result);
+        return result;
+
+      } catch (error) {
+        // If farmer account doesn't exist, return zero rewards
+        console.log(`[REWARD_POOL] No farmer account found for ${farmerAddress}`);
+        return {
+          totalPending: 0,
+          taskCount: 0,
+          tokenBreakdown: {}
+        };
+      }
 
     } catch (error) {
       console.error('Failed to get pending rewards:', error);
@@ -151,20 +222,46 @@ export class RewardPoolService {
    */
   async getFarmerAccount(farmerAddress: string): Promise<FarmerAccountData | null> {
     try {
-      const farmerPubkey = new PublicKey(farmerAddress);
-      
-      // TODO: Implement actual smart contract call to get farmer account
-      // For now, return mock data
-      const mockData: FarmerAccountData = {
-        farmerAddress: farmerPubkey,
-        withdrawalNonce: 0,
-        totalRewardsEarned: new BN(0),
-        totalRewardsWithdrawn: new BN(0),
-        lastWithdrawalSlot: 0
-      };
+      // If program is not initialized, return mock data
+      if (!this.isInitialized()) {
+        const mockData: FarmerAccountData = {
+          farmerAddress: new PublicKey(farmerAddress),
+          withdrawalNonce: 0,
+          totalRewardsEarned: new BN(0),
+          totalRewardsWithdrawn: new BN(0),
+          lastWithdrawalSlot: 0
+        };
 
-      console.log(`[REWARD_POOL] Retrieved farmer account for ${farmerAddress}:`, mockData);
-      return mockData;
+        console.log(`[REWARD_POOL] Mock retrieved farmer account for ${farmerAddress}:`, mockData);
+        return mockData;
+      }
+
+      const farmerPubkey = new PublicKey(farmerAddress);
+      const [farmerAccountPDA] = this.getFarmerAccountPDA(farmerPubkey);
+      
+      try {
+        const farmerAccount = await this.client!.getFarmerAccount(farmerPubkey);
+        
+        if (!farmerAccount) {
+          return null;
+        }
+        
+        const result: FarmerAccountData = {
+          farmerAddress: farmerPubkey,
+          withdrawalNonce: farmerAccount.withdrawalNonce.toNumber(),
+          totalRewardsEarned: farmerAccount.totalRewardsEarned,
+          totalRewardsWithdrawn: farmerAccount.totalRewardsWithdrawn,
+          lastWithdrawalSlot: farmerAccount.lastWithdrawalSlot.toNumber()
+        };
+
+        console.log(`[REWARD_POOL] Retrieved farmer account for ${farmerAddress}:`, result);
+        return result;
+
+      } catch (error) {
+        // If farmer account doesn't exist, return null
+        console.log(`[REWARD_POOL] No farmer account found for ${farmerAddress}`);
+        return null;
+      }
 
     } catch (error) {
       console.error('Failed to get farmer account:', error);
@@ -252,16 +349,49 @@ export class RewardPoolService {
     isPaused: boolean;
   }> {
     try {
-      // TODO: Implement actual smart contract call to get platform stats
-      // For now, return mock data
-      const mockData = {
-        totalRewardsDistributed: 0,
-        totalPlatformFeesCollected: 0,
-        isPaused: false
-      };
+      // If program is not initialized, return mock data
+      if (!this.isInitialized()) {
+        const mockData = {
+          totalRewardsDistributed: 0,
+          totalPlatformFeesCollected: 0,
+          isPaused: false
+        };
 
-      console.log(`[REWARD_POOL] Retrieved platform stats:`, mockData);
-      return mockData;
+        console.log(`[REWARD_POOL] Mock retrieved platform stats:`, mockData);
+        return mockData;
+      }
+
+      const [rewardPoolPDA] = this.getRewardPoolPDA();
+      
+      try {
+        const rewardPool = await this.client!.getRewardPool();
+        
+        if (!rewardPool) {
+          return {
+            totalRewardsDistributed: 0,
+            totalPlatformFeesCollected: 0,
+            isPaused: false
+          };
+        }
+        
+        const result = {
+          totalRewardsDistributed: rewardPool.totalRewardsDistributed.toNumber() / Math.pow(10, 6),
+          totalPlatformFeesCollected: rewardPool.totalPlatformFeesCollected.toNumber() / Math.pow(10, 6),
+          isPaused: rewardPool.isPaused
+        };
+
+        console.log(`[REWARD_POOL] Retrieved platform stats:`, result);
+        return result;
+
+      } catch (error) {
+        // If reward pool doesn't exist, return default values
+        console.log(`[REWARD_POOL] No reward pool found`);
+        return {
+          totalRewardsDistributed: 0,
+          totalPlatformFeesCollected: 0,
+          isPaused: false
+        };
+      }
 
     } catch (error) {
       console.error('Failed to get platform stats:', error);
@@ -274,19 +404,34 @@ export class RewardPoolService {
    */
   async setPaused(isPaused: boolean): Promise<{ signature: string; slot: number }> {
     try {
-      // TODO: Implement actual smart contract call to pause/unpause
-      // For now, return mock response
-      const mockSignature = Buffer.from(Math.random().toString()).toString('hex');
-      const mockSlot = await this.connection.getSlot();
+      // If program is not initialized, return mock response
+      if (!this.isInitialized()) {
+        const mockSignature = Buffer.from(Math.random().toString()).toString('hex');
+        const mockSlot = await this.connection.getSlot();
+
+        console.log(`[REWARD_POOL] Mock set paused state to ${isPaused}:`, {
+          signature: mockSignature,
+          slot: mockSlot
+        });
+
+        return {
+          signature: mockSignature,
+          slot: mockSlot
+        };
+      }
+
+      const tx = await this.client!.setPaused(isPaused, this.platformAuthority);
+
+      const slot = await this.connection.getSlot();
 
       console.log(`[REWARD_POOL] Set paused state to ${isPaused}:`, {
-        signature: mockSignature,
-        slot: mockSlot
+        signature: tx,
+        slot
       });
 
       return {
-        signature: mockSignature,
-        slot: mockSlot
+        signature: tx,
+        slot
       };
 
     } catch (error) {
@@ -303,19 +448,34 @@ export class RewardPoolService {
     platformFeePercentage: number = 10 // 10% platform fee
   ): Promise<{ signature: string; slot: number }> {
     try {
-      // TODO: Implement actual smart contract initialization
-      // For now, return mock response
-      const mockSignature = Buffer.from(Math.random().toString()).toString('hex');
-      const mockSlot = await this.connection.getSlot();
+      // If program is not initialized, return mock response
+      if (!this.isInitialized()) {
+        const mockSignature = Buffer.from(Math.random().toString()).toString('hex');
+        const mockSlot = await this.connection.getSlot();
+
+        console.log(`[REWARD_POOL] Mock initialized reward pool with ${platformFeePercentage}% platform fee:`, {
+          signature: mockSignature,
+          slot: mockSlot
+        });
+
+        return {
+          signature: mockSignature,
+          slot: mockSlot
+        };
+      }
+
+      const tx = await this.client!.initializeRewardPool(this.platformAuthority, platformFeePercentage);
+
+      const slot = await this.connection.getSlot();
 
       console.log(`[REWARD_POOL] Initialized reward pool with ${platformFeePercentage}% platform fee:`, {
-        signature: mockSignature,
-        slot: mockSlot
+        signature: tx,
+        slot
       });
 
       return {
-        signature: mockSignature,
-        slot: mockSlot
+        signature: tx,
+        slot
       };
 
     } catch (error) {

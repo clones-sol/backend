@@ -11,7 +11,11 @@
     "tsc": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "deploy:reward-pool": "tsx scripts/deploy-reward-pool.ts",
+    "deploy:program": "./scripts/deploy-native.sh",
+    "build:program": "./cargo-build-sbf",
+    "test:program": "yarn test"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +23,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52",
     "@aws-sdk/client-s3": "^3.732.0",
-    "@coral-xyz/anchor": "^0.31.1",
     "@openbook-dex/openbook": "^0.0.9",
     "@raydium-io/raydium-sdk-v2": "^0.2.3-alpha",
     "@solana/spl-token": "^0.4.9",
