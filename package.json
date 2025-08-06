@@ -19,11 +19,7 @@
     "deploy:program": "./scripts/deploy-native.sh",
     "build:program": "./cargo-build-sbf",
     "test:program": "yarn test",
-    "test:reward-pool": "vitest tests/reward-pool.test.ts",
-    "test:monitoring": "vitest tests/monitoring.test.ts",
-    "monitoring:start": "tsx src/scripts/start-monitoring.ts",
-    "monitoring:dev": "NODE_ENV=development tsx src/scripts/start-monitoring.ts",
-    "monitoring:prod": "NODE_ENV=production tsx src/scripts/start-monitoring.ts"
+    "test:reward-pool": "vitest tests/reward-pool.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -58,7 +54,6 @@
   },
   "devDependencies": {
     "@types/bn.js": "^5.2.0",
-    "@types/bs58": "^4.0.4",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.0",
     "@types/helmet": "^0.0.48",
