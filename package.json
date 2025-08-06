@@ -19,7 +19,11 @@
     "deploy:program": "./scripts/deploy-native.sh",
     "build:program": "./cargo-build-sbf",
     "test:program": "yarn test",
-    "test:reward-pool": "vitest tests/reward-pool.test.ts"
+    "test:reward-pool": "vitest tests/reward-pool.test.ts",
+    "test:monitoring": "vitest tests/monitoring.test.ts",
+    "monitoring:start": "tsx src/scripts/start-monitoring.ts",
+    "monitoring:dev": "NODE_ENV=development tsx src/scripts/start-monitoring.ts",
+    "monitoring:prod": "NODE_ENV=production tsx src/scripts/start-monitoring.ts"
   },
   "keywords": [],
   "author": "",
