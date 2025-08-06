@@ -12,10 +12,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
+    "build:reward-pool": "tsx scripts/build-reward-pool.ts",
     "deploy:reward-pool": "tsx scripts/deploy-reward-pool.ts",
+    "deploy:reward-pool:devnet": "RPC_URL=https://api.devnet.solana.com tsx scripts/deploy-reward-pool.ts",
+    "deploy:reward-pool:mainnet": "RPC_URL=https://api.mainnet-beta.solana.com tsx scripts/deploy-reward-pool.ts",
     "deploy:program": "./scripts/deploy-native.sh",
     "build:program": "./cargo-build-sbf",
-    "test:program": "yarn test"
+    "test:program": "yarn test",
+    "test:reward-pool": "vitest tests/reward-pool.test.ts"
   },
   "keywords": [],
   "author": "",

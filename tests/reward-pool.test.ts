@@ -1,7 +1,7 @@
 import { Connection, PublicKey, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, createMint, createAccount, mintTo } from '@solana/spl-token';
 import { RewardPoolClient } from '../src/solana-client';
-import { expect } from 'chai';
+import { describe, it, beforeAll, expect } from 'vitest';
 import BN from 'bn.js';
 
 describe('Reward Pool', () => {
@@ -22,7 +22,7 @@ describe('Reward Pool', () => {
   let farmerTokenAccount: PublicKey;
   let platformTreasury: PublicKey;
 
-  before(async () => {
+  beforeAll(async () => {
     // Generate test keypairs
     platformAuthority = Keypair.generate();
     farmer = Keypair.generate();
