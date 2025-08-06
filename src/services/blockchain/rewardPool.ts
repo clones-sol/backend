@@ -1,7 +1,7 @@
 import { Connection, PublicKey, Keypair, Transaction, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount } from '@solana/spl-token';
 import { RewardPoolClient } from '../../solana-client';
-import BN from 'bn.js';
+import * as BN from 'bn.js';
 
 // Types for the reward pool program
 export interface RewardPoolData {
@@ -40,16 +40,31 @@ export interface WithdrawalRequest {
   tokenMints: string[];
 }
 
+export interface WithdrawalTransactionData {
+  instructions: any[];
+  signers: any[];
+  feePayer: string;
+  recentBlockhash: string;
+  expectedNonce: number;
+  estimatedFee: number;
+  taskCount: number;
+  totalRewardAmount: number;
+  totalPlatformFee: number;
+  tasks: any[];
+}
+
 export class RewardPoolService {
   private connection: Connection;
   private client: RewardPoolClient | null = null;
   private platformAuthority: Keypair;
   private programId: PublicKey | null = null;
+  private platformTreasury: PublicKey | null = null;
 
   constructor(
     connection: Connection,
     programId: string,
-    platformAuthorityKeypair: Keypair
+    platformAuthorityKeypair: Keypair,
+    platformTreasuryAddress?: string
   ) {
     this.connection = connection;
     this.platformAuthority = platformAuthorityKeypair;
@@ -59,6 +74,9 @@ export class RewardPoolService {
       try {
         this.programId = new PublicKey(programId);
         this.client = new RewardPoolClient(connection);
+        if (platformTreasuryAddress) {
+          this.platformTreasury = new PublicKey(platformTreasuryAddress);
+        }
         console.log(`[REWARD_POOL] Initialized with program ID: ${this.programId.toString()}`);
       } catch (error) {
         console.warn(`[REWARD_POOL] Failed to initialize program with ID ${programId}:`, error);
@@ -75,8 +93,6 @@ export class RewardPoolService {
   private isInitialized(): boolean {
     return this.client !== null && this.programId !== null;
   }
-
-
 
   /**
    * Record a completed task and calculate pending rewards
@@ -275,15 +291,7 @@ export class RewardPoolService {
    */
   async prepareWithdrawalTransaction(
     withdrawalRequest: WithdrawalRequest
-  ): Promise<{
-    transactionData: any;
-    expectedNonce: number;
-    securityChecks: {
-      nonceVerified: boolean;
-      signerVerified: boolean;
-      tasksVerified: boolean;
-    };
-  }> {
+  ): Promise<WithdrawalTransactionData> {
     try {
       const { farmerAddress, expectedNonce, taskIds, tokenMints } = withdrawalRequest;
       
@@ -325,17 +333,90 @@ export class RewardPoolService {
       });
 
       return {
-        transactionData,
+        instructions: withdrawalData.instructions,
+        signers: withdrawalData.signers,
+        feePayer: withdrawalData.feePayer,
+        recentBlockhash: withdrawalData.recentBlockhash,
         expectedNonce,
         securityChecks: {
           nonceVerified,
           signerVerified: true,
           tasksVerified
-        }
+        },
+        taskCount: taskIds.length,
+        totalRewardAmount: 0, // Would calculate from tasks
+        totalPlatformFee: 0, // Would calculate from tasks
+        tasks: [] // Would populate from task verification
       };
 
     } catch (error) {
       console.error('Failed to prepare withdrawal transaction:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute withdrawal transaction on-chain
+   * This is called by the frontend after the user signs the transaction
+   */
+  async executeWithdrawal(
+    taskIds: string[],
+    expectedNonce: number,
+    farmerKeypair: Keypair,
+    tokenMint: string,
+    platformTreasuryAddress: string
+  ): Promise<{ signature: string; slot: number }> {
+    try {
+      // If program is not initialized, return mock response
+      if (!this.isInitialized()) {
+        const mockSignature = Buffer.from(Math.random().toString()).toString('hex');
+        const mockSlot = await this.connection.getSlot();
+
+        console.log(`[REWARD_POOL] Mock executed withdrawal:`, {
+          taskIds,
+          expectedNonce,
+          farmerAddress: farmerKeypair.publicKey.toString(),
+          tokenMint,
+          signature: mockSignature,
+          slot: mockSlot
+        });
+
+        return {
+          signature: mockSignature,
+          slot: mockSlot
+        };
+      }
+
+      const tokenMintPubkey = new PublicKey(tokenMint);
+      const platformTreasuryPubkey = new PublicKey(platformTreasuryAddress);
+
+      // Execute withdrawal using smart contract
+      const tx = await this.client!.withdrawRewards(
+        taskIds,
+        new BN(expectedNonce),
+        farmerKeypair,
+        tokenMintPubkey,
+        platformTreasuryPubkey
+      );
+
+      const slot = await this.connection.getSlot();
+
+      console.log(`[REWARD_POOL] Executed withdrawal:`, {
+        taskIds,
+        expectedNonce,
+        farmerAddress: farmerKeypair.publicKey.toString(),
+        tokenMint,
+        signature: tx,
+        slot
+      });
+
+      return {
+        signature: tx,
+        slot
+      };
+
+    } catch (error) {
+      console.error('Failed to execute withdrawal:', error);
       throw error;
     }
   }
@@ -482,5 +563,84 @@ export class RewardPoolService {
       console.error('Failed to initialize reward pool:', error);
       throw error;
     }
+  }
+
+  /**
+   * Create reward vault for a specific token
+   * This should be called once per token type
+   */
+  async createRewardVault(tokenMint: string): Promise<{ signature: string; slot: number }> {
+    try {
+      // If program is not initialized, return mock response
+      if (!this.isInitialized()) {
+        const mockSignature = Buffer.from(Math.random().toString()).toString('hex');
+        const mockSlot = await this.connection.getSlot();
+
+        console.log(`[REWARD_POOL] Mock created reward vault for ${tokenMint}:`, {
+          signature: mockSignature,
+          slot: mockSlot
+        });
+
+        return {
+          signature: mockSignature,
+          slot: mockSlot
+        };
+      }
+
+      const tokenMintPubkey = new PublicKey(tokenMint);
+      const tx = await this.client!.createRewardVault(tokenMintPubkey, this.platformAuthority);
+
+      const slot = await this.connection.getSlot();
+
+      console.log(`[REWARD_POOL] Created reward vault for ${tokenMint}:`, {
+        signature: tx,
+        slot
+      });
+
+      return {
+        signature: tx,
+        slot
+      };
+
+    } catch (error) {
+      console.error('Failed to create reward vault:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get reward vault balance for a specific token
+   */
+  async getRewardVaultBalance(tokenMint: string): Promise<number> {
+    try {
+      // If program is not initialized, return mock data
+      if (!this.isInitialized()) {
+        return 0;
+      }
+
+      const tokenMintPubkey = new PublicKey(tokenMint);
+      const balance = await this.client!.getRewardVaultBalance(tokenMintPubkey);
+
+      return balance.toNumber() / Math.pow(10, 6); // Convert from token decimals
+
+    } catch (error) {
+      console.error('Failed to get reward vault balance:', error);
+      return 0;
+    }
+  }
+
+  // Helper method for PDA derivation
+  private getFarmerAccountPDA(farmerAddress: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('farmer'), farmerAddress.toBuffer()],
+      this.programId!
+    );
+  }
+
+  private getRewardPoolPDA(): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('reward_pool')],
+      this.programId!
+    );
   }
 } 
