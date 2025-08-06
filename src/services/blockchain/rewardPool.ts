@@ -2,7 +2,6 @@ import { Connection, PublicKey, Keypair, Transaction, SystemProgram, SYSVAR_RENT
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount } from '@solana/spl-token';
 import { RewardPoolClient } from '../../solana-client';
 import * as BN from 'bn.js';
-import bs58 from 'bs58';
 
 // Types for the reward pool program
 export interface RewardPoolData {
@@ -55,7 +54,6 @@ export interface WithdrawalTransactionData {
 }
 
 export class RewardPoolService {
-  private static instance: RewardPoolService | null = null;
   private connection: Connection;
   private client: RewardPoolClient | null = null;
   private platformAuthority: Keypair;
@@ -73,71 +71,20 @@ export class RewardPoolService {
     
     // Only initialize if we have a valid program ID (not the placeholder)
     if (programId && programId !== '11111111111111111111111111111111') {
-      // Validate the program ID format first
-      const base58Regex = /^[1-9A-HJ-NP-Za-km-z]+$/;
-      if (!base58Regex.test(programId)) {
-        console.warn(`[REWARD_POOL] Invalid program ID format: ${programId}`);
-        console.log('[REWARD_POOL] Running in mock mode - set REWARD_POOL_PROGRAM_ID to enable real smart contract interactions');
-        return;
-      }
-      
-      // Try to initialize with retry mechanism for base58 decoding issues
-      let retries = 3;
-      let initialized = false;
-      
-      while (retries > 0 && !initialized) {
-        try {
-          // Try to create PublicKey using decoded bytes to avoid base58 issues
-          const decodedBytes = bs58.decode(programId);
-          this.programId = new PublicKey(new Uint8Array(decodedBytes));
-          console.log(`[REWARD_POOL] Successfully created PublicKey: ${this.programId.toString()}`);
-          
-          // Try to create the client separately to isolate the issue
-          this.client = new RewardPoolClient(connection);
-          console.log(`[REWARD_POOL] Successfully created RewardPoolClient`);
-          
-          if (platformTreasuryAddress && platformTreasuryAddress !== 'your_platform_treasury_wallet_address_here') {
-            try {
-              this.platformTreasury = new PublicKey(platformTreasuryAddress);
-              console.log(`[REWARD_POOL] Successfully created platform treasury: ${this.platformTreasury.toString()}`);
-            } catch (error) {
-              console.warn(`[REWARD_POOL] Invalid platform treasury address: ${platformTreasuryAddress}, skipping treasury setup`);
-            }
-          } else {
-            console.log('[REWARD_POOL] No valid platform treasury address provided, skipping treasury setup');
-          }
-          console.log(`[REWARD_POOL] Initialized with program ID: ${this.programId.toString()}`);
-          initialized = true;
-        } catch (error) {
-          retries--;
-          if (retries === 0) {
-            console.warn(`[REWARD_POOL] Failed to initialize program with ID ${programId} after 3 attempts:`, error);
-            console.log('[REWARD_POOL] Running in mock mode - set REWARD_POOL_PROGRAM_ID to enable real smart contract interactions');
-          } else {
-            console.warn(`[REWARD_POOL] Failed to initialize program with ID ${programId}, retrying... (${retries} attempts left):`, error);
-            // Wait a bit before retrying (synchronous wait)
-            const start = Date.now();
-            while (Date.now() - start < 100) {
-              // Busy wait for 100ms
-            }
-          }
+      try {
+        this.programId = new PublicKey(programId);
+        this.client = new RewardPoolClient(connection);
+        if (platformTreasuryAddress) {
+          this.platformTreasury = new PublicKey(platformTreasuryAddress);
         }
+        console.log(`[REWARD_POOL] Initialized with program ID: ${this.programId.toString()}`);
+      } catch (error) {
+        console.warn(`[REWARD_POOL] Failed to initialize program with ID ${programId}:`, error);
+        console.log('[REWARD_POOL] Running in mock mode - set REWARD_POOL_PROGRAM_ID to enable real smart contract interactions');
       }
     } else {
       console.log('[REWARD_POOL] No valid program ID provided - running in mock mode');
     }
-  }
-
-  public static getInstance(
-    connection: Connection,
-    programId: string,
-    platformAuthorityKeypair: Keypair,
-    platformTreasuryAddress?: string
-  ): RewardPoolService {
-    if (!RewardPoolService.instance) {
-      RewardPoolService.instance = new RewardPoolService(connection, programId, platformAuthorityKeypair, platformTreasuryAddress);
-    }
-    return RewardPoolService.instance;
   }
 
   /**
