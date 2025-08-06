@@ -15,7 +15,8 @@ const router = express.Router();
 const rewardPoolService = new RewardPoolService(
   new Connection(process.env.RPC_URL || ''),
   process.env.REWARD_POOL_PROGRAM_ID || '11111111111111111111111111111111',
-  Keypair.generate() // TODO: Replace with actual platform authority keypair
+  Keypair.generate(), // TODO: Replace with actual platform authority keypair
+  process.env.PLATFORM_TREASURY_ADDRESS
 );
 
 // Schema for getting pending rewards
@@ -27,6 +28,14 @@ const getPendingRewardsSchema = z.object({
 const withdrawRewardsSchema = z.object({
   tokenMints: z.array(z.string()).optional(), // Optional: specific tokens to withdraw
   batchSize: z.number().min(1).max(50).optional() // Optional: max tasks to withdraw
+});
+
+// Schema for executing withdrawal
+const executeWithdrawalSchema = z.object({
+  taskIds: z.array(z.string()),
+  expectedNonce: z.number(),
+  transactionSignature: z.string(),
+  slot: z.number()
 });
 
 // Schema for getting farmer account
@@ -57,12 +66,11 @@ router.get(
     // @ts-ignore - Get walletAddress from the request object
     const requestWalletAddress = req.walletAddress;
     if (walletAddress !== requestWalletAddress) {
-      throw ApiError.forbidden('Can only view your own pending rewards');
+      throw ApiError.forbidden('Can only view your own rewards');
     }
 
     try {
       const pendingRewards = await rewardPoolService.getPendingRewards(walletAddress);
-      
       res.status(200).json(successResponse(pendingRewards));
     } catch (error) {
       console.error('Failed to get pending rewards:', error);
@@ -100,24 +108,6 @@ router.get(
     } catch (error) {
       console.error('Failed to get farmer account:', error);
       throw ApiError.internal('Failed to retrieve farmer account');
-    }
-  })
-);
-
-/**
- * Get platform statistics (public endpoint)
- * GET /api/forge/reward-pool/platform-stats
- */
-router.get(
-  '/platform-stats',
-  errorHandlerAsync(async (req: Request, res: Response) => {
-    try {
-      const platformStats = await rewardPoolService.getPlatformStats();
-      
-      res.status(200).json(successResponse(platformStats));
-    } catch (error) {
-      console.error('Failed to get platform stats:', error);
-      throw ApiError.internal('Failed to retrieve platform statistics');
     }
   })
 );
@@ -214,12 +204,12 @@ router.get(
 );
 
 /**
- * Withdraw rewards (initiate withdrawal transaction)
- * POST /api/forge/reward-pool/withdraw
+ * Prepare withdrawal transaction
+ * POST /api/forge/reward-pool/prepare-withdrawal
  * Note: This endpoint provides the transaction data for the frontend to sign and send
  */
 router.post(
-  '/withdraw',
+  '/prepare-withdrawal',
   requireWalletAddress,
   validateBody(withdrawRewardsSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
@@ -248,32 +238,45 @@ router.post(
       if (withdrawableTasks.length === 0) {
         throw ApiError.badRequest('No withdrawable rewards found');
       }
-      
-      // TODO: Implement actual smart contract withdrawal transaction
-      // For now, return mock transaction data
-      const mockTransactionData = {
-        instructions: [],
-        signers: [],
-        feePayer: walletAddress,
-        recentBlockhash: 'mock_blockhash',
-        estimatedFee: 5000 // 0.005 SOL
-      };
+
+      // Get farmer account to get current nonce
+      const farmerAccount = await rewardPoolService.getFarmerAccount(walletAddress);
+      if (!farmerAccount) {
+        throw ApiError.badRequest('Farmer account not found');
+      }
+
+      const taskIds = withdrawableTasks.map(task => task.smartContractReward?.taskId).filter(Boolean);
+      const tokenMintsFromTasks = [...new Set(withdrawableTasks.map(task => task.smartContractReward?.tokenMint).filter(Boolean))];
+
+      // Prepare withdrawal transaction
+      const withdrawalData = await rewardPoolService.prepareWithdrawalTransaction({
+        farmerAddress: walletAddress,
+        expectedNonce: farmerAccount.withdrawalNonce,
+        taskIds,
+        tokenMints: tokenMintsFromTasks
+      });
+
+      // Calculate totals
+      const totalRewardAmount = withdrawableTasks.reduce((sum, task) => 
+        sum + (task.smartContractReward?.farmerRewardAmount || 0), 0
+      );
+      const totalPlatformFee = withdrawableTasks.reduce((sum, task) => 
+        sum + (task.smartContractReward?.platformFeeAmount || 0), 0
+      );
+
+      const tasks = withdrawableTasks.map(task => ({
+        taskId: task.smartContractReward?.taskId,
+        rewardAmount: task.smartContractReward?.farmerRewardAmount,
+        platformFeeAmount: task.smartContractReward?.platformFeeAmount,
+        tokenMint: task.smartContractReward?.tokenMint
+      }));
       
       res.status(200).json(successResponse({
-        transactionData: mockTransactionData,
+        ...withdrawalData,
         taskCount: withdrawableTasks.length,
-        totalRewardAmount: withdrawableTasks.reduce((sum, task) => 
-          sum + (task.smartContractReward?.farmerRewardAmount || 0), 0
-        ),
-        totalPlatformFee: withdrawableTasks.reduce((sum, task) => 
-          sum + (task.smartContractReward?.platformFeeAmount || 0), 0
-        ),
-        tasks: withdrawableTasks.map(task => ({
-          taskId: task.smartContractReward?.taskId,
-          rewardAmount: task.smartContractReward?.farmerRewardAmount,
-          platformFeeAmount: task.smartContractReward?.platformFeeAmount,
-          tokenMint: task.smartContractReward?.tokenMint
-        }))
+        totalRewardAmount,
+        totalPlatformFee,
+        tasks
       }));
     } catch (error) {
       console.error('Failed to prepare withdrawal transaction:', error);
@@ -283,8 +286,95 @@ router.post(
 );
 
 /**
+ * Execute withdrawal transaction
+ * POST /api/forge/reward-pool/execute-withdrawal
+ * Note: This endpoint executes the withdrawal on-chain
+ */
+router.post(
+  '/execute-withdrawal',
+  requireWalletAddress,
+  validateBody(executeWithdrawalSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    // @ts-ignore - Get walletAddress from the request object
+    const walletAddress = req.walletAddress;
+    const { taskIds, expectedNonce, transactionSignature, slot } = req.body;
+    
+    try {
+      // Verify the tasks belong to the user
+      const tasks = await ForgeRaceSubmission.find({
+        address: walletAddress,
+        'smartContractReward.taskId': { $in: taskIds },
+        'smartContractReward.isWithdrawn': false
+      });
+
+      if (tasks.length !== taskIds.length) {
+        throw ApiError.badRequest('Some tasks not found or already withdrawn');
+      }
+
+      // Get the token mint from the first task (all should be the same for batch withdrawal)
+      const tokenMint = tasks[0].smartContractReward?.tokenMint;
+      if (!tokenMint) {
+        throw ApiError.badRequest('Invalid task data');
+      }
+
+      // Verify all tasks have the same token mint
+      const allSameToken = tasks.every(task => task.smartContractReward?.tokenMint === tokenMint);
+      if (!allSameToken) {
+        throw ApiError.badRequest('All tasks must have the same token mint for batch withdrawal');
+      }
+
+      // Get platform treasury address
+      const platformTreasuryAddress = process.env.PLATFORM_TREASURY_ADDRESS;
+      if (!platformTreasuryAddress) {
+        throw ApiError.internal('Platform treasury address not configured');
+      }
+
+      // Execute withdrawal on-chain
+      const result = await rewardPoolService.executeWithdrawal(
+        taskIds,
+        expectedNonce,
+        Keypair.generate(), // TODO: Get actual farmer keypair
+        tokenMint,
+        platformTreasuryAddress
+      );
+
+      // Update all tasks as withdrawn
+      const updateResult = await ForgeRaceSubmission.updateMany(
+        {
+          address: walletAddress,
+          'smartContractReward.taskId': { $in: taskIds },
+          'smartContractReward.isWithdrawn': false
+        },
+        {
+          $set: {
+            'smartContractReward.isWithdrawn': true,
+            'smartContractReward.withdrawalSignature': result.signature,
+            'smartContractReward.withdrawalSlot': result.slot
+          }
+        }
+      );
+      
+      if (updateResult.modifiedCount === 0) {
+        throw ApiError.badRequest('No tasks were updated. They may have already been withdrawn.');
+      }
+      
+      res.status(200).json(successResponse({
+        message: 'Withdrawal executed successfully',
+        updatedTasks: updateResult.modifiedCount,
+        transactionSignature: result.signature,
+        slot: result.slot
+      }));
+    } catch (error) {
+      console.error('Failed to execute withdrawal:', error);
+      throw ApiError.internal('Failed to execute withdrawal');
+    }
+  })
+);
+
+/**
  * Confirm withdrawal (mark tasks as withdrawn after successful transaction)
  * POST /api/forge/reward-pool/confirm-withdrawal
+ * @deprecated Use execute-withdrawal instead
  */
 router.post(
   '/confirm-withdrawal',
@@ -334,6 +424,24 @@ router.post(
 );
 
 /**
+ * Get platform statistics
+ * GET /api/forge/reward-pool/platform-stats
+ */
+router.get(
+  '/platform-stats',
+  validateParams(getPlatformStatsSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    try {
+      const stats = await rewardPoolService.getPlatformStats();
+      res.status(200).json(successResponse(stats));
+    } catch (error) {
+      console.error('Failed to get platform stats:', error);
+      throw ApiError.internal('Failed to retrieve platform statistics');
+    }
+  })
+);
+
+/**
  * Set paused state (admin only)
  * POST /api/forge/reward-pool/set-paused
  */
@@ -346,12 +454,11 @@ router.post(
     const walletAddress = req.walletAddress;
     const { isPaused } = req.body;
     
-    // TODO: Add admin check
+    // TODO: Add admin authorization check
     // For now, allow any authenticated user (should be restricted to admins)
     
     try {
       const result = await rewardPoolService.setPaused(isPaused);
-      
       res.status(200).json(successResponse({
         message: `Reward pool ${isPaused ? 'paused' : 'unpaused'} successfully`,
         signature: result.signature,
@@ -360,6 +467,64 @@ router.post(
     } catch (error) {
       console.error('Failed to set paused state:', error);
       throw ApiError.internal('Failed to update paused state');
+    }
+  })
+);
+
+/**
+ * Create reward vault for a token
+ * POST /api/forge/reward-pool/create-vault
+ */
+router.post(
+  '/create-vault',
+  requireWalletAddress,
+  validateBody(z.object({
+    tokenMint: z.string().min(1)
+  })),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    // @ts-ignore - Get walletAddress from the request object
+    const walletAddress = req.walletAddress;
+    const { tokenMint } = req.body;
+    
+    // TODO: Add admin authorization check
+    // For now, allow any authenticated user (should be restricted to admins)
+    
+    try {
+      const result = await rewardPoolService.createRewardVault(tokenMint);
+      res.status(200).json(successResponse({
+        message: 'Reward vault created successfully',
+        tokenMint,
+        signature: result.signature,
+        slot: result.slot
+      }));
+    } catch (error) {
+      console.error('Failed to create reward vault:', error);
+      throw ApiError.internal('Failed to create reward vault');
+    }
+  })
+);
+
+/**
+ * Get reward vault balance
+ * GET /api/forge/reward-pool/vault-balance/:tokenMint
+ */
+router.get(
+  '/vault-balance/:tokenMint',
+  validateParams(z.object({
+    tokenMint: z.string().min(1)
+  })),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { tokenMint } = req.params;
+    
+    try {
+      const balance = await rewardPoolService.getRewardVaultBalance(tokenMint);
+      res.status(200).json(successResponse({
+        tokenMint,
+        balance
+      }));
+    } catch (error) {
+      console.error('Failed to get vault balance:', error);
+      throw ApiError.internal('Failed to retrieve vault balance');
     }
   })
 );
