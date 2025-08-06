@@ -19,7 +19,7 @@ const router = express.Router();
  */
 
 // Initialize reward pool service
-const rewardPoolService = new RewardPoolService(
+const rewardPoolService = RewardPoolService.getInstance(
   new Connection(process.env.RPC_URL || ''),
   process.env.REWARD_POOL_PROGRAM_ID || '11111111111111111111111111111111',
   Keypair.generate(), // TODO: Replace with actual platform authority keypair

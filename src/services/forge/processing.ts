@@ -25,7 +25,7 @@ let isProcessing = false;
 const processingQueue: string[] = [];
 
 // Initialize reward pool service
-const rewardPoolService = new RewardPoolService(
+const rewardPoolService = RewardPoolService.getInstance(
   new (await import('../blockchain/index.js')).default(
     process.env.RPC_URL || '',
     ''

@@ -54,6 +54,7 @@
   },
   "devDependencies": {
     "@types/bn.js": "^5.2.0",
+    "@types/bs58": "^4.0.4",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.0",
     "@types/helmet": "^0.0.48",
