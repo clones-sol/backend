@@ -17,8 +17,27 @@ const options: swaggerJsdoc.Options = {
             - Agent lifecycle management
             - On-chain orchestration
             - Versioning
-            - Monitoring
-            - Referral system management.`,
+            - Smart contract monitoring and alerting
+            - Referral system management.
+            
+            ## Smart Contract Monitoring & Alerting System
+            
+            The monitoring system provides comprehensive real-time monitoring of smart contract events on the Solana blockchain, including:
+            
+            - **Event Detection**: Monitors transactions and detects specific smart contract events
+            - **Alert Management**: Configurable alert rules with multiple notification channels
+            - **Health Monitoring**: System health checks and performance metrics
+            - **Dashboard**: Real-time dashboard with analytics and insights
+            - **Multi-Channel Alerts**: Support for Discord, Slack, Email, Webhooks, SMS, and Telegram
+            
+            ### Key Features:
+            - Real-time blockchain monitoring
+            - Configurable alert rules and conditions
+            - Multiple notification channels
+            - Health status monitoring
+            - Performance metrics and analytics
+            - Event filtering and pagination
+            - RESTful API for integration`,
             contact: {
                 name: 'Clones Support'
             },
@@ -91,7 +110,8 @@ const options: swaggerJsdoc.Options = {
         path.join(__dirname, './src/api/forge/agents/*.ts'),
         path.join(__dirname, './src/api/forge/*.ts'),
         path.join(__dirname, './src/api/forge/pools.ts'),
-        path.join(__dirname, './src/api/referral.ts')
+        path.join(__dirname, './src/api/referral.ts'),
+        path.join(__dirname, './src/api/monitoring/*.ts')
     ],
 };
 
