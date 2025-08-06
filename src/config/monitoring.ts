@@ -7,6 +7,39 @@ import {
   EventType 
 } from '../types/monitoring.ts';
 
+// Validate required environment variables
+function validateEnvironmentVariables(): void {
+  const requiredVars = ['RPC_URL'];
+  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  
+  if (missingVars.length > 0) {
+    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  }
+  
+  // Validate RPC URL format
+  const rpcUrl = process.env.RPC_URL;
+  if (rpcUrl && !rpcUrl.startsWith('http')) {
+    throw new Error('RPC_URL must be a valid HTTP/HTTPS URL');
+  }
+  
+  // Validate program ID if provided
+  const programId = process.env.REWARD_POOL_PROGRAM_ID;
+  if (programId && programId !== '11111111111111111111111111111111') {
+    const base58Regex = /^[1-9A-HJ-NP-Za-km-z]+$/;
+    if (!base58Regex.test(programId)) {
+      throw new Error('REWARD_POOL_PROGRAM_ID must be a valid base58 string');
+    }
+  }
+}
+
+// Validate environment variables on module load
+try {
+  validateEnvironmentVariables();
+} catch (error) {
+  console.error('Monitoring configuration validation failed:', error);
+  // Don't throw here to allow the application to start, but log the error
+}
+
 // Default monitoring configuration
 export const defaultMonitoringConfig: MonitoringConfig = {
   // General settings

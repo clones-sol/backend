@@ -8,6 +8,12 @@ import { ForgeRaceSubmission } from '../../models/Models.ts';
 import { RewardPoolService } from '../../services/blockchain/rewardPool.ts';
 import { Connection, Keypair } from '@solana/web3.js';
 import { z } from 'zod';
+import { 
+  withdrawalLimiter, 
+  taskCompletionLimiter, 
+  adminLimiter,
+  generalLimiter 
+} from '../../middleware/rateLimiter.ts';
 
 const router = express.Router();
 
@@ -115,6 +121,7 @@ const setPausedSchema = z.object({
  */
 router.get(
   '/pending-rewards/:walletAddress',
+  generalLimiter,
   requireWalletAddress,
   validateParams(getPendingRewardsSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
@@ -479,6 +486,7 @@ router.get(
  */
 router.post(
   '/prepare-withdrawal',
+  withdrawalLimiter,
   requireWalletAddress,
   validateBody(withdrawRewardsSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
@@ -631,6 +639,7 @@ router.post(
  */
 router.post(
   '/execute-withdrawal',
+  withdrawalLimiter,
   requireWalletAddress,
   validateBody(executeWithdrawalSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {

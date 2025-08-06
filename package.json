@@ -21,6 +21,7 @@
     "test:program": "yarn test",
     "test:reward-pool": "vitest tests/reward-pool.test.ts",
     "test:monitoring": "vitest tests/monitoring.test.ts",
+    "test:integration": "vitest src/api/forge/rewardPool.integration.test.ts",
     "monitoring:start": "tsx src/scripts/start-monitoring.ts",
     "monitoring:dev": "NODE_ENV=development tsx src/scripts/start-monitoring.ts",
     "monitoring:prod": "NODE_ENV=production tsx src/scripts/start-monitoring.ts"
