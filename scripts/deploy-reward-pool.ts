@@ -154,6 +154,4 @@ function loadPlatformAuthorityKeypair(): Keypair {
 }
 
 // Run the deployment
-if (require.main === module) {
-  main().catch(console.error);
-} 
+main().catch(console.error); 
