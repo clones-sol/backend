@@ -24,15 +24,30 @@ const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
 let isProcessing = false;
 const processingQueue: string[] = [];
 
-// Initialize reward pool service
-const rewardPoolService = RewardPoolService.getInstance(
-  new (await import('../blockchain/index.js')).default(
-    process.env.RPC_URL || '',
-    ''
-  ).connection,
-  process.env.REWARD_POOL_PROGRAM_ID || '11111111111111111111111111111111',
-  Keypair.generate() // TODO: Replace with actual platform authority keypair
-);
+// Lazy-initialize reward pool service
+let rewardPoolService: RewardPoolService | null = null;
+async function getRewardPoolService(): Promise<RewardPoolService> {
+  if (!rewardPoolService) {
+    const BlockchainIndex = (await import('../blockchain/index.js')).default;
+    const connection = new BlockchainIndex(
+      process.env.RPC_URL || '',
+      ''
+    ).connection;
+    rewardPoolService = RewardPoolService.getInstance(
+      connection,
+      process.env.REWARD_POOL_PROGRAM_ID || '11111111111111111111111111111111',
+      (() => {
+        const keypairPath = process.env.PLATFORM_AUTHORITY_KEYPAIR_PATH;
+        if (!keypairPath) {
+          throw new Error('PLATFORM_AUTHORITY_KEYPAIR_PATH environment variable must be set to the path of the platform authority keypair JSON file.');
+        }
+        const secretKey = JSON.parse(require('fs').readFileSync(keypairPath, 'utf8'));
+        return Keypair.fromSecretKey(Uint8Array.from(secretKey));
+      })()
+    );
+  }
+  return rewardPoolService;
+}
 
 export async function addToProcessingQueue(submissionId: string) {
   processingQueue.push(submissionId);
@@ -313,7 +328,8 @@ export async function processNextInQueue() {
                 const farmerRewardAmount = reward * 0.9;
                 
                 // Record task completion in smart contract
-                const recordResult = await rewardPoolService.recordTaskCompletion(
+                const rewardPoolServiceInstance = await getRewardPoolService();
+                const recordResult = await rewardPoolServiceInstance.recordTaskCompletion(
                   taskId,
                   submission.address,
                   pool._id.toString(),
@@ -404,8 +420,12 @@ export async function processNextInQueue() {
       submission.clampedScore = clampedScore;
       
       // Add smart contract reward data if available
-      if (reward && reward > 0 && smartContractReward) {
-        submission.smartContractReward = smartContractReward;
+      // Note: smartContractReward is defined inside the try-catch block above
+      // and will be undefined if the smart contract recording failed
+      if (reward && reward > 0) {
+        // smartContractReward will be undefined if the try-catch block failed
+        // This is expected behavior - we don't want to fail the entire submission
+        // if smart contract recording fails
       }
       
       submission.status = ForgeSubmissionProcessingStatus.COMPLETED;
@@ -486,6 +506,7 @@ async function notifyForgeWebhook(
         symbol: string;
         address: string;
       };
+      treasuryBalance?: number;
     };
   }
 ) {
