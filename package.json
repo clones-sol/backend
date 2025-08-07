@@ -16,6 +16,8 @@
     "deploy:reward-pool": "tsx scripts/deploy-reward-pool.ts",
     "deploy:reward-pool:devnet": "RPC_URL=https://api.devnet.solana.com tsx scripts/deploy-reward-pool.ts",
     "deploy:reward-pool:mainnet": "RPC_URL=https://api.mainnet-beta.solana.com tsx scripts/deploy-reward-pool.ts",
+    "fund:vaults": "tsx scripts/fund-vaults.ts",
+    "audit:smart-contract": "node audit-script.js",
     "deploy:program": "./scripts/deploy-native.sh",
     "build:program": "./cargo-build-sbf",
     "test:program": "yarn test",
