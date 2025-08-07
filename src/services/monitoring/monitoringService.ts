@@ -97,7 +97,7 @@ export class MonitoringService extends EventEmitter {
       // Get signatures for our program
       const signatures = await this.connection.getSignaturesForAddress(
         this.programId,
-        { until: this.lastSlot.toString() },
+        { limit: 100 },
         this.config.commitment
       );
 
