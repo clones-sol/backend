@@ -1,4 +1,4 @@
-import { Connection, PublicKey, ParsedTransactionWithMeta, ParsedInstruction } from '@solana/web3.js';
+import { Connection, PublicKey, ParsedTransactionWithMeta, ParsedInstruction, TransactionInstruction } from '@solana/web3.js';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -176,9 +176,14 @@ export class MonitoringService extends EventEmitter {
 
     // Check if any instruction involves our program
     return transaction.transaction.message.instructions.some(
-      (instruction: ParsedInstruction) => {
+      (instruction: ParsedInstruction | TransactionInstruction) => {
         if ('programId' in instruction) {
-          return instruction.programId.equals(this.programId);
+          // programId is a PublicKey in TransactionInstruction, but a string in ParsedInstruction
+          if (typeof instruction.programId === 'string') {
+            return instruction.programId === this.programId.toBase58();
+          } else {
+            return instruction.programId.equals(this.programId);
+          }
         }
         return false;
       }

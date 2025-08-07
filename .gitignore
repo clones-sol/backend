@@ -33,6 +33,11 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# Solana keypairs (security)
+platform-authority-keypair.json
+platform-authority.json
+*.keypair.json
+
 # vercel
 .vercel
 

@@ -469,10 +469,15 @@ export class RewardPoolClient {
 // For now, using placeholder implementations
 export namespace RewardPool {
   export function deserialize(data: Buffer): RewardPool {
-    // Implementation would depend on your serialization format
-    // This is a placeholder
+    // Example layout:
+    // 0: isInitialized (u8)
+    // 1-32: platformAuthority (Pubkey)
+    // 33: platformFeePercentage (u8)
+    // 34-41: totalRewardsDistributed (u64, LE)
+    // 42-49: totalPlatformFeesCollected (u64, LE)
+    // 50: isPaused (u8)
     return {
-      isInitialized: true,
+      isInitialized: data[0] === 1,
       platformAuthority: new PublicKey(data.slice(1, 33)),
       platformFeePercentage: data[33],
       totalRewardsDistributed: new BN(data.slice(34, 42), 'le'),
@@ -484,10 +489,15 @@ export namespace RewardPool {
 
 export namespace FarmerAccount {
   export function deserialize(data: Buffer): FarmerAccount {
-    // Implementation would depend on your serialization format
-    // This is a placeholder
+    // Example layout:
+    // 0: isInitialized (u8)
+    // 1-33: farmerAddress (Pubkey)
+    // 34-41: withdrawalNonce (u64, LE)
+    // 42-49: totalRewardsEarned (u64, LE)
+    // 50-57: totalRewardsWithdrawn (u64, LE)
+    // 58-65: lastWithdrawalSlot (u64, LE)
     return {
-      isInitialized: true,
+      isInitialized: data[0] === 1,
       farmerAddress: new PublicKey(data.slice(1, 33)),
       withdrawalNonce: new BN(data.slice(33, 41), 'le'),
       totalRewardsEarned: new BN(data.slice(41, 49), 'le'),
@@ -499,10 +509,17 @@ export namespace FarmerAccount {
 
 export namespace TaskCompletionRecord {
   export function deserialize(data: Buffer): TaskCompletionRecord {
-    // Implementation would depend on your serialization format
-    // This is a placeholder
+    // Example layout:
+    // 0: isInitialized (u8)
+    // 1-32: taskId (string, variable length with length prefix)
+    // 33-65: farmerAddress (Pubkey)
+    // 66-98: poolId (string, variable length with length prefix)
+    // 99-107: rewardAmount (u64, LE)
+    // 108-140: tokenMint (Pubkey)
+    // 141: isClaimed (u8)
+    // 142-149: completionSlot (u64, LE)
     return {
-      isInitialized: true,
+      isInitialized: data[0] === 1,
       taskId: '', // Would need to parse string from data
       farmerAddress: new PublicKey(data.slice(1, 33)),
       poolId: '', // Would need to parse string from data
