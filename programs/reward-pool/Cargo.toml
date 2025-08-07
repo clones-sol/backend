@@ -9,8 +9,8 @@ crate-type = ["cdylib", "lib"]
 name = "reward_pool"
 
 [dependencies]
-solana-program = "=1.13.0"
-borsh = "0.9.3"
-borsh-derive = "0.9.3"
+solana-program = "=1.16.0"
+borsh = "0.10.3"
+borsh-derive = "0.10.3"
 thiserror = "1.0.40"
-spl-token = "3.5.0"
+spl-token = "=3.5.0" 
