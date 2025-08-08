@@ -1,5 +1,10 @@
 import express, { Request, Response } from 'express';
-import rateLimit from 'express-rate-limit';
+import { 
+  generalLimiter, 
+  withdrawalLimiter, 
+  taskCompletionLimiter, 
+  adminLimiter 
+} from '../middleware/rateLimiter';
 import { referralService } from '../services/referral/index.ts';
 import { errorHandlerAsync } from '../middleware/errorHandler.ts';
 import { validateBody, validateParams } from '../middleware/validator.ts';
@@ -111,7 +116,7 @@ const adminRateLimiter = rateLimit({
 // Generate referral code for a wallet
 router.post(
   '/generate-code',
-  sensitiveRateLimiter, // Sensitive operation - generating codes
+      taskCompletionLimiter, // Sensitive operation - generating codes
   validateBody(generateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.body;
@@ -399,7 +404,7 @@ router.post(
 // Create referral relationship (called when user performs first action)
 router.post(
   '/create',
-  sensitiveRateLimiter, // Sensitive operation - creating referrals
+      taskCompletionLimiter, // Sensitive operation - creating referrals
   validateBody(createReferralSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { 
@@ -1022,7 +1027,7 @@ router.get(
 // Process reward for a specific action
 router.post(
   '/rewards/process',
-  sensitiveRateLimiter, // Sensitive operation - processing rewards
+      withdrawalLimiter, // Sensitive operation - processing rewards
   validateBody(processRewardSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { 
