@@ -564,7 +564,6 @@ router.get(
   })
 );
 
-
 /**
  * @swagger
  * /referral/cleanup/expired-codes:
