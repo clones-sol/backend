@@ -10,7 +10,8 @@ import * as path from 'path';
 // Configuration
 const RPC_URL = process.env.RPC_URL || 'https://api.devnet.solana.com';
 const PROGRAM_ID = process.env.REWARD_POOL_PROGRAM_ID || 'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS';
-const PLATFORM_FEE_PERCENTAGE = parseInt(process.env.PLATFORM_FEE_PERCENTAGE || '10');
+// Platform fee is now hardcoded in smart contract for transparency
+const PLATFORM_FEE_PERCENTAGE = 10; // Fixed 10% platform fee
 const PLATFORM_TREASURY_ADDRESS = process.env.PLATFORM_TREASURY_ADDRESS;
 
 // Token mints to support
