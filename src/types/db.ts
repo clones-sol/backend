@@ -51,8 +51,8 @@ export interface DBForgeRaceSubmission {
     isWithdrawn?: boolean; // Whether farmer has withdrawn
     withdrawalSignature?: string; // Transaction signature when withdrawn
     withdrawalSlot?: number; // Slot when withdrawn
-    platformFeeAmount?: number; // Platform fee amount (10%)
-    farmerRewardAmount?: number; // Actual amount farmer receives (90%)
+    platformFeeAmount?: number; // Platform fee amount
+    farmerRewardAmount?: number; // Actual amount farmer receives
   };
   createdAt?: Date;
   updatedAt?: Date;

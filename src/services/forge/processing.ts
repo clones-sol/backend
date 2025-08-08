@@ -37,11 +37,40 @@ async function getRewardPoolService(): Promise<RewardPoolService> {
       connection,
       process.env.REWARD_POOL_PROGRAM_ID || '11111111111111111111111111111111',
       (() => {
+        // Try to load from base64-encoded environment variable first (more secure)
+        const keypairBase64 = process.env.PLATFORM_AUTHORITY_KEYPAIR_BASE64;
+        if (keypairBase64) {
+          try {
+            const secretKey = Uint8Array.from(Buffer.from(keypairBase64, 'base64'));
+            return Keypair.fromSecretKey(secretKey);
+          } catch (err) {
+            throw new Error(
+              `Failed to parse PLATFORM_AUTHORITY_KEYPAIR_BASE64. ` +
+              `Please ensure it contains valid base64-encoded secret key. ` +
+              `Original error: ${err instanceof Error ? err.message : String(err)}`
+            );
+          }
+        }
+
+        // Fallback to file-based loading
         const keypairPath = process.env.PLATFORM_AUTHORITY_KEYPAIR_PATH;
         if (!keypairPath) {
-          throw new Error('PLATFORM_AUTHORITY_KEYPAIR_PATH environment variable must be set to the path of the platform authority keypair JSON file.');
+          throw new Error(
+            'Either PLATFORM_AUTHORITY_KEYPAIR_BASE64 or PLATFORM_AUTHORITY_KEYPAIR_PATH environment variable must be set. ' +
+            'PLATFORM_AUTHORITY_KEYPAIR_BASE64 is preferred for better security.'
+          );
         }
-        const secretKey = JSON.parse(require('fs').readFileSync(keypairPath, 'utf8'));
+
+        let secretKey;
+        try {
+          secretKey = JSON.parse(require('fs').readFileSync(keypairPath, 'utf8'));
+        } catch (err) {
+          throw new Error(
+            `Failed to read or parse the platform authority keypair file at "${keypairPath}". ` +
+            `This is a configuration issue. Please ensure the file exists and contains valid JSON. ` +
+            `Original error: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
         return Keypair.fromSecretKey(Uint8Array.from(secretKey));
       })()
     );

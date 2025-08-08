@@ -65,3 +65,6 @@ localstack/cache
 localstack/lib
 localstack/logs
 localstack/tmp
+
+# Audit reports
+audit-report-*.json
