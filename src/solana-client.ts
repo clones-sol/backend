@@ -19,8 +19,8 @@ import {
 } from '@solana/spl-token';
 import BN from 'bn.js';
 
-// Program ID
-const PROGRAM_ID = new PublicKey('Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS');
+// Program ID - should be configurable per environment
+const PROGRAM_ID = new PublicKey(process.env.REWARD_POOL_PROGRAM_ID || 'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS');
 
 // Instruction types
 export enum RewardPoolInstruction {

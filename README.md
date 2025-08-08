@@ -240,7 +240,8 @@ npm test
 
 ## 🔍 Program Addresses
 
-- **Program ID**: `Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS`
+- **Program ID**: Configurable via `REWARD_POOL_PROGRAM_ID` environment variable
+  - Default: `Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS`
 - **Reward Pool PDA**: `[b"reward_pool"]`
 - **Farmer Account PDA**: `[b"farmer", farmer_pubkey]`
 - **Task Record PDA**: `[b"task", task_id_bytes]`
@@ -253,6 +254,42 @@ npm test
 4. **Arithmetic Safety** - All calculations use checked operations
 5. **Input Validation** - String lengths and fee percentages are validated
 6. **Pause Mechanism** - Emergency stop functionality
+7. **Audit System** - Comprehensive monitoring and alerting for suspicious activities
+
+## 🔍 Audit and Monitoring
+
+The system includes a comprehensive audit and monitoring system:
+
+### Smart Contract Monitoring
+- **Real-time transaction monitoring** - Tracks all program interactions
+- **Balance change detection** - Monitors token account balance changes
+- **Suspicious activity detection** - Identifies unusual patterns
+- **Event logging** - Records all significant events with timestamps
+
+### Audit Features
+- **Transaction parsing** - Extracts meaningful data from raw transactions
+- **Event categorization** - Classifies events by type and severity
+- **Alert system** - Configurable alerts for different event types
+- **Historical analysis** - Query and analyze past events
+
+### Usage
+```bash
+# Start monitoring service
+npm run monitoring:start
+
+# Generate audit report
+npm run audit:generate
+
+# View monitoring status
+npm run monitoring:status
+```
+
+### Configuration
+The monitoring system can be configured via environment variables:
+- `MONITORING_ENABLED` - Enable/disable monitoring
+- `MONITORING_POLL_INTERVAL` - How often to check for new transactions
+- `MONITORING_ALERT_WEBHOOK` - Webhook URL for alerts
+- `MONITORING_SUSPICIOUS_THRESHOLD` - Threshold for suspicious activity detection
 
 ## 🚨 Important Notes
 
@@ -269,16 +306,7 @@ npm test
 
 5. **Error Handling**: The program includes comprehensive error handling for all edge cases.
 
-## 🔄 Migration from Anchor
 
-This project has been successfully migrated from Anchor framework to native Solana programming:
-
-1. ✅ **Removed Anchor dependencies** from `package.json`
-2. ✅ **Replaced Anchor macros** with native Solana code
-3. ✅ **Updated serialization** to use manual serialization
-4. ✅ **Modified client code** to use native Solana web3.js
-5. ✅ **Updated deployment scripts** to use Solana CLI directly
-6. ✅ **Updated tests** to use native Solana client
 
 ## 📚 Resources
 
@@ -294,6 +322,3 @@ This project has been successfully migrated from Anchor framework to native Sola
 4. Test thoroughly
 5. Submit a pull request
 
-## 📄 License
-
-This project is licensed under the MIT License.

@@ -2,9 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from
 import { Connection, Keypair, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { RewardPoolService } from '../src/services/blockchain/rewardPool';
 import { ForgeRaceSubmission } from '../src/models/Models';
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import mongoose from 'mongoose';
-import { connectToDatabase } from '../src/services/database';
+import { setupTestMongoDB, teardownTestMongoDB } from './utils/testSetup';
 
 // Test configuration
 const TEST_CONFIG = {
@@ -27,11 +25,9 @@ describe('Reward Pool Complete Integration Tests', () => {
   let testPoolId: string;
 
   beforeAll(async () => {
-    // Start MongoDB memory server
-    mongoServer = await MongoMemoryServer.create();
-    const mongoUri = mongoServer.getUri();
-    process.env.DB_URI = mongoUri;
-    await connectToDatabase();
+    // Start MongoDB memory server using shared utility
+    const setup = await setupTestMongoDB();
+    mongoServer = setup.mongoServer;
 
     // Initialize Solana connection
     connection = new Connection(TEST_CONFIG.RPC_URL, 'confirmed');
@@ -62,10 +58,7 @@ describe('Reward Pool Complete Integration Tests', () => {
   });
 
   afterAll(async () => {
-    if (mongoServer) {
-      await mongoServer.stop();
-    }
-    await mongoose.disconnect();
+    await teardownTestMongoDB(mongoServer);
   });
 
   beforeEach(async () => {

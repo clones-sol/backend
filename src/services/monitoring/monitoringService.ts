@@ -178,10 +178,10 @@ export class MonitoringService extends EventEmitter {
     return transaction.transaction.message.instructions.some(
       (instruction: ParsedInstruction | TransactionInstruction) => {
         if ('programId' in instruction) {
-          // programId is a PublicKey in TransactionInstruction, but a string in ParsedInstruction
+          // Handle both string and PublicKey types for programId
           if (typeof instruction.programId === 'string') {
             return instruction.programId === this.programId.toBase58();
-          } else {
+          } else if (instruction.programId instanceof PublicKey) {
             return instruction.programId.equals(this.programId);
           }
         }
