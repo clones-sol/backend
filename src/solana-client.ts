@@ -19,6 +19,17 @@ import {
 } from '@solana/spl-token';
 import BN from 'bn.js';
 
+// Import serialization module
+import {
+  RewardPool,
+  FarmerAccount,
+  TaskCompletionRecord,
+  validateStringLength,
+  validateRewardAmount,
+  validateFeePercentage,
+  validatePublicKey,
+} from './serialization/reward-pool';
+
 // Program ID - should be configurable per environment
 const PROGRAM_ID = new PublicKey(process.env.REWARD_POOL_PROGRAM_ID || 'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS');
 
@@ -31,36 +42,6 @@ export enum RewardPoolInstruction {
   UpdatePlatformFee = 4,
 }
 
-// Account structures
-export interface RewardPool {
-  isInitialized: boolean;
-  platformAuthority: PublicKey;
-  platformFeePercentage: number;
-  totalRewardsDistributed: BN;
-  totalPlatformFeesCollected: BN;
-  isPaused: boolean;
-}
-
-export interface FarmerAccount {
-  isInitialized: boolean;
-  farmerAddress: PublicKey;
-  withdrawalNonce: BN;
-  totalRewardsEarned: BN;
-  totalRewardsWithdrawn: BN;
-  lastWithdrawalSlot: BN;
-}
-
-export interface TaskCompletionRecord {
-  isInitialized: boolean;
-  taskId: string;
-  farmerAddress: PublicKey;
-  poolId: string;
-  rewardAmount: BN;
-  tokenMint: PublicKey;
-  isClaimed: boolean;
-  completionSlot: BN;
-}
-
 export class RewardPoolClient {
   private connection: Connection;
   private programId: PublicKey;
@@ -68,6 +49,32 @@ export class RewardPoolClient {
   constructor(connection: Connection) {
     this.connection = connection;
     this.programId = PROGRAM_ID;
+  }
+
+  // Helper method to send transactions with proper error handling
+  private async sendTransaction(
+    instruction: TransactionInstruction,
+    signers: Keypair[],
+    feePayer: PublicKey
+  ): Promise<string> {
+    try {
+      const transaction = new Transaction().add(instruction);
+      transaction.recentBlockhash = (
+        await this.connection.getLatestBlockhash()
+      ).blockhash;
+      transaction.feePayer = feePayer;
+
+      const signature = await sendAndConfirmTransaction(
+        this.connection,
+        transaction,
+        signers
+      );
+
+      return signature;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Transaction failed: ${errorMessage}`);
+    }
   }
 
   // Helper methods for PDAs
@@ -104,6 +111,9 @@ export class RewardPoolClient {
     platformAuthority: Keypair,
     platformFeePercentage: number = 10
   ): Promise<string> {
+    // Validate inputs
+    validatePublicKey(platformAuthority.publicKey, 'platformAuthority');
+    validateFeePercentage(platformFeePercentage, 'platformFeePercentage');
     const [rewardPoolPDA] = this.getRewardPoolPDA();
 
     const data = Buffer.alloc(1 + 1);
@@ -121,19 +131,7 @@ export class RewardPoolClient {
       data,
     });
 
-    const transaction = new Transaction().add(instruction);
-    transaction.recentBlockhash = (
-      await this.connection.getLatestBlockhash()
-    ).blockhash;
-    transaction.feePayer = platformAuthority.publicKey;
-
-    const signature = await sendAndConfirmTransaction(
-      this.connection,
-      transaction,
-      [platformAuthority]
-    );
-
-    return signature;
+    return await this.sendTransaction(instruction, [platformAuthority], platformAuthority.publicKey);
   }
 
   // Get reward pool data
@@ -149,8 +147,8 @@ export class RewardPoolClient {
       const rewardPool = RewardPool.deserialize(accountInfo.data);
       return rewardPool;
     } catch (error) {
-      console.error('Failed to get reward pool:', error);
-      return null;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to get reward pool: ${errorMessage}`);
     }
   }
 
@@ -167,8 +165,8 @@ export class RewardPoolClient {
       const farmerAccount = FarmerAccount.deserialize(accountInfo.data);
       return farmerAccount;
     } catch (error) {
-      console.error('Failed to get farmer account:', error);
-      return null;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to get farmer account: ${errorMessage}`);
     }
   }
 
@@ -181,6 +179,13 @@ export class RewardPoolClient {
     tokenMint: PublicKey,
     platformAuthority: Keypair
   ): Promise<string> {
+    // Validate inputs
+    validateStringLength(taskId, 'taskId');
+    validateStringLength(poolId, 'poolId');
+    validateRewardAmount(rewardAmount, 'rewardAmount');
+    validatePublicKey(farmerAddress, 'farmerAddress');
+    validatePublicKey(tokenMint, 'tokenMint');
+    validatePublicKey(platformAuthority.publicKey, 'platformAuthority');
     const [rewardPoolPDA] = this.getRewardPoolPDA();
     const [farmerAccountPDA] = this.getFarmerAccountPDA(farmerAddress);
     const [taskRecordPDA] = this.getTaskRecordPDA(taskId);
@@ -250,6 +255,16 @@ export class RewardPoolClient {
     tokenMint: PublicKey,
     platformTreasury: PublicKey
   ): Promise<string> {
+    // Validate inputs
+    if (taskIds.length === 0) {
+      throw new Error('taskIds array cannot be empty');
+    }
+    taskIds.forEach((taskId, index) => {
+      validateStringLength(taskId, `taskIds[${index}]`);
+    });
+    validatePublicKey(farmer.publicKey, 'farmer');
+    validatePublicKey(tokenMint, 'tokenMint');
+    validatePublicKey(platformTreasury, 'platformTreasury');
     const [rewardPoolPDA] = this.getRewardPoolPDA();
     const [farmerAccountPDA] = this.getFarmerAccountPDA(farmer.publicKey);
     const [rewardVaultPDA] = this.getRewardVaultPDA(tokenMint);
@@ -342,8 +357,8 @@ export class RewardPoolClient {
       const taskRecord = TaskCompletionRecord.deserialize(accountInfo.data);
       return taskRecord;
     } catch (error) {
-      console.error('Failed to get task completion record:', error);
-      return null;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to get task completion record: ${errorMessage}`);
     }
   }
 
@@ -387,6 +402,9 @@ export class RewardPoolClient {
     newFeePercentage: number,
     platformAuthority: Keypair
   ): Promise<string> {
+    // Validate inputs
+    validateFeePercentage(newFeePercentage, 'newFeePercentage');
+    validatePublicKey(platformAuthority.publicKey, 'platformAuthority');
     const [rewardPoolPDA] = this.getRewardPoolPDA();
 
     const data = Buffer.alloc(1 + 1);
@@ -459,74 +477,8 @@ export class RewardPoolClient {
       const tokenAccount = await getAccount(this.connection, rewardVaultPDA);
       return new BN(tokenAccount.amount.toString());
     } catch (error) {
-      console.error('Failed to get reward vault balance:', error);
-      return new BN(0);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to get reward vault balance: ${errorMessage}`);
     }
-  }
-}
-
-// Deserialization helpers (these would need to be implemented based on your serialization format)
-// For now, using placeholder implementations
-export namespace RewardPool {
-  export function deserialize(data: Buffer): RewardPool {
-    // Example layout:
-    // 0: isInitialized (u8)
-    // 1-32: platformAuthority (Pubkey)
-    // 33: platformFeePercentage (u8)
-    // 34-41: totalRewardsDistributed (u64, LE)
-    // 42-49: totalPlatformFeesCollected (u64, LE)
-    // 50: isPaused (u8)
-    return {
-      isInitialized: data[0] === 1,
-      platformAuthority: new PublicKey(data.slice(1, 33)),
-      platformFeePercentage: data[33],
-      totalRewardsDistributed: new BN(data.slice(34, 42), 'le'),
-      totalPlatformFeesCollected: new BN(data.slice(42, 50), 'le'),
-      isPaused: data[50] === 1,
-    };
-  }
-}
-
-export namespace FarmerAccount {
-  export function deserialize(data: Buffer): FarmerAccount {
-    // Example layout:
-    // 0: isInitialized (u8)
-    // 1-33: farmerAddress (Pubkey)
-    // 34-41: withdrawalNonce (u64, LE)
-    // 42-49: totalRewardsEarned (u64, LE)
-    // 50-57: totalRewardsWithdrawn (u64, LE)
-    // 58-65: lastWithdrawalSlot (u64, LE)
-    return {
-      isInitialized: data[0] === 1,
-      farmerAddress: new PublicKey(data.slice(1, 33)),
-      withdrawalNonce: new BN(data.slice(33, 41), 'le'),
-      totalRewardsEarned: new BN(data.slice(41, 49), 'le'),
-      totalRewardsWithdrawn: new BN(data.slice(49, 57), 'le'),
-      lastWithdrawalSlot: new BN(data.slice(57, 65), 'le'),
-    };
-  }
-}
-
-export namespace TaskCompletionRecord {
-  export function deserialize(data: Buffer): TaskCompletionRecord {
-    // Example layout:
-    // 0: isInitialized (u8)
-    // 1-32: taskId (string, variable length with length prefix)
-    // 33-65: farmerAddress (Pubkey)
-    // 66-98: poolId (string, variable length with length prefix)
-    // 99-107: rewardAmount (u64, LE)
-    // 108-140: tokenMint (Pubkey)
-    // 141: isClaimed (u8)
-    // 142-149: completionSlot (u64, LE)
-    return {
-      isInitialized: data[0] === 1,
-      taskId: '', // Would need to parse string from data
-      farmerAddress: new PublicKey(data.slice(1, 33)),
-      poolId: '', // Would need to parse string from data
-      rewardAmount: new BN(0),
-      tokenMint: new PublicKey(data.slice(33, 65)),
-      isClaimed: false,
-      completionSlot: new BN(0),
-    };
   }
 } 
