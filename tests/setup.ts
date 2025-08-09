@@ -27,3 +27,8 @@ process.env.ANTHROPIC_API_KEY = 'mock-anthropic-api-key';
 process.env.REFERRAL_PROGRAM_ID = '11111111111111111111111111111111';
 process.env.FRONTEND_URL = 'https://clones-ai.com';
 process.env.ADMIN_TOKEN = 'mock-admin-token-for-tests';
+
+// Reward Pool system environment variables
+process.env.REWARD_POOL_PROGRAM_ID = 'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS';
+process.env.PLATFORM_TREASURY_ADDRESS = 'TreasuryAddress123456789';
+process.env.REWARD_POOL_RPC_URL = 'https://api.devnet.solana.com';

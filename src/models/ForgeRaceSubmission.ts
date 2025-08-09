@@ -30,13 +30,22 @@ export const forgeRaceSubmissionSchema = new mongoose.Schema<DBForgeRaceSubmissi
     reward: { type: Number, required: false },
     maxReward: { type: Number, required: false },
     clampedScore: { type: Number, required: false },
-    treasuryTransfer: {
+
+    // New fields for smart contract reward system
+    smartContractReward: {
       type: {
-        tokenAddress: String,
-        treasuryWallet: String,
-        amount: Number,
-        timestamp: Number,
-        txHash: String
+        taskId: String, // Unique identifier for the task
+        rewardAmount: Number, // Calculated reward amount
+        tokenMint: String, // Token mint address
+        poolId: String, // Pool ID
+        isRecorded: { type: Boolean, default: false }, // Whether recorded on smart contract
+        recordSignature: String, // Transaction signature when recorded
+        recordSlot: Number, // Slot when recorded
+        isWithdrawn: { type: Boolean, default: false }, // Whether farmer has withdrawn
+        withdrawalSignature: String, // Transaction signature when withdrawn
+        withdrawalSlot: Number, // Slot when withdrawn
+        platformFeeAmount: Number, // Platform fee amount (10%)
+        farmerRewardAmount: Number // Actual amount farmer receives (90%)
       },
       required: false
     }
@@ -49,5 +58,10 @@ export const forgeRaceSubmissionSchema = new mongoose.Schema<DBForgeRaceSubmissi
 
 // Index to help with querying pending submissions
 forgeRaceSubmissionSchema.index({ status: 1, createdAt: 1 });
+
+// New indexes for smart contract reward system
+forgeRaceSubmissionSchema.index({ 'smartContractReward.isRecorded': 1, createdAt: 1 });
+forgeRaceSubmissionSchema.index({ 'smartContractReward.isWithdrawn': 1, createdAt: 1 });
+forgeRaceSubmissionSchema.index({ address: 1, 'smartContractReward.isWithdrawn': 1 });
 
 export const ForgeRaceSubmission = mongoose.model('ForgeRaceSubmission', forgeRaceSubmissionSchema);

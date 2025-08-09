@@ -141,14 +141,7 @@ export interface ForgeSubmissionGradeResult {
   reasoning: string;
 }
 
-// Interface for treasury transfer details
-export interface ForgeTreasuryTransfer {
-  tokenAddress: string;
-  treasuryWallet: string;
-  amount: number;
-  timestamp: number;
-  txHash?: string;
-}
+
 
 export interface UploadChunk {
   chunkIndex: number;

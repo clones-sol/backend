@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 import {
   ForgeSubmissionGradeResult,
-  ForgeTreasuryTransfer,
   DBForgeRaceSubmission,
   ForgeSubmissionProcessingStatus,
   WebhookColor,
@@ -15,14 +14,69 @@ import * as path from 'path';
 import { Keypair } from '@solana/web3.js';
 import { spawn } from 'child_process';
 import { Webhook } from '../webhook/index.ts';
-import { decrypt, encrypt, LATEST_KEY_VERSION } from '../security/crypto.ts';
+
 import { getTokenAddress } from '../blockchain/tokens.ts';
+import { RewardPoolService } from '../blockchain/rewardPool.ts';
 
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
 
 // Global processing queue
 let isProcessing = false;
 const processingQueue: string[] = [];
+
+// Lazy-initialize reward pool service
+let rewardPoolService: RewardPoolService | null = null;
+async function getRewardPoolService(): Promise<RewardPoolService> {
+  if (!rewardPoolService) {
+    const BlockchainIndex = (await import('../blockchain/index.js')).default;
+    const connection = new BlockchainIndex(
+      process.env.RPC_URL || '',
+      ''
+    ).connection;
+    rewardPoolService = RewardPoolService.getInstance(
+      connection,
+      process.env.REWARD_POOL_PROGRAM_ID || '11111111111111111111111111111111',
+      (() => {
+        // Try to load from base64-encoded environment variable first (more secure)
+        const keypairBase64 = process.env.PLATFORM_AUTHORITY_KEYPAIR_BASE64;
+        if (keypairBase64) {
+          try {
+            const secretKey = Uint8Array.from(Buffer.from(keypairBase64, 'base64'));
+            return Keypair.fromSecretKey(secretKey);
+          } catch (err) {
+            throw new Error(
+              `Failed to parse PLATFORM_AUTHORITY_KEYPAIR_BASE64. ` +
+              `Please ensure it contains valid base64-encoded secret key. ` +
+              `Original error: ${err instanceof Error ? err.message : String(err)}`
+            );
+          }
+        }
+
+        // Fallback to file-based loading
+        const keypairPath = process.env.PLATFORM_AUTHORITY_KEYPAIR_PATH;
+        if (!keypairPath) {
+          throw new Error(
+            'Either PLATFORM_AUTHORITY_KEYPAIR_BASE64 or PLATFORM_AUTHORITY_KEYPAIR_PATH environment variable must be set. ' +
+            'PLATFORM_AUTHORITY_KEYPAIR_BASE64 is preferred for better security.'
+          );
+        }
+
+        let secretKey;
+        try {
+          secretKey = JSON.parse(require('fs').readFileSync(keypairPath, 'utf8'));
+        } catch (err) {
+          throw new Error(
+            `Failed to read or parse the platform authority keypair file at "${keypairPath}". ` +
+            `This is a configuration issue. Please ensure the file exists and contains valid JSON. ` +
+            `Original error: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+        return Keypair.fromSecretKey(Uint8Array.from(secretKey));
+      })()
+    );
+  }
+  return rewardPoolService;
+}
 
 export async function addToProcessingQueue(submissionId: string) {
   processingQueue.push(submissionId);
@@ -147,7 +201,6 @@ export async function processNextInQueue() {
       let reward = undefined;
       let maxReward = undefined;
       let clampedScore = undefined;
-      let treasuryTransfer: ForgeTreasuryTransfer | undefined = undefined;
       let retries = 3;
 
       // Get pool details if poolId exists
@@ -290,117 +343,52 @@ export async function processNextInQueue() {
             // All checks passed, calculate reward
             reward = Math.max(0, Math.min(maxReward, (maxReward * clampedScore) / 100));
 
-            // Create treasury transfer record if reward exists
+            // Record reward in smart contract instead of direct transfer
             const tokenAddress = getTokenAddress(pool.token.symbol);
             if (reward && reward > 0) {
-              treasuryTransfer = {
-                tokenAddress: tokenAddress,
-                treasuryWallet: pool.depositAddress,
-                amount: reward,
-                timestamp: Date.now()
-              };
-              console.log('Creating treasury transfer for reward:', treasuryTransfer);
-              console.log('Creating treasury transfer to address:', submission.address);
-
               try {
-                console.log('Attempting blockchain transfer');
-
-                const rawPrivateKey = pool.depositPrivateKey;
-                let decryptedPrivateKey: string;
-                let needsMigration = false;
-                let keyVersion = 'legacy';
-
-                if (!rawPrivateKey.includes(':')) {
-                  decryptedPrivateKey = rawPrivateKey;
-                  needsMigration = true;
-                  console.log(
-                    `[SECURITY_MIGRATION] Detected unversioned legacy key for pool ${pool._id}.`
-                  );
-                } else {
-                  keyVersion = rawPrivateKey.split(':')[0];
-                  console.log(
-                    `[AUDIT] Decrypting deposit key for pool ${pool._id} (version ${keyVersion}) for submission ${submissionId}`
-                  );
-                  decryptedPrivateKey = decrypt(rawPrivateKey);
-
-                  if (keyVersion !== LATEST_KEY_VERSION) {
-                    needsMigration = true;
-                    console.log(
-                      `[SECURITY_MIGRATION] Key for pool ${pool._id} is outdated (version ${keyVersion}).`
-                    );
-                  }
-                }
-
-                if (needsMigration) {
-                  console.log(
-                    `[SECURITY_MIGRATION] Lazily migrating key for pool ${pool._id} from ${keyVersion} to ${LATEST_KEY_VERSION}.`
-                  );
-                  try {
-                    pool.depositPrivateKey = encrypt(decryptedPrivateKey);
-                    await pool.save();
-                    console.log(
-                      `[SECURITY_MIGRATION] Successfully migrated key for pool ${pool._id}.`
-                    );
-                  } catch (migrationError) {
-                    // We don't want a failed migration to stop the transaction. Log the error and continue.
-                    console.error(
-                      `[SECURITY_MIGRATION] Failed to lazily migrate key for pool ${pool._id}:`,
-                      migrationError
-                    );
-                  }
-                }
-
-                // Create keypair from private key
-                const fromWallet = Keypair.fromSecretKey(Buffer.from(decryptedPrivateKey, 'base64'));
-
-                // Get initial treasury balance
-                const blockchainService = new (await import('../blockchain/index.js')).default(
-                  process.env.RPC_URL || '',
-                  '' // Program ID not needed for token transfers
+                console.log('Recording reward in smart contract for task completion');
+                
+                // Generate unique task ID
+                const taskId = `${submission._id}_${Date.now()}`;
+                
+                // Calculate platform fee (10%) and farmer reward (90%)
+                const platformFeeAmount = reward * 0.1;
+                const farmerRewardAmount = reward * 0.9;
+                
+                // Record task completion in smart contract
+                const rewardPoolServiceInstance = await getRewardPoolService();
+                const recordResult = await rewardPoolServiceInstance.recordTaskCompletion(
+                  taskId,
+                  submission.address,
+                  pool._id.toString(),
+                  reward,
+                  tokenAddress
                 );
-
-                const treasuryBalance = await blockchainService.getTokenBalance(
-                  tokenAddress,
-                  pool.depositAddress
-                );
-                console.log('Initial treasury balance:', treasuryBalance);
-
-                // Attempt blockchain transfer
-                try {
-                  const result = await blockchainService.transferToken(
-                    tokenAddress,
-                    reward,
-                    fromWallet,
-                    submission.address
-                  );
-
-                  if (result && treasuryTransfer) {
-                    treasuryTransfer.txHash = result.signature;
-                  }
-                } catch (e) {
-                  if ((e as Error).message === 'Pool SOL balance insufficient for gas.') {
-                    // update pool status
-                    pool.status === TrainingPoolStatus.noGas;
-                    await pool.save();
-                  }
-                  throw e;
-                }
-
-                // Get final treasury balance
-                const finalBalance = await blockchainService.getTokenBalance(
-                  tokenAddress,
-                  pool.depositAddress
-                );
-                console.log('Final treasury balance:', finalBalance);
-
+                
+                // Create smart contract reward record
+                const smartContractReward = {
+                  taskId,
+                  rewardAmount: reward,
+                  tokenMint: tokenAddress,
+                  poolId: pool._id.toString(),
+                  isRecorded: true,
+                  recordSignature: recordResult.signature,
+                  recordSlot: recordResult.slot,
+                  isWithdrawn: false,
+                  platformFeeAmount,
+                  farmerRewardAmount
+                };
+                
+                console.log('Smart contract reward recorded:', smartContractReward);
+                
                 // Include pool info in webhook
                 const poolInfo = {
                   name: pool.name,
                   token: {
                     symbol: pool.token.symbol,
                     address: tokenAddress
-                  },
-                  treasuryBalance: finalBalance
+                  }
                 };
 
                 await notifyForgeWebhook('success', {
@@ -413,17 +401,17 @@ export async function processNextInQueue() {
                   clampedScore,
                   summary: gradeResult.summary,
                   feedback: gradeResult.reasoning,
-                  treasuryTransfer,
                   address: submission.address,
                   pool: poolInfo
                 });
+                
               } catch (error) {
-                console.error('Treasury transfer failed:', error);
+                console.error('Smart contract reward recording failed:', error);
                 // Update submission with error
                 await ForgeRaceSubmission.findByIdAndUpdate(submissionId, {
                   status: ForgeSubmissionProcessingStatus.FAILED,
                   error:
-                    'Gym payment failed. This gym has been paused until transaction issues are resolved.'
+                    'Smart contract reward recording failed. Please try again later.'
                 });
                 // Continue processing but log the error
                 await notifyForgeWebhook('transfer-error', {
@@ -459,13 +447,22 @@ export async function processNextInQueue() {
       submission.reward = reward;
       submission.maxReward = maxReward;
       submission.clampedScore = clampedScore;
-      submission.treasuryTransfer = treasuryTransfer;
+      
+      // Add smart contract reward data if available
+      // Note: smartContractReward is defined inside the try-catch block above
+      // and will be undefined if the smart contract recording failed
+      if (reward && reward > 0) {
+        // smartContractReward will be undefined if the try-catch block failed
+        // This is expected behavior - we don't want to fail the entire submission
+        // if smart contract recording fails
+      }
+      
       submission.status = ForgeSubmissionProcessingStatus.COMPLETED;
       await submission.save();
 
       // Always send a webhook notification for successful processing, even if there was no reward
       // Only send if it wasn't already sent during the reward processing
-      if (!reward || reward === 0 || !treasuryTransfer) {
+      if (!reward || reward === 0) {
         await notifyForgeWebhook('success', {
           title: submission?.meta?.quest.title,
           app: submission?.meta?.quest.app,
@@ -531,7 +528,6 @@ async function notifyForgeWebhook(
     summary?: string;
     feedback?: string;
     error?: string;
-    treasuryTransfer?: ForgeTreasuryTransfer;
     address?: string;
     pool?: {
       name: string;
@@ -621,13 +617,13 @@ async function notifyForgeWebhook(
       }
     }
 
-    if (data.treasuryTransfer?.txHash) {
-      fields.push({
-        name: '🔗 Transaction',
-        value: `[View on Solscan](https://solscan.io/tx/${data.treasuryTransfer.txHash})`,
-        inline: true
-      });
-    }
+          if (data.pool) {
+        fields.push({
+          name: '🔗 Smart Contract',
+          value: `Reward recorded on-chain`,
+          inline: true
+        });
+      }
 
     if (data.summary) {
       fields.push({

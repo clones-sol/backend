@@ -1,0 +1,16 @@
+[package]
+name = "reward-pool"
+version = "0.1.0"
+description = "Reward distribution system for Clones AI platform"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "reward_pool"
+
+[dependencies]
+solana-program = "=1.16.0"
+borsh = "0.10.3"
+borsh-derive = "0.10.3"
+thiserror = "1.0.40"
+spl-token = "=3.5.0" 
