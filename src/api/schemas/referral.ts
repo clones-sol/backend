@@ -35,18 +35,6 @@ export const createReferralSchema: ValidationSchema = {
   referralCode: {
     required: true,
     rules: [ValidationRules.isString(), ValidationRules.minLength(1), ValidationRules.maxLength(20)]
-  },
-  firstActionType: {
-    required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
-  },
-  firstActionData: {
-    required: false,
-    rules: [ValidationRules.isObject()]
-  },
-  actionValue: {
-    required: false,
-    rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
   }
 };
 

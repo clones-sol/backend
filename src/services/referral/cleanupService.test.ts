@@ -265,8 +265,6 @@ describe('ReferralCleanupService', () => {
                     referreeAddress: 'referree1',
                     referralCode: 'OLD1',
                     referralLink: 'https://clones-ai.com/ref/OLD1',
-                    firstActionType: 'wallet_connect',
-                    firstActionData: { connectionToken: 'token1' },
                     status: 'confirmed',
                     createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000) // 400 days ago
                 },
@@ -275,8 +273,6 @@ describe('ReferralCleanupService', () => {
                     referreeAddress: 'referree2',
                     referralCode: 'OLD2',
                     referralLink: 'https://clones-ai.com/ref/OLD2',
-                    firstActionType: 'wallet_connect',
-                    firstActionData: { connectionToken: 'token2' },
                     status: 'failed',
                     createdAt: new Date(Date.now() - 380 * 24 * 60 * 60 * 1000) // 380 days ago
                 }
@@ -300,8 +296,6 @@ describe('ReferralCleanupService', () => {
                 referreeAddress: 'referree1',
                 referralCode: 'RECENT',
                 referralLink: 'https://clones-ai.com/ref/RECENT',
-                firstActionType: 'wallet_connect',
-                firstActionData: { connectionToken: 'token1' },
                 status: 'confirmed',
                 createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
             });
@@ -323,8 +317,6 @@ describe('ReferralCleanupService', () => {
                     referreeAddress: 'referree1',
                     referralCode: 'CONFIRMED',
                     referralLink: 'https://clones-ai.com/ref/CONFIRMED',
-                    firstActionType: 'wallet_connect',
-                    firstActionData: { connectionToken: 'token1' },
                     status: 'confirmed',
                     createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000)
                 },
@@ -333,8 +325,6 @@ describe('ReferralCleanupService', () => {
                     referreeAddress: 'referree2',
                     referralCode: 'PENDING',
                     referralLink: 'https://clones-ai.com/ref/PENDING',
-                    firstActionType: 'wallet_connect',
-                    firstActionData: { connectionToken: 'token2' },
                     status: 'pending',
                     createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000)
                 }

@@ -333,7 +333,6 @@ router.post(
  *               - referrerAddress
  *               - referreeAddress
  *               - referralCode
- *               - firstActionType
  *             properties:
  *               referrerAddress:
  *                 type: string
@@ -347,18 +346,6 @@ router.post(
  *                 type: string
  *                 description: The referral code used
  *                 example: "ABC123"
- *               firstActionType:
- *                 type: string
- *                 description: The type of first action performed by the referree
- *                 example: "AGENT_CREATION"
- *               firstActionData:
- *                 type: object
- *                 description: Additional data about the first action (optional)
- *                 example: {"agentId": "123", "poolId": "456"}
- *               actionValue:
- *                 type: number
- *                 description: The value associated with the first action (optional)
- *                 example: 100
  *     responses:
  *       201:
  *         description: Referral relationship created successfully
@@ -388,10 +375,6 @@ router.post(
  *                           type: string
  *                           description: The status of the referral
  *                           example: "pending"
- *                         firstActionType:
- *                           type: string
- *                           description: The type of first action performed
- *                           example: "AGENT_CREATION"
  *                         rewardAmount:
  *                           type: number
  *                           description: The reward amount for this referral
@@ -420,10 +403,7 @@ router.post(
     const {
       referrerAddress,
       referreeAddress,
-      referralCode,
-      firstActionType,
-      firstActionData,
-      actionValue
+      referralCode
     } = req.body;
 
     // Generate referral link
@@ -433,10 +413,7 @@ router.post(
       referrerAddress,
       referreeAddress,
       referralCode,
-      referralLink,
-      firstActionType,
-      firstActionData,
-      actionValue
+      referralLink
     );
 
     // Store on-chain (async) with proper error handling
@@ -458,7 +435,6 @@ router.post(
       referrerAddress: referral.referrerAddress,
       referreeAddress: referral.referreeAddress,
       status: referral.status,
-      firstActionType: referral.firstActionType,
       rewardAmount: referral.rewardAmount,
       rewardProcessed: referral.rewardProcessed
     }));

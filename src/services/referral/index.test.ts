@@ -120,8 +120,6 @@ describe('ReferralService', () => {
             referreeAddress: 'referree123',
             referralCode: 'TEST123',
             referralLink: 'https://clones-ai.com/ref/TEST123',
-            firstActionType: 'wallet_connect',
-            firstActionData: { connectionToken: 'test-token' },
             status: 'pending'
         });
     });
@@ -217,9 +215,6 @@ describe('ReferralService', () => {
                 'new-referree',
                 'TEST123',
                 'https://clones-ai.com/ref/TEST123',
-                'wallet_connect',
-                { connectionToken: 'new-token' },
-                100
             );
 
             expect(referral.referrerAddress).toBe('referrer123');
@@ -239,9 +234,6 @@ describe('ReferralService', () => {
                     'referree123', // Already referred
                     'TEST123',
                     'https://clones-ai.com/ref/TEST123',
-                    'wallet_connect',
-                    { connectionToken: 'token' },
-                    100
                 )
             ).rejects.toThrow('User has already been referred');
         });
@@ -253,9 +245,6 @@ describe('ReferralService', () => {
                     'new-referree',
                     'INVALID',
                     'https://clones-ai.com/ref/INVALID',
-                    'wallet_connect',
-                    { connectionToken: 'token' },
-                    100
                 )
             ).rejects.toThrow('Invalid referral code');
         });
@@ -267,9 +256,6 @@ describe('ReferralService', () => {
                     'referrer123', // Same as referrer
                     'TEST123',
                     'https://clones-ai.com/ref/TEST123',
-                    'wallet_connect',
-                    { connectionToken: 'token' },
-                    100
                 )
             ).rejects.toThrow('Cannot refer yourself');
         });
@@ -369,27 +355,18 @@ describe('ReferralService', () => {
                     'referree1',
                     'RACE123',
                     'https://clones-ai.com/ref/RACE123',
-                    'wallet_connect',
-                    { connectionToken: 'token1' },
-                    100
                 ),
                 referralService.createReferral(
                     'race-referrer',
                     'referree2',
                     'RACE123',
                     'https://clones-ai.com/ref/RACE123',
-                    'wallet_connect',
-                    { connectionToken: 'token2' },
-                    100
                 ),
                 referralService.createReferral(
                     'race-referrer',
                     'referree3',
                     'RACE123',
                     'https://clones-ai.com/ref/RACE123',
-                    'wallet_connect',
-                    { connectionToken: 'token3' },
-                    100
                 )
             ];
 
@@ -426,27 +403,18 @@ describe('ReferralService', () => {
                     'same-referree',
                     'DUPE123',
                     'https://clones-ai.com/ref/DUPE123',
-                    'wallet_connect',
-                    { connectionToken: 'token1' },
-                    100
                 ),
                 referralService.createReferral(
                     'dupe-referrer',
                     'same-referree',
                     'DUPE123',
                     'https://clones-ai.com/ref/DUPE123',
-                    'wallet_connect',
-                    { connectionToken: 'token2' },
-                    100
                 ),
                 referralService.createReferral(
                     'dupe-referrer',
                     'same-referree',
                     'DUPE123',
                     'https://clones-ai.com/ref/DUPE123',
-                    'wallet_connect',
-                    { connectionToken: 'token3' },
-                    100
                 )
             ];
 

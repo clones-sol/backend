@@ -271,7 +271,7 @@ vi.mock('../services/referral/index.ts', () => ({
             }
             return null;
         },
-        createReferral: async (referrerAddress: string, referreeAddress: string, referralCode: string, referralLink: string, firstActionType: string, firstActionData?: any, actionValue?: number) => {
+        createReferral: async (referrerAddress: string, referreeAddress: string, referralCode: string, referralLink: string) => {
             // Validate referral code
             if (referralCode !== 'TEST123' && referralCode !== 'test123') {
                 const { ApiError } = await import('../middleware/types/errors.ts');
@@ -283,7 +283,6 @@ vi.mock('../services/referral/index.ts', () => ({
                 referrerAddress,
                 referreeAddress,
                 referralCode,
-                firstActionType,
                 status: 'pending',
                 createdAt: new Date(),
                 updatedAt: new Date()
@@ -428,8 +427,6 @@ describe('Referral API', () => {
             referreeAddress: TEST_WALLETS.referree,
             referralCode: 'TEST123',
             referralLink: 'https://clones-ai.com/ref/TEST123',
-            firstActionType: 'wallet_connect',
-            firstActionData: { connectionToken: 'test-token' },
             status: 'pending'
         });
     });
@@ -546,10 +543,7 @@ describe('Referral API', () => {
             const referralData = {
                 referrerAddress: TEST_WALLETS.referrer,
                 referreeAddress: TEST_WALLETS.newWallet,
-                referralCode: 'TEST123',
-                firstActionType: 'wallet_connect',
-                firstActionData: { connectionToken: 'new-token' },
-                actionValue: 100
+                referralCode: 'TEST123'
             };
 
             const response = await supertest(app)
@@ -561,7 +555,6 @@ describe('Referral API', () => {
             expect(response.body.data.referrerAddress).toBe(TEST_WALLETS.referrer);
             expect(response.body.data.referreeAddress).toBe(TEST_WALLETS.newWallet);
             expect(response.body.data.status).toBe('pending');
-            expect(response.body.data.firstActionType).toBe('wallet_connect');
         });
 
         it('should fail with 400 for missing required fields', async () => {
@@ -570,22 +563,18 @@ describe('Referral API', () => {
                 .send({
                     referrerAddress: TEST_WALLETS.referrer,
                     referreeAddress: TEST_WALLETS.newWallet
-                    // Missing referralCode and firstActionType
                 })
                 .expect(400);
 
             expect(response.body.error.message).toBe('Validation failed');
             expect(response.body.error.details.fields.referralCode).toBe('This field is required');
-            expect(response.body.error.details.fields.firstActionType).toBe('This field is required');
         });
 
         it('should fail with 400 for invalid referral code', async () => {
             const referralData = {
                 referrerAddress: TEST_WALLETS.referrer,
                 referreeAddress: TEST_WALLETS.newWallet,
-                referralCode: 'INVALID',
-                firstActionType: 'wallet_connect',
-                firstActionData: { connectionToken: 'new-token' }
+                referralCode: 'INVALID'
             };
 
             const response = await supertest(app)
