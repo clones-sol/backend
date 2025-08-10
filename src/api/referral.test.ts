@@ -16,13 +16,13 @@ vi.mock('../services/redis.ts', () => {
 
 vi.mock('../services/blockchain/index.ts', () => ({
     default: class MockBlockchainService {
-        constructor() {}
+        constructor() { }
     }
 }));
 
 vi.mock('../services/blockchain/referralProgram.ts', () => ({
     ReferralProgramService: class MockReferralProgramService {
-        constructor() {}
+        constructor() { }
         async storeReferral() {
             return { txHash: 'mock-tx-hash', slot: 12345 };
         }
@@ -43,7 +43,7 @@ vi.mock('../services/referral/rewardService.ts', () => ({
             maxReferralsPerCooldownPeriod: 5
         };
 
-        constructor() {}
+        constructor() { }
         async processReward() {
             return {
                 referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
@@ -73,7 +73,7 @@ vi.mock('../services/referral/rewardService.ts', () => ({
 
 vi.mock('../services/referral/cleanupService.ts', () => ({
     ReferralCleanupService: class MockCleanupService {
-        constructor() {}
+        constructor() { }
         async cleanupExpiredCodes() {
             return 5;
         }
@@ -106,19 +106,25 @@ vi.mock('../middleware/auth.ts', () => ({
         } else {
             res.status(401).json({ error: 'Unauthorized' });
         }
+    },
+    requireWalletAddress: (req: Request, res: Response, next: NextFunction) => {
+        // @ts-ignore
+        // For testing, assume the wallet in the body is the authenticated wallet
+        req.walletAddress = req.body.walletAddress;
+        next();
     }
 }));
 
 // Mock the referral service
 vi.mock('../services/referral/index.ts', () => ({
     ReferralService: class MockReferralService {
-        constructor() {}
+        constructor() { }
         async generateReferralCode(walletAddress: string) {
             // Return different codes based on wallet address
             if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
-                return 'TEST123';
+                return { referralCode: 'TEST123', createdAt: new Date() };
             }
-            return 'ABCDEF';
+            return { referralCode: 'ABCDEF', createdAt: new Date() };
         }
         async getReferralCode(walletAddress: string) {
             if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
@@ -242,9 +248,9 @@ vi.mock('../services/referral/index.ts', () => ({
     referralService: {
         generateReferralCode: async (walletAddress: string) => {
             if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
-                return 'TEST123';
+                return { referralCode: 'TEST123', createdAt: new Date() };
             }
-            return 'ABCDEF';
+            return { referralCode: 'ABCDEF', createdAt: new Date() };
         },
         getReferralCode: async (walletAddress: string) => {
             if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
@@ -271,7 +277,7 @@ vi.mock('../services/referral/index.ts', () => ({
                 const { ApiError } = await import('../middleware/types/errors.ts');
                 throw ApiError.badRequest('Invalid referral code');
             }
-            
+
             return {
                 _id: 'mock-referral-id',
                 referrerAddress,

@@ -356,9 +356,7 @@ export class ReferralService {
    * Get referral statistics for a wallet
    */
   async getReferralStats(walletAddress: string): Promise<{
-    totalReferrals: number;
-    totalRewards: number;
-    referralCode: string;
+    referralInfo: IReferralCode | null;
     referrals: IReferral[];
   }> {
     const referralCode = await this.getReferralCode(walletAddress);
@@ -368,9 +366,7 @@ export class ReferralService {
     }).sort({ createdAt: -1 });
 
     return {
-      totalReferrals: referralCode?.totalReferrals || 0,
-      totalRewards: referralCode?.totalRewards || 0,
-      referralCode: referralCode?.referralCode || '',
+      referralInfo: referralCode || null,
       referrals
     };
   }

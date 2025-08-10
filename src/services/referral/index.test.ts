@@ -132,21 +132,21 @@ describe('ReferralService', () => {
 
     describe('generateReferralCode', () => {
         it('should return existing referral code if wallet already has one', async () => {
-            const existingCode = await referralService.generateReferralCode('referrer123');
-            expect(existingCode).toBe('TEST123');
+            const existingCodeData = await referralService.generateReferralCode('referrer123');
+            expect(existingCodeData.referralCode).toBe('TEST123');
         });
 
         it('should generate a new unique referral code for new wallet', async () => {
-            const newCode = await referralService.generateReferralCode('new-wallet-456');
+            const newCodeData = await referralService.generateReferralCode('new-wallet-456');
 
-            expect(newCode).toBeDefined();
-            expect(newCode.length).toBe(6);
-            expect(newCode).toMatch(/^[A-Z0-9]{6}$/);
+            expect(newCodeData).toBeDefined();
+            expect(newCodeData.referralCode.length).toBe(6);
+            expect(newCodeData.referralCode).toMatch(/^[A-Z0-9]{6}$/);
 
             // Verify it was saved to database
             const savedCode = await ReferralCodeModel.findOne({ walletAddress: 'new-wallet-456' });
             expect(savedCode).not.toBeNull();
-            expect(savedCode?.referralCode).toBe(newCode);
+            expect(savedCode?.referralCode).toBe(newCodeData.referralCode);
         });
 
         it('should throw error if unable to generate unique code after max attempts', async () => {
@@ -303,18 +303,16 @@ describe('ReferralService', () => {
         it('should return referral statistics for wallet', async () => {
             const stats = await referralService.getReferralStats('referrer123');
 
-            expect(stats.totalReferrals).toBe(0); // Will be 1 after referral is confirmed
-            expect(stats.totalRewards).toBe(0);
-            expect(stats.referralCode).toBe('TEST123');
+            expect(stats.referralInfo?.totalReferrals).toBe(0); // Will be 1 after referral is confirmed
+            expect(stats.referralInfo?.totalRewards).toBe(0);
+            expect(stats.referralInfo?.referralCode).toBe('TEST123');
             expect(stats.referrals).toBeInstanceOf(Array);
         });
 
         it('should return empty stats for wallet without referral code', async () => {
             const stats = await referralService.getReferralStats('no-code-wallet');
 
-            expect(stats.totalReferrals).toBe(0);
-            expect(stats.totalRewards).toBe(0);
-            expect(stats.referralCode).toBe('');
+            expect(stats.referralInfo).toBeNull();
             expect(stats.referrals).toEqual([]);
         });
     });
