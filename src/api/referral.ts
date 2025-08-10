@@ -495,23 +495,40 @@ router.post(
  *                     data:
  *                       type: object
  *                       properties:
- *                         totalReferrals:
- *                           type: number
- *                           description: Total number of successful referrals
- *                           example: 15
- *                         totalRewards:
- *                           type: number
- *                           description: Total rewards earned from referrals
- *                           example: 450
- *                         averageReward:
- *                           type: number
- *                           description: Average reward per referral
- *                           example: 30
- *                         recentReferrals:
+ *                         referralInfo:
+ *                           type: object
+ *                           nullable: true
+ *                           description: Information about the user's referral code.
+ *                           properties:
+ *                             walletAddress:
+ *                               type: string
+ *                             referralCode:
+ *                               type: string
+ *                             isActive:
+ *                               type: boolean
+ *                             totalReferrals:
+ *                               type: number
+ *                             totalRewards:
+ *                               type: number
+ *                             createdAt:
+ *                               type: string
+ *                               format: date-time
+ *                             expiresAt:
+ *                               type: string
+ *                               format: date-time
+ *                         referrals:
  *                           type: array
- *                           description: List of recent referrals
+ *                           description: List of users referred by this wallet.
  *                           items:
  *                             type: object
+ *                             properties:
+ *                               referreeAddress:
+ *                                 type: string
+ *                               status:
+ *                                 type: string
+ *                               createdAt:
+ *                                 type: string
+ *                                 format: date-time
  *       429:
  *         description: Too many requests
  *       500:
