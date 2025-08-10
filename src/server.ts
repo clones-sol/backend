@@ -48,6 +48,7 @@ app.use(cors({
   ],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
+    'Authorization',
     'X-Requested-With',
     'content-type',
     'auth-token',
