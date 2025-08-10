@@ -37,6 +37,9 @@ const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - token
+ *               - address
  *             properties:
  *               token:
  *                 type: string
@@ -47,15 +50,12 @@ const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
  *               signature:
  *                 type: string
  *                 description: A base64 encoded signature.
- *                 required: false
  *               timestamp:
  *                 type: number
  *                 description: The timestamp when the message was signed.
- *                 required: false
  *               referralCode:
  *                 type: string
  *                 description: A referral code.
- *                 required: false
  *     responses:
  *       200:
  *         description: Wallet connected successfully.
