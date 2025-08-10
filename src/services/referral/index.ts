@@ -148,10 +148,7 @@ export class ReferralService {
     referrerAddress: string,
     referreeAddress: string,
     referralCode: string,
-    referralLink: string,
-    firstActionType: string,
-    firstActionData?: any,
-    actionValue?: number
+    referralLink: string
   ): Promise<IReferral> {
     try {
       // Try to use transactions if available (replica set)
@@ -182,8 +179,6 @@ export class ReferralService {
             referreeAddress,
             referralCode: referralCode.toUpperCase(),
             referralLink,
-            firstActionType,
-            firstActionData,
             status: 'pending'
           }], { session });
 
@@ -197,28 +192,6 @@ export class ReferralService {
           return referral[0];
         });
 
-        // Process reward if action value is provided (outside transaction for reliability)
-        if (actionValue !== undefined) {
-          try {
-            const rewardEvent = await this.rewardService.processReward(
-              referrerAddress,
-              referreeAddress,
-              firstActionType,
-              actionValue
-            );
-
-            if (rewardEvent) {
-              // Update referral with reward information
-              await ReferralModel.findByIdAndUpdate(result._id, {
-                rewardAmount: rewardEvent.rewardAmount,
-                rewardProcessed: true
-              });
-            }
-          } catch (error) {
-            console.error('Failed to process reward:', error);
-            // Continue without reward processing
-          }
-        }
 
         return result;
 
@@ -233,10 +206,7 @@ export class ReferralService {
           referrerAddress,
           referreeAddress,
           referralCode,
-          referralLink,
-          firstActionType,
-          firstActionData,
-          actionValue
+          referralLink
         )
       );
     }
@@ -249,10 +219,7 @@ export class ReferralService {
     referrerAddress: string,
     referreeAddress: string,
     referralCode: string,
-    referralLink: string,
-    firstActionType: string,
-    firstActionData?: any,
-    actionValue?: number
+    referralLink: string
   ): Promise<IReferral> {
     // Check if referree has already been referred
     const existingReferral = await ReferralModel.findOne({ referreeAddress });
@@ -277,8 +244,6 @@ export class ReferralService {
       referreeAddress,
       referralCode: referralCode.toUpperCase(),
       referralLink,
-      firstActionType,
-      firstActionData,
       status: 'pending'
     });
 
@@ -287,29 +252,6 @@ export class ReferralService {
       { walletAddress: referrerAddress },
       { $inc: { totalReferrals: 1 } }
     );
-
-    // Process reward if action value is provided
-    if (actionValue !== undefined) {
-      try {
-        const rewardEvent = await this.rewardService.processReward(
-          referrerAddress,
-          referreeAddress,
-          firstActionType,
-          actionValue
-        );
-
-        if (rewardEvent) {
-          // Update referral with reward information
-          await ReferralModel.findByIdAndUpdate(referral._id, {
-            rewardAmount: rewardEvent.rewardAmount,
-            rewardProcessed: true
-          });
-        }
-      } catch (error) {
-        console.error('Failed to process reward:', error);
-        // Continue without reward processing
-      }
-    }
 
     return referral;
   }

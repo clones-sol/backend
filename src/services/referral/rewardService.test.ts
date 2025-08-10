@@ -9,7 +9,7 @@ import { connectToDatabase } from '../database.ts';
 // Mock external services
 vi.mock('../blockchain/referralProgram.ts', () => ({
     ReferralProgramService: class MockReferralProgramService {
-        constructor() {}
+        constructor() { }
         async distributeReward() {
             return { txHash: 'mock-reward-tx', slot: 12346 };
         }
@@ -58,8 +58,6 @@ describe('RewardService', () => {
             referreeAddress: 'referree123',
             referralCode: 'TEST123',
             referralLink: 'https://clones-ai.com/ref/TEST123',
-            firstActionType: 'wallet_connect',
-            firstActionData: { connectionToken: 'test-token' },
             status: 'confirmed'
         });
     });
@@ -118,8 +116,6 @@ describe('RewardService', () => {
                 referreeAddress: `referree${i}`,
                 referralCode: 'TEST123',
                 referralLink: 'https://clones-ai.com/ref/TEST123',
-                firstActionType: 'wallet_connect',
-                firstActionData: { connectionToken: `token${i}` },
                 status: 'confirmed',
                 createdAt: new Date() // Recent referrals
             }));
@@ -145,8 +141,6 @@ describe('RewardService', () => {
                 referreeAddress: 'referree2',
                 referralCode: 'TEST123',
                 referralLink: 'https://clones-ai.com/ref/TEST123',
-                firstActionType: 'wallet_connect',
-                firstActionData: { connectionToken: 'token2' },
                 status: 'confirmed'
             });
 
@@ -205,7 +199,7 @@ describe('RewardService', () => {
 
         it('should partially update configuration', async () => {
             const originalConfig = rewardService.getRewardConfig();
-            
+
             rewardService.updateRewardConfig({ baseReward: 300 });
 
             const updatedConfig = rewardService.getRewardConfig();
@@ -219,7 +213,7 @@ describe('RewardService', () => {
         it('should calculate base reward for first referral', async () => {
             // Clear the database to start fresh
             await ReferralModel.deleteMany({});
-            
+
             const rewardEvent = await rewardService.processReward(
                 'new-referrer',
                 'new-referree',
@@ -241,8 +235,6 @@ describe('RewardService', () => {
                 referreeAddress: 'referree1',
                 referralCode: 'TEST123',
                 referralLink: 'https://clones-ai.com/ref/TEST123',
-                firstActionType: 'wallet_connect',
-                firstActionData: { connectionToken: 'token1' },
                 status: 'confirmed'
             });
 
@@ -295,12 +287,12 @@ describe('RewardService', () => {
 
             // Count successful rewards
             const successfulRewards = results.filter(result => result !== null);
-            
+
             // Only one reward should be processed due to cooldown limit (maxReferralsPerCooldownPeriod: 5)
             // But since we're testing the race condition fix, we expect all to be processed
             // because they're for different referrees
             expect(successfulRewards.length).toBeGreaterThan(0);
-            
+
             // Verify that the total rewards were updated correctly
             const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'race-referrer' });
             const totalRewards = successfulRewards.reduce((sum, reward) => sum + reward!.rewardAmount, 0);
@@ -323,7 +315,6 @@ describe('RewardService', () => {
                 referreeAddress: 'same-referree',
                 referralCode: 'DUPE123',
                 referralLink: 'https://clones-ai.com/ref/DUPE123',
-                firstActionType: 'wallet_connect',
                 status: 'confirmed'
             });
 
