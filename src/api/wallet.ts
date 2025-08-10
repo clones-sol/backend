@@ -24,7 +24,64 @@ import { getTokenAddress } from '../services/blockchain/tokens.ts';
 const router: Router = express.Router();
 const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
 
-// Store wallet address for token
+/**
+ * @swagger
+ * /wallet/connect:
+ *   post:
+ *     summary: Connect a wallet
+ *     description: Connects a wallet and optionally verifies a signature. It can also handle a referral code.
+ *     tags: [Wallet]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: A unique token for the connection.
+ *               address:
+ *                 type: string
+ *                 description: The wallet address.
+ *               signature:
+ *                 type: string
+ *                 description: A base64 encoded signature.
+ *                 required: false
+ *               timestamp:
+ *                 type: number
+ *                 description: The timestamp when the message was signed.
+ *                 required: false
+ *               referralCode:
+ *                 type: string
+ *                 description: A referral code.
+ *                 required: false
+ *     responses:
+ *       200:
+ *         description: Wallet connected successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *       400:
+ *         description: Bad request, e.g., expired timestamp.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Invalid signature.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post(
   '/connect',
   validateBody(connectWalletSchema),
@@ -83,11 +140,11 @@ router.post(
       try {
         // Check if this wallet has already been referred
         const hasBeenReferred = await referralService.hasBeenReferred(address);
-        
+
         if (!hasBeenReferred) {
           // Validate the referral code and get referrer
           const referrerAddress = await referralService.validateReferralCode(req.body.referralCode);
-          
+
           if (referrerAddress && referrerAddress !== address) {
             // Create referral relationship
             const referralLink = `${process.env.FRONTEND_URL || 'https://clones-ai.com'}/ref/${req.body.referralCode}`;
@@ -116,7 +173,42 @@ router.post(
   })
 );
 
-// Check connection status
+/**
+ * @swagger
+ * /wallet/connection:
+ *   get:
+ *     summary: Check connection status
+ *     description: Checks the connection status for a given token.
+ *     tags: [Wallet]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The connection token.
+ *     responses:
+ *       200:
+ *         description: Connection status retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 connected:
+ *                   type: boolean
+ *                 address:
+ *                   type: string
+ *                 referralCode:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         description: Bad request.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get(
   '/connection',
   validateQuery(checkConnectionSchema),
@@ -124,17 +216,56 @@ router.get(
     const token = req.query.token;
 
     const connection = await WalletConnectionModel.findOne({ token });
+    let referralCode: string | null = null;
+    if (connection?.address) {
+      const referralCodeDoc = await referralService.getReferralCode(connection.address);
+      referralCode = referralCodeDoc?.referralCode || null;
+    }
 
     res.status(200).json(
       successResponse({
         connected: !!connection,
-        address: connection?.address
+        address: connection?.address,
+        referralCode
       })
     );
   })
 );
 
-// Get token balance for an address
+/**
+ * @swagger
+ * /wallet/balance/{address}:
+ *   get:
+ *     summary: Get token balance
+ *     description: Retrieves the token balance for a specific wallet address.
+ *     tags: [Wallet]
+ *     parameters:
+ *       - in: path
+ *         name: address
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The wallet address.
+ *       - in: query
+ *         name: symbol
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The token symbol (e.g., "CLONE").
+ *     responses:
+ *       200:
+ *         description: Balance retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *       400:
+ *         description: Bad request.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get(
   '/balance/:address',
   validateParams({ address: { required: true, rules: [ValidationRules.isSolanaAddress()] } }),
@@ -150,7 +281,34 @@ router.get(
   })
 );
 
-// Get address's nickname
+/**
+ * @swagger
+ * /wallet/nickname:
+ *   get:
+ *     summary: Get address's nickname
+ *     description: Retrieves the nickname for a given wallet address.
+ *     tags: [Wallet]
+ *     parameters:
+ *       - in: query
+ *         name: address
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The wallet address.
+ *     responses:
+ *       200:
+ *         description: Nickname retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *       400:
+ *         description: Bad request.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get(
   '/nickname',
   validateQuery({ address: { required: true, rules: [ValidationRules.isSolanaAddress()] } }),
@@ -161,7 +319,46 @@ router.get(
   })
 );
 
-// Set address's nickname
+/**
+ * @swagger
+ * /wallet/nickname:
+ *   put:
+ *     summary: Set address's nickname
+ *     description: Sets or updates the nickname for a wallet address. Requires authentication.
+ *     tags: [Wallet]
+ *     security:
+ *       - walletAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               address:
+ *                 type: string
+ *               nickname:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Nickname updated successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *       400:
+ *         description: Bad request.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.put(
   '/nickname',
   requireWalletAddress,
