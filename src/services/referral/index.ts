@@ -73,7 +73,7 @@ export class ReferralService {
 
       } catch (error: any) {
         lastError = error;
-        
+
         // Check if this is a duplicate key error (MongoDB error code 11000)
         if (error.code === 11000) {
           // Check if it's a duplicate wallet address (user already has a code)
@@ -84,13 +84,13 @@ export class ReferralService {
               return existingCode.referralCode;
             }
           }
-          
+
           // This is a collision - the generated code already exists
           // We'll retry with a new code on the next iteration
           console.warn(`Referral code collision detected on attempt ${attempt + 1}, retrying...`);
           continue;
         }
-        
+
         // For any other error, throw it immediately
         throw error;
       }
@@ -104,18 +104,18 @@ export class ReferralService {
    * Get referral code for a wallet address
    */
   async getReferralCode(walletAddress: string): Promise<IReferralCode | null> {
-    return await ReferralCodeModel.findOne({ walletAddress });
+    return await ReferralCodeModel.findOne({ walletAddress, isActive: true });
   }
 
   /**
    * Validate a referral code and get the referrer's wallet address
    */
   async validateReferralCode(referralCode: string): Promise<string | null> {
-    const codeRecord = await ReferralCodeModel.findOne({ 
+    const codeRecord = await ReferralCodeModel.findOne({
       referralCode: referralCode.toUpperCase(),
-      isActive: true 
+      isActive: true
     });
-    
+
     if (!codeRecord) {
       return null;
     }
@@ -126,7 +126,7 @@ export class ReferralService {
       await ReferralCodeModel.findByIdAndUpdate(codeRecord._id, { isActive: false });
       return null;
     }
-    
+
     return codeRecord.walletAddress;
   }
 
@@ -145,7 +145,7 @@ export class ReferralService {
     try {
       // Try to use transactions if available (replica set)
       const session = await mongoose.startSession();
-      
+
       try {
         const result = await session.withTransaction(async () => {
           // Check if referree has already been referred (atomic within transaction)
@@ -195,7 +195,7 @@ export class ReferralService {
               firstActionType,
               actionValue
             );
-            
+
             if (rewardEvent) {
               // Update referral with reward information
               await ReferralModel.findByIdAndUpdate(result._id, {
@@ -286,7 +286,7 @@ export class ReferralService {
           firstActionType,
           actionValue
         );
-        
+
         if (rewardEvent) {
           // Update referral with reward information
           await ReferralModel.findByIdAndUpdate(referral._id, {
@@ -351,7 +351,7 @@ export class ReferralService {
     referrals: IReferral[];
   }> {
     const referralCode = await this.getReferralCode(walletAddress);
-    const referrals = await ReferralModel.find({ 
+    const referrals = await ReferralModel.find({
       referrerAddress: walletAddress,
       status: 'confirmed'
     }).sort({ createdAt: -1 });
