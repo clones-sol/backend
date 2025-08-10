@@ -89,7 +89,8 @@ const options: swaggerJsdoc.Options = {
     // Path to the API docs files
     apis: [
         path.join(__dirname, './src/api/forge/agents/*.ts'),
-        path.join(__dirname, './src/api/referral.ts')
+        path.join(__dirname, './src/api/referral.ts'),
+        path.join(__dirname, './src/api/wallet.ts')
     ],
 };
 
