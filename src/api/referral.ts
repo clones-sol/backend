@@ -15,6 +15,7 @@ import {
   regenerateCodeSchema,
   walletAddressParamSchema
 } from './schemas/referral.ts';
+import { requireWalletAddress } from '../middleware/auth.ts';
 
 const router = express.Router();
 
@@ -97,6 +98,10 @@ const adminRateLimiter = rateLimit({
  *                           type: string
  *                           description: The wallet address the code was generated for
  *                           example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
+ *                         createdAt:
+ *                           type: string
+ *                           format: date-time
+ *                           description: The date and time the code was created
  *       400:
  *         description: Invalid wallet address
  *         content:
@@ -107,23 +112,33 @@ const adminRateLimiter = rateLimit({
  *         description: Too many requests
  *       500:
  *         description: Internal server error
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
  */
 // Generate referral code for a wallet
 router.post(
   '/generate-code',
-  sensitiveRateLimiter, // Sensitive operation - generating codes
+  sensitiveRateLimiter,
+  requireWalletAddress,
   validateBody(generateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.body;
+    //@ts-ignore
+    if (req.walletAddress !== walletAddress) {
+      throw ApiError.forbidden('You can only generate a referral code for your own wallet.');
+    }
 
-    const referralCode = await referralService.generateReferralCode(walletAddress);
-    const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCode}`;
-
-    return res.status(200).json(successResponse({
-      referralCode,
-      referralLink,
-      walletAddress
-    }));
+    const referralCodeData = await referralService.generateReferralCode(walletAddress);
+    const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCodeData.referralCode
+      }`;
+    res.status(200).json(
+      successResponse({
+        referralCode: referralCodeData.referralCode,
+        createdAt: referralCodeData.createdAt,
+        referralLink,
+        walletAddress
+      })
+    );
   })
 );
 
@@ -201,7 +216,7 @@ router.get(
     const { walletAddress } = req.params;
 
     const referralCode = await referralService.getReferralCode(walletAddress);
-    
+
     if (!referralCode) {
       throw ApiError.notFound('Referral code not found for this wallet');
     }
@@ -286,7 +301,7 @@ router.post(
     const { referralCode } = req.body;
 
     const referrerAddress = await referralService.validateReferralCode(referralCode);
-    
+
     if (!referrerAddress) {
       throw ApiError.badRequest('Invalid referral code');
     }
@@ -402,18 +417,18 @@ router.post(
   sensitiveRateLimiter, // Sensitive operation - creating referrals
   validateBody(createReferralSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { 
-      referrerAddress, 
-      referreeAddress, 
-      referralCode, 
-      firstActionType, 
+    const {
+      referrerAddress,
+      referreeAddress,
+      referralCode,
+      firstActionType,
       firstActionData,
-      actionValue 
+      actionValue
     } = req.body;
 
     // Generate referral link
     const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCode}`;
-    
+
     const referral = await referralService.createReferral(
       referrerAddress,
       referreeAddress,
@@ -429,7 +444,7 @@ router.post(
       console.error('Referral creation failed: Missing _id');
       throw ApiError.internalError('Failed to create referral: Missing _id');
     }
-    
+
     // Queue on-chain storage with retry mechanism
     referralService.storeReferralOnChain(referral._id.toString())
       .catch(error => {
@@ -645,7 +660,7 @@ router.get(
     const { walletAddress } = req.params;
 
     const referrer = await referralService.getReferrer(walletAddress);
-    
+
     if (!referrer) {
       throw ApiError.notFound('No referrer found for this wallet');
     }
@@ -720,7 +735,7 @@ router.get(
       maxReferrals: config.maxReferrals,
       minActionValue: config.minActionValue,
       cooldownPeriod: config.cooldownPeriod,
-              maxReferralsPerCooldownPeriod: config.maxReferralsPerCooldownPeriod
+      maxReferralsPerCooldownPeriod: config.maxReferralsPerCooldownPeriod
     }));
   })
 );
@@ -875,7 +890,7 @@ router.post(
       maxReferrals,
       minActionValue,
       cooldownPeriod,
-              maxReferralsPerCooldownPeriod
+      maxReferralsPerCooldownPeriod
     });
 
     return res.status(200).json(successResponse({
@@ -1025,11 +1040,11 @@ router.post(
   sensitiveRateLimiter, // Sensitive operation - processing rewards
   validateBody(processRewardSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { 
-      referrerAddress, 
-      referreeAddress, 
-      actionType, 
-      actionValue 
+    const {
+      referrerAddress,
+      referreeAddress,
+      actionType,
+      actionValue
     } = req.body;
 
     const rewardEvent = await referralService.processReward(
