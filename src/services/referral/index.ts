@@ -35,11 +35,16 @@ export class ReferralService {
   /**
    * Generate a unique referral code for a wallet address
    */
-  async generateReferralCode(walletAddress: string): Promise<string> {
+  async generateReferralCode(
+    walletAddress: string
+  ): Promise<{ referralCode: string; createdAt: Date }> {
     // Check if user already has a referral code
     const existingCode = await ReferralCodeModel.findOne({ walletAddress });
     if (existingCode) {
-      return existingCode.referralCode;
+      return {
+        referralCode: existingCode.referralCode,
+        createdAt: existingCode.createdAt
+      };
     }
 
     // Generate a unique 6-character alphanumeric referral code with collision handling
@@ -59,7 +64,7 @@ export class ReferralService {
 
         // Attempt to create the referral code record
         // This will fail with a duplicate key error if the code already exists
-        await ReferralCodeModel.create({
+        const newCode = await ReferralCodeModel.create({
           walletAddress,
           referralCode,
           isActive: true,
@@ -69,7 +74,10 @@ export class ReferralService {
         });
 
         // If we get here, the code was successfully created
-        return referralCode;
+        return {
+          referralCode: newCode.referralCode,
+          createdAt: newCode.createdAt
+        };
 
       } catch (error: any) {
         lastError = error;
@@ -81,7 +89,10 @@ export class ReferralService {
             // User already has a referral code, fetch and return it
             const existingCode = await ReferralCodeModel.findOne({ walletAddress });
             if (existingCode) {
-              return existingCode.referralCode;
+              return {
+                referralCode: existingCode.referralCode,
+                createdAt: existingCode.createdAt
+              };
             }
           }
 
