@@ -14,15 +14,11 @@ declare namespace NodeJS {
 
     // Blockchain Configuration
     RPC_URL: string;
-    IPC_SECRET: string;
     REWARD_POOL_PROGRAM_ID: string;
     PLATFORM_AUTHORITY_KEYPAIR_PATH: string;
 
     // GYM Configuration
     GYM_FORGE_WEBHOOK: string;
-
-    // Authentication & Security
-    AX_PARSER_SECRET: string;
 
     // AWS Configuration
     AWS_ACCESS_KEY: string;

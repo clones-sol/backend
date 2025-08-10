@@ -197,6 +197,7 @@ router.get(
 
     // Round time down to last minute
     const currentTime = Math.floor(Date.now() / 60000) * 60000;
+    // TODO: Review this code
     // Create hash using poolId + address + time + secret
     // const hash = createHash('sha256')
     //   .update(`${poolId}${address}${currentTime}${process.env.IPC_SECRET}`)

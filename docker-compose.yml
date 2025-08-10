@@ -65,9 +65,6 @@ services:
     environment:
       - DB_URI=${DB_URI}
       - RPC_URL=https://api.devnet.solana.com/
-      - IPC_SECRET=
-      - GYM_SECRET=
-      - AX_PARSER_SECRET=
       - FEEDBACK_WEBHOOK=
       - GYM_TREASURY_WEBHOOK=
       - STORAGE_ACCESS_KEY=test
