@@ -1,4 +1,5 @@
 import { ValidationSchema, ValidationRules } from '../../middleware/validator.ts';
+import { ContentFilterService } from '../../services/validation/contentFilter.ts';
 
 /**
  * Schema for generating referral code
@@ -6,7 +7,11 @@ import { ValidationSchema, ValidationRules } from '../../middleware/validator.ts
 export const generateCodeSchema: ValidationSchema = {
   walletAddress: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.isSolanaAddress()]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.isSolanaAddress()
+    ]
   }
 };
 
@@ -16,7 +21,15 @@ export const generateCodeSchema: ValidationSchema = {
 export const validateCodeSchema: ValidationSchema = {
   referralCode: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1), ValidationRules.maxLength(20)]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.isReferralCode(),
+      ValidationRules.customValidator(
+        async (value: string) => await ContentFilterService.isReferralCodeAcceptable(value),
+        'Referral code contains inappropriate content'
+      )
+    ]
   }
 };
 
@@ -26,11 +39,22 @@ export const validateCodeSchema: ValidationSchema = {
 export const applyReferrerCodeSchema: ValidationSchema = {
   referreeAddress: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.isSolanaAddress()]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.isSolanaAddress()
+    ]
   },
   referralCode: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1), ValidationRules.maxLength(20)]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.customValidator(
+        async (value: string) => await ContentFilterService.isReferralCodeAcceptable(value),
+        'Referral code contains inappropriate content'
+      )
+    ]
   }
 };
 
@@ -40,11 +64,20 @@ export const applyReferrerCodeSchema: ValidationSchema = {
 export const extendExpirationSchema: ValidationSchema = {
   walletAddress: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.isSolanaAddress()]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.isSolanaAddress()
+    ]
   },
   extensionDays: {
     required: false,
-    rules: [ValidationRules.isNumber(), ValidationRules.min(1), ValidationRules.max(365)]
+    rules: [
+      ValidationRules.isNumber(),
+      ValidationRules.min(1),
+      ValidationRules.max(365),
+      ValidationRules.isInteger()
+    ]
   }
 };
 
@@ -54,7 +87,11 @@ export const extendExpirationSchema: ValidationSchema = {
 export const regenerateCodeSchema: ValidationSchema = {
   walletAddress: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.isSolanaAddress()]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.isSolanaAddress()
+    ]
   }
 };
 
@@ -64,6 +101,10 @@ export const regenerateCodeSchema: ValidationSchema = {
 export const walletAddressParamSchema: ValidationSchema = {
   walletAddress: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.isSolanaAddress()]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.isSolanaAddress()
+    ]
   }
 }; 

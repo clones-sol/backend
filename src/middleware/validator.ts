@@ -135,12 +135,45 @@ export const ValidationRules = {
     message: `Must be at most ${max}`
   }),
 
-  pattern: (regex: RegExp, customMessage?: string): ValidationRule => ({
+  matches: (regex: RegExp, customMessage?: string): ValidationRule => ({
     validate: (value) => {
       if (typeof value !== 'string') return false;
       return regex.test(value);
     },
     message: customMessage || 'Invalid format'
+  }),
+
+  notIn: (values: any[], customMessage?: string): ValidationRule => ({
+    validate: (value) => !values.includes(value),
+    message: customMessage || `Value not allowed`
+  }),
+
+  customValidator: (validateFn: ((value: any) => boolean) | ((value: any) => Promise<boolean>), message: string): ValidationRule => ({
+    validate: validateFn,
+    message
+  }),
+
+  sanitizeString: (): ValidationRule => ({
+    validate: () => true, // Always valid, just transforms
+    message: 'String sanitization',
+    transform: (value) => {
+      if (typeof value !== 'string') return value;
+      // Remove potentially dangerous characters
+      return value
+        .replace(/[<>"'&]/g, '') // Remove HTML/XML chars
+        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control chars
+        .trim()
+        .substring(0, 1000); // Limit length
+    }
+  }),
+
+  isReferralCode: (): ValidationRule => ({
+    validate: (value) => {
+      if (typeof value !== 'string') return false;
+      // Exact format: 6 uppercase alphanumeric characters, excluding confusing ones (O, 0, I, L)
+      return /^[A-HJKMNP-Z2-9]{6}$/.test(value);
+    },
+    message: 'Must be a valid 6-character referral code (cannot contain O, 0, I, L)'
   }),
 
   isImageUrl: (): ValidationRule => ({
@@ -160,6 +193,10 @@ export const ValidationRules = {
   isSolanaAddress: (): ValidationRule => ({
     validate: async (value) => {
       try {
+        if (typeof value !== 'string') return false;
+        // Basic format check first
+        if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) return false;
+
         const pubKey = new PublicKey(value);
         return await PublicKey.isOnCurve(pubKey);
       } catch (error) {

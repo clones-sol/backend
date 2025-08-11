@@ -322,7 +322,7 @@ router.get(
 router.put(
     '/:id',
     requireWalletAddress,
-    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateParams({ id: { required: true, rules: [ValidationRules.matches(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     validateBody(updateAgentSchema),
     requireAgentOwnership,
     errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
@@ -455,7 +455,7 @@ router.put(
 router.get(
     '/pool/:pool_id',
     requireWalletAddress,
-    validateParams({ pool_id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateParams({ pool_id: { required: true, rules: [ValidationRules.matches(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const ownerAddress = req.walletAddress!;
         const { pool_id } = req.params;

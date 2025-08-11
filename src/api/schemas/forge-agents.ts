@@ -15,7 +15,7 @@ export const createAgentSchema: ValidationSchema = {
             ValidationRules.isString(),
             ValidationRules.minLength(3),
             ValidationRules.maxLength(10),
-            ValidationRules.pattern(/^[A-Z0-9]+$/, 'must contain only uppercase letters and numbers.')
+            ValidationRules.matches(/^[A-Z0-9]+$/, 'must contain only uppercase letters and numbers.')
         ]
     },
     description: {
@@ -52,7 +52,7 @@ export const createAgentSchema: ValidationSchema = {
     },
     'deployment.customUrl': {
         required: false,
-        rules: [ValidationRules.isString(), ValidationRules.pattern(/^https?:\/\//i, 'must be a valid URL.')]
+        rules: [ValidationRules.isString(), ValidationRules.matches(/^https?:\/\//i, 'must be a valid URL.')]
     },
     'deployment.huggingFaceApiKey': {
         required: false,
@@ -99,7 +99,7 @@ export const updateAgentSchema: ValidationSchema = {
     },
     'deployment.customUrl': {
         required: false,
-        rules: [ValidationRules.isString(), ValidationRules.pattern(/^https?:\/\//i, 'must be a valid URL.')]
+        rules: [ValidationRules.isString(), ValidationRules.matches(/^https?:\/\//i, 'must be a valid URL.')]
     },
     'deployment.huggingFaceApiKey': {
         required: false,
@@ -139,7 +139,7 @@ export const agentVersionSchema: ValidationSchema = {
     },
     customUrl: {
         required: false,
-        rules: [ValidationRules.isString(), ValidationRules.pattern(/^https?:\/\//i, 'must be a valid URL.')]
+        rules: [ValidationRules.isString(), ValidationRules.matches(/^https?:\/\//i, 'must be a valid URL.')]
     },
     huggingFaceApiKey: {
         required: false,

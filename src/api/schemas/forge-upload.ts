@@ -32,7 +32,7 @@ export const uploadChunkSchema: ValidationSchema = {
     required: true,
     rules: [
       ValidationRules.isString(),
-      ValidationRules.pattern(/^[a-f0-9]{64}$/i, 'Must be a valid SHA-256 hash (64 hex characters)')
+      ValidationRules.matches(/^[a-f0-9]{64}$/i, 'Must be a valid SHA-256 hash (64 hex characters)')
     ]
   }
 };
