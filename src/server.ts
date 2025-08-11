@@ -63,6 +63,7 @@ app.use(cors({
 }));
 
 app.disable('x-powered-by');
+// TODO(reddwarf03): The trust proxy setting 'loopback, linklocal, uniquelocal' may be too permissive for production environments. Consider using a more specific configuration based on your actual proxy setup.
 app.set('trust proxy', 'loopback, linklocal, uniquelocal');
 
 // Serve static files from public directory

@@ -7,7 +7,7 @@ export interface IReferral {
   onChainTxHash?: string; // Transaction hash when stored on-chain
   onChainSlot?: number; // Solana slot when stored on-chain
   createdAt: Date;
-  updatedAt: Date | null;
+  updatedAt?: Date;
 }
 
 const ReferralSchema = new mongoose.Schema<IReferral>(
