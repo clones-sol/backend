@@ -1,5 +1,6 @@
 import { ValidationRules, ValidationSchema } from '../../middleware/validator.ts';
 import { ConnectBody } from '../../types/index.ts';
+import { ContentFilterService } from '../../services/validation/contentFilter.ts';
 
 /**
  * Schema for wallet connection request
@@ -7,23 +8,57 @@ import { ConnectBody } from '../../types/index.ts';
 export const connectWalletSchema: ValidationSchema = {
   token: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.minLength(8),
+      ValidationRules.maxLength(256),
+      ValidationRules.matches(/^[a-zA-Z0-9_-]+$/, 'Token must contain only alphanumeric characters, underscores and hyphens')
+    ]
   },
   address: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.isSolanaAddress()]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.isSolanaAddress()
+    ]
   },
   signature: {
     required: false,
-    rules: [ValidationRules.isString()]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.matches(/^[A-Za-z0-9+/=]+$/, 'Invalid base64 signature format')
+    ]
   },
   timestamp: {
     required: false,
-    rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
+    rules: [
+      ValidationRules.isNumber(),
+      ValidationRules.min(0),
+      ValidationRules.customValidator(
+        (value: number) => {
+          const now = Date.now();
+          const fiveMinutesAgo = now - (5 * 60 * 1000);
+          const oneHourFromNow = now + (60 * 60 * 1000);
+          return value >= fiveMinutesAgo && value <= oneHourFromNow;
+        },
+        'Timestamp must be within valid time range'
+      )
+    ]
   },
   referralCode: {
     required: false,
-    rules: [ValidationRules.isString(), ValidationRules.maxLength(20)]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.isReferralCode(),
+      ValidationRules.customValidator(
+        async (value: string) => await ContentFilterService.isReferralCodeAcceptable(value),
+        'Referral code contains inappropriate content'
+      )
+    ]
   }
 };
 
@@ -33,10 +68,23 @@ export const connectWalletSchema: ValidationSchema = {
 export const checkConnectionSchema: ValidationSchema = {
   token: {
     required: true,
-    rules: [ValidationRules.isString()]
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.minLength(8),
+      ValidationRules.maxLength(256)
+    ]
   }
 };
 
-export const getBalanceSchema = {
-  symbol: { required: true, rules: [ValidationRules.isString()] }
+export const getBalanceSchema: ValidationSchema = {
+  symbol: {
+    required: true,
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.matches(/^[A-Z]{2,10}$/, 'Symbol must be 2-10 uppercase letters'),
+      ValidationRules.isIn(['SOL', 'CLONE', 'USDC', 'USDT'], 'Unsupported token symbol')
+    ]
+  }
 };

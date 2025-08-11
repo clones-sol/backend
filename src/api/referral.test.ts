@@ -58,6 +58,14 @@ vi.mock('../services/referral/cleanupService.ts', () => ({
     }
 }));
 
+vi.mock('../services/validation/contentFilter.ts', () => ({
+    ContentFilterService: class MockContentFilterService {
+        static async isReferralCodeAcceptable(code: string) {
+            return !code.includes('BANNED');
+        }
+    }
+}));
+
 // Mock admin authentication
 vi.mock('../middleware/auth.ts', () => ({
     requireAdminAuth: (req: Request, res: Response, next: NextFunction) => {
@@ -83,7 +91,7 @@ vi.mock('../services/referral/index.ts', () => ({
         async generateReferralCode(walletAddress: string) {
             // Return different codes based on wallet address
             if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
-                return { referralCode: 'TEST123', createdAt: new Date() };
+                return { referralCode: 'TESTCD', createdAt: new Date() };
             }
             return { referralCode: 'ABCDEF', createdAt: new Date() };
         }
@@ -91,7 +99,7 @@ vi.mock('../services/referral/index.ts', () => ({
             if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
                 return {
                     walletAddress,
-                    referralCode: 'TEST123',
+                    referralCode: 'TESTCD',
                     isActive: true,
                     totalRewards: 0,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
@@ -100,7 +108,7 @@ vi.mock('../services/referral/index.ts', () => ({
             if (walletAddress === 'REFERRER_WALLET_ADDRESS') {
                 return {
                     walletAddress,
-                    referralCode: 'REFERRER1',
+                    referralCode: 'REFRAB',
                     isActive: true,
                     totalRewards: 10,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
@@ -109,7 +117,7 @@ vi.mock('../services/referral/index.ts', () => ({
             if (walletAddress === '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49') {
                 return {
                     walletAddress,
-                    referralCode: 'TEST456',
+                    referralCode: 'TESTBC',
                     isActive: true,
                     totalRewards: 0,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
@@ -127,7 +135,7 @@ vi.mock('../services/referral/index.ts', () => ({
             return null;
         }
         async validateReferralCode(referralCode: string) {
-            if (referralCode === 'TEST123' || referralCode === 'test123') {
+            if (referralCode === 'TESTCD' || referralCode === 'testcd') {
                 return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
             }
             return null;
@@ -149,7 +157,7 @@ vi.mock('../services/referral/index.ts', () => ({
                 return {
                     totalReferrals: 0,
                     totalRewards: 0,
-                    referralCode: 'TEST123',
+                    referralCode: 'TESTCD',
                     referrals: []
                 };
             }
@@ -169,13 +177,13 @@ vi.mock('../services/referral/index.ts', () => ({
             if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
                 return {
                     walletAddress: 'REFERRER_WALLET_ADDRESS',
-                    referralCode: 'REFERRER1'
+                    referralCode: 'REFRAB'
                 };
             }
             if (walletAddress === '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49') {
                 return {
                     walletAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
-                    referralCode: 'TEST123'
+                    referralCode: 'TESTCD'
                 };
             }
             return null;
@@ -241,7 +249,7 @@ vi.mock('../services/referral/index.ts', () => ({
     referralService: {
         generateReferralCode: async (walletAddress: string) => {
             if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
-                return { referralCode: 'TEST123', createdAt: new Date() };
+                return { referralCode: 'TESTCD', createdAt: new Date() };
             }
             return { referralCode: 'ABCDEF', createdAt: new Date() };
         },
@@ -249,7 +257,7 @@ vi.mock('../services/referral/index.ts', () => ({
             if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
                 return {
                     walletAddress,
-                    referralCode: 'TEST123',
+                    referralCode: 'TESTCD',
                     isActive: true,
                     totalRewards: 0,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
@@ -258,7 +266,7 @@ vi.mock('../services/referral/index.ts', () => ({
             if (walletAddress === 'REFERRER_WALLET_ADDRESS') {
                 return {
                     walletAddress,
-                    referralCode: 'REFERRER1',
+                    referralCode: 'REFRAB',
                     isActive: true,
                     totalRewards: 10,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
@@ -267,7 +275,7 @@ vi.mock('../services/referral/index.ts', () => ({
             if (walletAddress === '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49') {
                 return {
                     walletAddress,
-                    referralCode: 'TEST456',
+                    referralCode: 'TESTBC',
                     isActive: true,
                     totalRewards: 0,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
@@ -285,21 +293,24 @@ vi.mock('../services/referral/index.ts', () => ({
             return null;
         },
         validateReferralCode: async (referralCode: string) => {
-            if (referralCode === 'TEST123' || referralCode === 'test123') {
+            if (referralCode === 'TESTCD' || referralCode === 'testcd') {
                 return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
+            }
+            if (referralCode === 'TESTAB' || referralCode === 'testab') {
+                return '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49';
             }
             return null;
         },
         createReferral: async (referrerAddress: string, referreeAddress: string, referralCode: string, referralLink: string) => {
             // Validate referral code
-            if (referralCode !== 'TEST123' && referralCode !== 'test123') {
+            if (referralCode !== 'TESTAB' && referralCode !== 'testab') {
                 const { ApiError } = await import('../middleware/types/errors.ts');
-                throw ApiError.badRequest('Invalid referral code');
+                throw ApiError.badRequest('Invalid or expired referral code.');
             }
 
             return {
                 _id: 'mock-referral-id',
-                referrerAddress,
+                referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
                 referreeAddress,
                 createdAt: new Date(),
                 updatedAt: null
@@ -313,7 +324,7 @@ vi.mock('../services/referral/index.ts', () => ({
                 return {
                     totalReferrals: 0,
                     totalRewards: 0,
-                    referralCode: 'TEST123',
+                    referralCode: 'TESTCD',
                     referrals: []
                 };
             }
@@ -333,13 +344,13 @@ vi.mock('../services/referral/index.ts', () => ({
             if (walletAddress === TEST_WALLETS.referree) {
                 return {
                     walletAddress: TEST_WALLETS.referrer,
-                    referralCode: 'TEST123'
+                    referralCode: 'TESTCD'
                 };
             }
             if (walletAddress === TEST_WALLETS.referrer) {
                 return {
                     walletAddress: 'REFERRER_WALLET_ADDRESS',
-                    referralCode: 'REFERRER1'
+                    referralCode: 'REFRAB'
                 };
             }
             return null;
@@ -440,7 +451,7 @@ describe('Referral API', () => {
         // Create test data
         testReferralCode = await ReferralCodeModel.create({
             walletAddress: TEST_WALLETS.referrer,
-            referralCode: 'TEST123',
+            referralCode: 'TESTCD',
             isActive: true,
             totalReferrals: 0,
             totalRewards: 0,
@@ -480,7 +491,7 @@ describe('Referral API', () => {
                 .expect(200);
 
             expect(response.body.success).toBe(true);
-            expect(response.body.data.referralCode).toBe('TEST123');
+            expect(response.body.data.referralCode).toBe('TESTCD');
             expect(response.body.data.walletAddress).toBe(TEST_WALLETS.referrer);
         });
 
@@ -502,7 +513,7 @@ describe('Referral API', () => {
                 .expect(200);
 
             expect(response.body.success).toBe(true);
-            expect(response.body.data.referralCode).toBe('TEST123');
+            expect(response.body.data.referralCode).toBe('TESTCD');
             expect(response.body.data.walletAddress).toBe(TEST_WALLETS.referrer);
             expect(response.body.data.totalReferrals).toBe(1);
             expect(response.body.data.totalRewards).toBe(0);
@@ -515,11 +526,11 @@ describe('Referral API', () => {
                 .expect(200);
 
             expect(response.body.success).toBe(true);
-            expect(response.body.data.referralCode).toBe('TEST123');
+            expect(response.body.data.referralCode).toBe('TESTCD');
             expect(response.body.data.walletAddress).toBe(TEST_WALLETS.referrer);
             expect(response.body.data.referrer).toBeDefined();
             expect(response.body.data.referrer.walletAddress).toBe('REFERRER_WALLET_ADDRESS');
-            expect(response.body.data.referrer.referralCode).toBe('REFERRER1');
+            expect(response.body.data.referrer.referralCode).toBe('REFRAB');
         });
 
         it('should return referral code for existing wallet without referrer info', async () => {
@@ -544,7 +555,7 @@ describe('Referral API', () => {
         it('should create referral relationship successfully', async () => {
             const referralData = {
                 referreeAddress: TEST_WALLETS.newWallet,
-                referralCode: 'TEST123'
+                referralCode: 'TESTAB'
             };
 
             const response = await supertest(app)
@@ -572,7 +583,7 @@ describe('Referral API', () => {
         it('should fail with 400 for invalid referral code', async () => {
             const referralData = {
                 referreeAddress: TEST_WALLETS.newWallet,
-                referralCode: 'INVALID'
+                referralCode: 'INVALD' // Valid format but non-existent code
             };
 
             const response = await supertest(app)
@@ -585,8 +596,8 @@ describe('Referral API', () => {
 
         it('should fail with 400 when user tries to refer themselves', async () => {
             const referralData = {
-                referreeAddress: TEST_WALLETS.referrer, // Same as the owner of TEST123
-                referralCode: 'TEST123'
+                referreeAddress: TEST_WALLETS.referrer, // Same as the owner of TESTCD
+                referralCode: 'TESTCD'
             };
 
             const response = await supertest(app)
@@ -607,7 +618,7 @@ describe('Referral API', () => {
             expect(response.body.success).toBe(true);
             expect(response.body.data.totalReferrals).toBe(0);
             expect(response.body.data.totalRewards).toBe(0);
-            expect(response.body.data.referralCode).toBe('TEST123');
+            expect(response.body.data.referralCode).toBe('TESTCD');
             expect(response.body.data.referrals).toBeInstanceOf(Array);
         });
 
@@ -656,7 +667,7 @@ describe('Referral API', () => {
 
             expect(response.body.success).toBe(true);
             expect(response.body.data.referrer.walletAddress).toBe(TEST_WALLETS.referrer);
-            expect(response.body.data.referrer.referralCode).toBe('TEST123');
+            expect(response.body.data.referrer.referralCode).toBe('TESTCD');
         });
 
         it('should fail with 404 for unreferred wallet', async () => {

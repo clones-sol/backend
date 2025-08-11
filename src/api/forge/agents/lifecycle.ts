@@ -50,7 +50,7 @@ const router: Router = express.Router();
 router.post(
     '/:id/deploy',
     requireWalletAddress,
-    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateParams({ id: { required: true, rules: [ValidationRules.matches(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     requireAgentOwnership,
     errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;
@@ -101,7 +101,7 @@ router.post(
 router.post(
     '/:id/cancel',
     requireWalletAddress,
-    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateParams({ id: { required: true, rules: [ValidationRules.matches(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     requireAgentOwnership,
     errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;
@@ -159,7 +159,7 @@ router.post(
 router.route('/:id/status')
     .patch(
         requireWalletAddress,
-        validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+        validateParams({ id: { required: true, rules: [ValidationRules.matches(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
         validateBody(updateAgentStatusSchema),
         requireAgentOwnership,
         errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
@@ -216,7 +216,7 @@ router.route('/:id/status')
 router.delete(
     '/:id',
     requireWalletAddress,
-    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateParams({ id: { required: true, rules: [ValidationRules.matches(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     requireAgentOwnership,
     errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;
@@ -268,7 +268,7 @@ router.delete(
 router.post(
     '/:id/retry-deployment',
     requireWalletAddress,
-    validateParams({ id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
+    validateParams({ id: { required: true, rules: [ValidationRules.matches(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] } }),
     requireAgentOwnership,
     errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
         const { agent } = req;

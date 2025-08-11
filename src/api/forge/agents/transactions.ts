@@ -112,7 +112,7 @@ router.get(
     '/:id/transactions/:type',
     requireWalletAddress,
     validateParams({
-        id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] },
+        id: { required: true, rules: [ValidationRules.matches(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] },
         type: { required: true, rules: [ValidationRules.isIn(['token-creation', 'pool-creation'])] }
     }),
     requireAgentOwnership,
@@ -353,7 +353,7 @@ router.post(
     '/:id/submit-tx/:type',
     requireWalletAddress,
     validateParams({
-        id: { required: true, rules: [ValidationRules.pattern(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] },
+        id: { required: true, rules: [ValidationRules.matches(/^[a-f\d]{24}$/i, 'must be a valid MongoDB ObjectId')] },
         type: { required: true, rules: [ValidationRules.isIn(['token-creation', 'pool-creation'])] }
     }),
     validateBody(submitTxSchema),

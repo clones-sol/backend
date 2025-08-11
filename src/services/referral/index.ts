@@ -6,6 +6,7 @@ import { REFERRAL_CODE_CHARS, REFERRAL_CODE_LENGTH, MAX_REFERRAL_CODE_ATTEMPTS }
 import { ApiError } from '../../middleware/types/errors.ts';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
+import { ContentFilterService } from '../validation/contentFilter.ts';
 
 export class ReferralService {
   private cleanupService: ReferralCleanupService;
@@ -42,6 +43,13 @@ export class ReferralService {
         const randomBytes = crypto.randomBytes(REFERRAL_CODE_LENGTH);
         for (let i = 0; i < REFERRAL_CODE_LENGTH; i++) {
           referralCode += chars.charAt(randomBytes[i] % chars.length);
+        }
+
+        // Validate the generated code against the content filter
+        if (!(await ContentFilterService.isReferralCodeAcceptable(referralCode))) {
+          console.warn(`Generated referral code "${referralCode}" is not acceptable. Retrying...`);
+          lastError = new Error('Generated code failed content filter.');
+          continue; // Retry with a new code
         }
 
         // Attempt to create the referral code record
@@ -104,11 +112,17 @@ export class ReferralService {
    */
   async validateReferralCode(referralCode: string): Promise<string | null> {
     const codeRecord = await ReferralCodeModel.findOne({
-      referralCode: referralCode.toUpperCase(),
+      referralCode: { $regex: new RegExp(`^${referralCode}$`, 'i') }, // Case-insensitive
       isActive: true
-    });
+    }).lean();
 
     if (!codeRecord) {
+      return null;
+    }
+
+    // Check content filter on validation, just in case a code was created before the filter was in place
+    if (!(await ContentFilterService.isReferralCodeAcceptable(referralCode))) {
+      console.warn(`Attempt to use unacceptable referral code "${referralCode}".`);
       return null;
     }
 
