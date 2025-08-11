@@ -9,7 +9,7 @@ import { DEFAULT_FRONTEND_URL } from '../constants/referral.ts';
 import {
   generateCodeSchema,
   validateCodeSchema,
-  createReferralSchema,
+  applySponsorCodeSchema,
   processRewardSchema,
   extendExpirationSchema,
   regenerateCodeSchema,
@@ -319,10 +319,10 @@ router.post(
 
 /**
  * @swagger
- * /referral/create:
+ * /referral/apply-sponsor-code:
  *   post:
- *     summary: Create a referral relationship
- *     description: Creates a referral relationship when a user performs their first action using a referral code. This establishes the connection between referrer and referree.
+ *     summary: Apply a sponsor code
+ *     description: Applies a sponsor code to create a referral relationship. This establishes the connection between referrer and referree.
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -333,14 +333,9 @@ router.post(
  *           schema:
  *             type: object
  *             required:
- *               - referrerAddress
  *               - referreeAddress
  *               - referralCode
  *             properties:
- *               referrerAddress:
- *                 type: string
- *                 description: The wallet address of the person who referred (referrer)
- *                 example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
  *               referreeAddress:
  *                 type: string
  *                 description: The wallet address of the person being referred (referree)
@@ -399,15 +394,24 @@ router.post(
  */
 // Create referral relationship (called when user performs first action)
 router.post(
-  '/create',
+  '/apply-sponsor-code',
   sensitiveRateLimiter, // Sensitive operation - creating referrals
-  validateBody(createReferralSchema),
+  validateBody(applySponsorCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const {
-      referrerAddress,
       referreeAddress,
       referralCode
     } = req.body;
+
+    const referrerAddress = await referralService.validateReferralCode(referralCode);
+
+    if (!referrerAddress) {
+      throw ApiError.badRequest('Invalid or expired referral code.');
+    }
+
+    if (referrerAddress === referreeAddress) {
+      throw ApiError.badRequest('You cannot refer yourself.');
+    }
 
     // Generate referral link
     const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCode}`;
