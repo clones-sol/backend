@@ -15,6 +15,7 @@ import {
 } from './schemas/referral.ts';
 import { requireWalletAddress } from '../middleware/auth.ts';
 import { ReferralModel } from '../models/Referral.ts';
+import { AuthenticatedRequest } from '../middleware/types/request.ts';
 
 const router = express.Router();
 
@@ -120,13 +121,10 @@ router.post(
   sensitiveRateLimiter,
   requireWalletAddress,
   validateBody(generateCodeSchema),
-  errorHandlerAsync(async (req: Request, res: Response) => {
+  errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
 
-    interface RequestWithWalletAddress extends Request {
-      walletAddress: string;
-    }
     const { walletAddress } = req.body;
-    if ((req as RequestWithWalletAddress).walletAddress !== walletAddress) {
+    if (req.walletAddress !== walletAddress) {
       throw ApiError.forbidden('You can only generate a referral code for your own wallet.');
     }
 
