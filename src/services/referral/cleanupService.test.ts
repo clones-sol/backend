@@ -37,7 +37,6 @@ describe('ReferralCleanupService', () => {
             walletAddress: 'test-wallet',
             referralCode: 'TEST123',
             isActive: true,
-            totalReferrals: 0,
             totalRewards: 0,
             expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
             updatedAt: null
