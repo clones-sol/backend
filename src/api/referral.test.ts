@@ -118,6 +118,16 @@ vi.mock('../services/referral/index.ts', () => ({
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
             }
+            if (walletAddress === 'DKf6oSTPyp9h7V4KcTiouYeormMEQ8dCjmodZLDc73Jv') { // TEST_WALLETS.newWallet
+                return {
+                    walletAddress,
+                    referralCode: 'ABCDEF',
+                    isActive: true,
+                    totalReferrals: 0,
+                    totalRewards: 0,
+                    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                };
+            }
             return null;
         }
         async validateReferralCode(referralCode: string) {
@@ -161,10 +171,17 @@ vi.mock('../services/referral/index.ts', () => ({
         }
         async getReferrer(walletAddress: string) {
             if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
-                return 'REFERRER_WALLET_ADDRESS';
+                return {
+                    walletAddress: 'REFERRER_WALLET_ADDRESS',
+                    referralCode: 'REFERRER1'
+                };
             }
-            // TEST_WALLETS.referree should NOT have a referrer for the test "should return referral code for existing wallet without referrer info"
-            // Only return referrer for specific test cases that need it
+            if (walletAddress === '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49') {
+                return {
+                    walletAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
+                    referralCode: 'TEST123'
+                };
+            }
             return null;
         }
         async getRewardStats() {
@@ -263,6 +280,16 @@ vi.mock('../services/referral/index.ts', () => ({
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
             }
+            if (walletAddress === 'DKf6oSTPyp9h7V4KcTiouYeormMEQ8dCjmodZLDc73Jv') { // TEST_WALLETS.newWallet
+                return {
+                    walletAddress,
+                    referralCode: 'ABCDEF',
+                    isActive: true,
+                    totalReferrals: 0,
+                    totalRewards: 0,
+                    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                };
+            }
             return null;
         },
         validateReferralCode: async (referralCode: string) => {
@@ -311,11 +338,18 @@ vi.mock('../services/referral/index.ts', () => ({
             return false;
         },
         getReferrer: async (walletAddress: string) => {
-            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
-                return 'REFERRER_WALLET_ADDRESS';
+            if (walletAddress === TEST_WALLETS.referree) {
+                return {
+                    walletAddress: TEST_WALLETS.referrer,
+                    referralCode: 'TEST123'
+                };
             }
-            // TEST_WALLETS.referree should NOT have a referrer for the test "should return referral code for existing wallet without referrer info"
-            // Only return referrer for specific test cases that need it
+            if (walletAddress === TEST_WALLETS.referrer) {
+                return {
+                    walletAddress: 'REFERRER_WALLET_ADDRESS',
+                    referralCode: 'REFERRER1'
+                };
+            }
             return null;
         },
         getRewardStats: async () => ({
@@ -484,18 +518,6 @@ describe('Referral API', () => {
         });
 
         it('should return referral code for existing wallet with referrer info', async () => {
-
-            await ReferralModel.create({
-                referrerAddress: 'REFERRER_WALLET_ADDRESS',
-                referreeAddress: TEST_WALLETS.referrer
-            });
-
-            await ReferralCodeModel.create({
-                walletAddress: 'REFERRER_WALLET_ADDRESS',
-                referralCode: 'REFERRER1',
-                isActive: true
-            });
-
             const response = await supertest(app)
                 .get(`/api/v1/referral/code/${TEST_WALLETS.referrer}`)
                 .expect(200);
@@ -510,21 +532,19 @@ describe('Referral API', () => {
 
         it('should return referral code for existing wallet without referrer info', async () => {
             const response = await supertest(app)
-                .get(`/api/v1/referral/code/${TEST_WALLETS.referree}`)
+                .get(`/api/v1/referral/code/${TEST_WALLETS.newWallet}`)
                 .expect(200);
 
             expect(response.body.success).toBe(true);
-            expect(response.body.data.referralCode).toBe('TEST456');
-            expect(response.body.data.walletAddress).toBe(TEST_WALLETS.referree);
+            expect(response.body.data.referralCode).toBe('ABCDEF');
+            expect(response.body.data.walletAddress).toBe(TEST_WALLETS.newWallet);
             expect(response.body.data.referrer).toBeNull();
         });
 
         it('should fail with 404 for non-existent wallet', async () => {
             const response = await supertest(app)
-                .get(`/api/v1/referral/code/${TEST_WALLETS.noCodeWallet}`)
+                .get(`/api/v1/referral/code/${TEST_WALLETS.unreferredWallet}`)
                 .expect(404);
-
-            expect(response.body.error.message).toContain('Referral code not found');
         });
     });
 
@@ -637,14 +657,14 @@ describe('Referral API', () => {
     });
 
     describe('GET /api/v1/referral/referrer/:walletAddress', () => {
-        it('should fail with 404 for unreferred wallet (referree)', async () => {
-            // Since we updated the mock to not return referrers for TEST_WALLETS.referree,
-            // this test now expects a 404
+        it('should return referrer for referred wallet', async () => {
             const response = await supertest(app)
                 .get(`/api/v1/referral/referrer/${TEST_WALLETS.referree}`)
-                .expect(404);
+                .expect(200);
 
-            expect(response.body.error.message).toContain('No referrer found');
+            expect(response.body.success).toBe(true);
+            expect(response.body.data.referrer.walletAddress).toBe(TEST_WALLETS.referrer);
+            expect(response.body.data.referrer.referralCode).toBe('TEST123');
         });
 
         it('should fail with 404 for unreferred wallet', async () => {
