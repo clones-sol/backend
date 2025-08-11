@@ -109,7 +109,6 @@ describe('ReferralService', () => {
             walletAddress: 'referrer123',
             referralCode: 'TEST123',
             isActive: true,
-            totalReferrals: 0,
             totalRewards: 0,
             expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
             updatedAt: null
@@ -197,6 +196,8 @@ describe('ReferralService', () => {
 
     describe('createReferral', () => {
         it('should create referral relationship successfully', async () => {
+            const initialCount = await ReferralModel.countDocuments({ referrerAddress: 'referrer123' });
+
             const referral = await referralService.createReferral(
                 'referrer123',
                 'new-referree',
@@ -206,9 +207,9 @@ describe('ReferralService', () => {
             expect(referral.referrerAddress).toBe('referrer123');
             expect(referral.referreeAddress).toBe('new-referree');
 
-            // Verify referrer stats were updated
-            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'referrer123' });
-            expect(updatedCode?.totalReferrals).toBe(1);
+            // Verify referral count has increased by one
+            const finalCount = await ReferralModel.countDocuments({ referrerAddress: 'referrer123' });
+            expect(finalCount).toBe(initialCount + 1);
         });
 
         it('should throw error if referree has already been referred', async () => {
@@ -273,7 +274,7 @@ describe('ReferralService', () => {
         it('should return referral statistics for wallet', async () => {
             const stats = await referralService.getReferralStats('referrer123');
 
-            expect(stats.referralInfo?.totalReferrals).toBe(0); // Will be 1 after referral is confirmed
+            expect(stats.referralInfo?.totalReferrals).toBe(1); // Calculated from actual referrals
             expect(stats.referralInfo?.totalRewards).toBe(0);
             expect(stats.referralInfo?.referralCode).toBe('TEST123');
             expect(stats.referrals).toBeInstanceOf(Array);
@@ -308,7 +309,6 @@ describe('ReferralService', () => {
                 walletAddress: 'race-referrer',
                 referralCode: 'RACE123',
                 isActive: true,
-                totalReferrals: 0,
                 totalRewards: 0,
                 updatedAt: null
             });
@@ -344,8 +344,8 @@ describe('ReferralService', () => {
             expect(referrals).toHaveLength(3);
 
             // Verify that referrer stats were updated correctly
-            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'race-referrer' });
-            expect(updatedCode?.totalReferrals).toBe(3);
+            const referralCount = await ReferralModel.countDocuments({ referrerAddress: 'race-referrer' });
+            expect(referralCount).toBe(3);
         });
 
         it('should prevent duplicate referrals for the same referree', async () => {
@@ -354,7 +354,6 @@ describe('ReferralService', () => {
                 walletAddress: 'dupe-referrer',
                 referralCode: 'DUPE123',
                 isActive: true,
-                totalReferrals: 0,
                 totalRewards: 0,
                 updatedAt: null
             });
@@ -394,8 +393,8 @@ describe('ReferralService', () => {
             expect(referrals).toHaveLength(1);
 
             // Verify that referrer stats were updated correctly
-            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'dupe-referrer' });
-            expect(updatedCode?.totalReferrals).toBe(1);
+            const referralCount = await ReferralModel.countDocuments({ referrerAddress: 'dupe-referrer' });
+            expect(referralCount).toBe(1);
         });
     });
 }); 

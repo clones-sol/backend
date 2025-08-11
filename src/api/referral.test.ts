@@ -93,7 +93,6 @@ vi.mock('../services/referral/index.ts', () => ({
                     walletAddress,
                     referralCode: 'TEST123',
                     isActive: true,
-                    totalReferrals: 0,
                     totalRewards: 0,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
@@ -103,7 +102,6 @@ vi.mock('../services/referral/index.ts', () => ({
                     walletAddress,
                     referralCode: 'REFERRER1',
                     isActive: true,
-                    totalReferrals: 1,
                     totalRewards: 10,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
@@ -113,7 +111,6 @@ vi.mock('../services/referral/index.ts', () => ({
                     walletAddress,
                     referralCode: 'TEST456',
                     isActive: true,
-                    totalReferrals: 0,
                     totalRewards: 0,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
@@ -123,7 +120,6 @@ vi.mock('../services/referral/index.ts', () => ({
                     walletAddress,
                     referralCode: 'ABCDEF',
                     isActive: true,
-                    totalReferrals: 0,
                     totalRewards: 0,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
@@ -255,7 +251,6 @@ vi.mock('../services/referral/index.ts', () => ({
                     walletAddress,
                     referralCode: 'TEST123',
                     isActive: true,
-                    totalReferrals: 0,
                     totalRewards: 0,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
@@ -265,7 +260,6 @@ vi.mock('../services/referral/index.ts', () => ({
                     walletAddress,
                     referralCode: 'REFERRER1',
                     isActive: true,
-                    totalReferrals: 1,
                     totalRewards: 10,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
@@ -275,7 +269,6 @@ vi.mock('../services/referral/index.ts', () => ({
                     walletAddress,
                     referralCode: 'TEST456',
                     isActive: true,
-                    totalReferrals: 0,
                     totalRewards: 0,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
@@ -285,7 +278,6 @@ vi.mock('../services/referral/index.ts', () => ({
                     walletAddress,
                     referralCode: 'ABCDEF',
                     isActive: true,
-                    totalReferrals: 0,
                     totalRewards: 0,
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
@@ -512,7 +504,7 @@ describe('Referral API', () => {
             expect(response.body.success).toBe(true);
             expect(response.body.data.referralCode).toBe('TEST123');
             expect(response.body.data.walletAddress).toBe(TEST_WALLETS.referrer);
-            expect(response.body.data.totalReferrals).toBe(0);
+            expect(response.body.data.totalReferrals).toBe(1);
             expect(response.body.data.totalRewards).toBe(0);
             expect(response.body.data.isActive).toBe(true);
         });

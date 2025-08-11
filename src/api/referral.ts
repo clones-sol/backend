@@ -14,6 +14,7 @@ import {
   walletAddressParamSchema
 } from './schemas/referral.ts';
 import { requireWalletAddress } from '../middleware/auth.ts';
+import { ReferralModel } from '../models/Referral.ts';
 
 const router = express.Router();
 
@@ -236,7 +237,11 @@ router.get(
     }
 
     // Check if this wallet has been referred by someone
-    const referrerInfo = await referralService.getReferrer(walletAddress);
+    const [referrerInfo, totalReferrals] = await Promise.all([
+      referralService.getReferrer(walletAddress),
+      ReferralModel.countDocuments({ referrerAddress: walletAddress })
+    ]);
+
     let referrer = null;
     if (referrerInfo) {
       referrer = {
@@ -251,7 +256,7 @@ router.get(
       referralCode: referralCode.referralCode,
       referralLink,
       walletAddress: referralCode.walletAddress,
-      totalReferrals: referralCode.totalReferrals,
+      totalReferrals,
       totalRewards: referralCode.totalRewards,
       isActive: referralCode.isActive,
       referrer

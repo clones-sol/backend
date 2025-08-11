@@ -5,7 +5,6 @@ export interface IReferralCode {
   walletAddress: string; // Wallet address that owns this referral code
   referralCode: string; // Unique referral code
   isActive: boolean; // Whether this referral code is active
-  totalReferrals: number; // Total number of successful referrals
   totalRewards: number; // Total rewards earned from referrals
   expiresAt?: Date; // When the referral code expires
   createdAt: Date;
@@ -28,10 +27,7 @@ const ReferralCodeSchema = new mongoose.Schema<IReferralCode>(
       type: Boolean,
       default: true
     },
-    totalReferrals: {
-      type: Number,
-      default: 0
-    },
+
     totalRewards: {
       type: Number,
       default: 0
@@ -61,7 +57,6 @@ ReferralCodeSchema.index({ expiresAt: 1 }); // For cleanup operations
 // Compound indexes for common query patterns
 ReferralCodeSchema.index({ isActive: 1, expiresAt: 1 }); // For finding active, non-expired codes
 ReferralCodeSchema.index({ walletAddress: 1, isActive: 1 }); // For finding active codes by wallet
-ReferralCodeSchema.index({ totalReferrals: -1 }); // For sorting by referral count (descending)
 ReferralCodeSchema.index({ totalRewards: -1 }); // For sorting by rewards (descending)
 
 export const ReferralCodeModel = mongoose.model<IReferralCode>('ReferralCode', ReferralCodeSchema); 

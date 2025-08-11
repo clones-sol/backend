@@ -50,7 +50,6 @@ export class ReferralService {
           walletAddress,
           referralCode,
           isActive: true,
-          totalReferrals: 0,
           totalRewards: 0,
           expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
         });
@@ -96,7 +95,7 @@ export class ReferralService {
   /**
    * Get referral code for a wallet address
    */
-  async getReferralCode(walletAddress: string): Promise<IReferralCode | null> {
+  async getReferralCode(walletAddress: string): Promise<(IReferralCode & mongoose.Document) | null> {
     return await ReferralCodeModel.findOne({ walletAddress, isActive: true });
   }
 
@@ -160,12 +159,6 @@ export class ReferralService {
             referreeAddress
           }], { session });
 
-          // Update referrer's stats (atomic within transaction)
-          await ReferralCodeModel.findOneAndUpdate(
-            { walletAddress: referrerAddress },
-            { $inc: { totalReferrals: 1 } },
-            { session }
-          );
 
           return referral[0];
         });
@@ -220,11 +213,6 @@ export class ReferralService {
       referreeAddress
     });
 
-    // Update referrer's stats
-    await ReferralCodeModel.findOneAndUpdate(
-      { walletAddress: referrerAddress },
-      { $inc: { totalReferrals: 1 } }
-    );
 
     return referral;
   }
@@ -233,16 +221,33 @@ export class ReferralService {
    * Get referral statistics for a wallet
    */
   async getReferralStats(walletAddress: string): Promise<{
-    referralInfo: IReferralCode | null;
+    referralInfo: (IReferralCode & { totalReferrals: number }) | null;
     referrals: IReferral[];
   }> {
-    const referralCode = await this.getReferralCode(walletAddress);
-    const referrals = await ReferralModel.find({
+    const [referralCode, referrals] = await Promise.all([
+      this.getReferralCode(walletAddress),
+      ReferralModel.find({
+        referrerAddress: walletAddress
+      }).sort({ createdAt: -1 })
+    ]);
+
+    if (!referralCode) {
+      return {
+        referralInfo: null,
+        referrals
+      };
+    }
+
+    // Calculate total referrals from actual referral records
+    const totalReferrals = await ReferralModel.countDocuments({
       referrerAddress: walletAddress
-    }).sort({ createdAt: -1 });
+    });
 
     return {
-      referralInfo: referralCode || null,
+      referralInfo: {
+        ...referralCode.toObject(),
+        totalReferrals
+      },
       referrals
     };
   }
