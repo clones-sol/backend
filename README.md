@@ -280,17 +280,6 @@ npm run monitoring:start
 # Generate audit report
 npm run audit:generate
 
-# View monitoring status
-npm run monitoring:status
-```
-
-### Configuration
-The monitoring system can be configured via environment variables:
-- `MONITORING_ENABLED` - Enable/disable monitoring
-- `MONITORING_POLL_INTERVAL` - How often to check for new transactions
-- `MONITORING_ALERT_WEBHOOK` - Webhook URL for alerts
-- `MONITORING_SUSPICIOUS_THRESHOLD` - Threshold for suspicious activity detection
-
 ## 🚨 Important Notes
 
 1. **Program ID**: The program ID is hardcoded. For production, generate a new one:
