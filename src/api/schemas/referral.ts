@@ -35,28 +35,6 @@ export const applySponsorCodeSchema: ValidationSchema = {
 };
 
 /**
- * Schema for processing rewards
- */
-export const processRewardSchema: ValidationSchema = {
-  referrerAddress: {
-    required: true,
-    rules: [ValidationRules.isString(), ValidationRules.isSolanaAddress()]
-  },
-  referreeAddress: {
-    required: true,
-    rules: [ValidationRules.isString(), ValidationRules.isSolanaAddress()]
-  },
-  actionType: {
-    required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
-  },
-  actionValue: {
-    required: false,
-    rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
-  }
-};
-
-/**
  * Schema for extending expiration
  */
 export const extendExpirationSchema: ValidationSchema = {

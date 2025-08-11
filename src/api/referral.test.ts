@@ -32,45 +32,6 @@ vi.mock('../services/blockchain/referralProgram.ts', () => ({
     }
 }));
 
-vi.mock('../services/referral/rewardService.ts', () => ({
-    RewardService: class MockRewardService {
-        private config = {
-            baseReward: 100,
-            bonusMultiplier: 1.5,
-            maxReferrals: 10,
-            minActionValue: 10,
-            cooldownPeriod: 24 * 60 * 60 * 1000,
-            maxReferralsPerCooldownPeriod: 5
-        };
-
-        constructor() { }
-        async processReward() {
-            return {
-                referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
-                referreeAddress: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
-                actionType: 'test_action',
-                actionValue: 100,
-                rewardAmount: 50,
-                timestamp: new Date()
-            };
-        }
-        getRewardConfig() {
-            return { ...this.config };
-        }
-        updateRewardConfig(newConfig: any) {
-            this.config = { ...this.config, ...newConfig };
-        }
-        getRewardStats() {
-            return {
-                totalRewards: 150,
-                totalReferrals: 2,
-                averageReward: 75,
-                recentRewards: []
-            };
-        }
-    }
-}));
-
 vi.mock('../services/referral/cleanupService.ts', () => ({
     ReferralCleanupService: class MockCleanupService {
         constructor() { }
@@ -150,10 +111,8 @@ vi.mock('../services/referral/index.ts', () => ({
                 _id: 'mock-referral-id',
                 referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
                 referreeAddress: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
-                referralCode: 'TEST123',
-                status: 'pending',
                 createdAt: new Date(),
-                updatedAt: new Date()
+                updatedAt: null
             };
         }
         async storeReferralOnChain(referralId: string) {
@@ -282,10 +241,8 @@ vi.mock('../services/referral/index.ts', () => ({
                 _id: 'mock-referral-id',
                 referrerAddress,
                 referreeAddress,
-                referralCode,
-                status: 'pending',
                 createdAt: new Date(),
-                updatedAt: new Date()
+                updatedAt: null
             };
         },
         storeReferralOnChain: async (referralId: string) => {
@@ -495,49 +452,6 @@ describe('Referral API', () => {
         });
     });
 
-    describe('POST /api/v1/referral/validate-code', () => {
-        it('should validate referral code successfully', async () => {
-            const response = await supertest(app)
-                .post('/api/v1/referral/validate-code')
-                .send({ referralCode: 'TEST123' })
-                .expect(200);
-
-            expect(response.body.success).toBe(true);
-            expect(response.body.data.isValid).toBe(true);
-            expect(response.body.data.referrerAddress).toBe(TEST_WALLETS.referrer);
-            expect(response.body.data.referralCode).toBe('TEST123');
-        });
-
-        it('should handle case-insensitive validation', async () => {
-            const response = await supertest(app)
-                .post('/api/v1/referral/validate-code')
-                .send({ referralCode: 'test123' })
-                .expect(200);
-
-            expect(response.body.success).toBe(true);
-            expect(response.body.data.isValid).toBe(true);
-        });
-
-        it('should fail with 400 for invalid code', async () => {
-            const response = await supertest(app)
-                .post('/api/v1/referral/validate-code')
-                .send({ referralCode: 'INVALID' })
-                .expect(400);
-
-            expect(response.body.error.message).toContain('Invalid referral code');
-        });
-
-        it('should fail with 400 for missing referral code', async () => {
-            const response = await supertest(app)
-                .post('/api/v1/referral/validate-code')
-                .send({})
-                .expect(400);
-
-            expect(response.body.error.message).toBe('Validation failed');
-            expect(response.body.error.details.fields.referralCode).toBe('This field is required');
-        });
-    });
-
     describe('POST /api/v1/referral/apply-sponsor-code', () => {
         it('should create referral relationship successfully', async () => {
             const referralData = {
@@ -553,7 +467,6 @@ describe('Referral API', () => {
             expect(response.body.success).toBe(true);
             expect(response.body.data.referrerAddress).toBe(TEST_WALLETS.referrer);
             expect(response.body.data.referreeAddress).toBe(TEST_WALLETS.newWallet);
-            expect(response.body.data.status).toBe('pending');
         });
 
         it('should fail with 400 for missing required fields', async () => {
@@ -661,111 +574,6 @@ describe('Referral API', () => {
                 .expect(404);
 
             expect(response.body.error.message).toContain('No referrer found');
-        });
-    });
-
-    describe('GET /api/v1/referral/rewards/:walletAddress', () => {
-        it('should return reward statistics', async () => {
-            const response = await supertest(app)
-                .get(`/api/v1/referral/rewards/${TEST_WALLETS.referrer}`)
-                .expect(200);
-
-            expect(response.body.success).toBe(true);
-            expect(response.body.data.totalRewards).toBe(150);
-            expect(response.body.data.totalReferrals).toBe(2);
-            expect(response.body.data.averageReward).toBe(75);
-        });
-    });
-
-    describe('GET /api/v1/referral/rewards/config', () => {
-        it('should return reward configuration', async () => {
-            const response = await supertest(app)
-                .get('/api/v1/referral/rewards/config')
-                .expect(200);
-
-
-            expect(response.body.success).toBe(true);
-            expect(response.body.data.baseReward).toBe(100);
-            expect(response.body.data.bonusMultiplier).toBe(1.5);
-            expect(response.body.data.maxReferrals).toBe(10);
-            expect(response.body.data.minActionValue).toBe(10);
-            expect(response.body.data.cooldownPeriod).toBe(24 * 60 * 60 * 1000);
-            expect(response.body.data.maxReferralsPerCooldownPeriod).toBe(5);
-        });
-    });
-
-    describe('POST /api/v1/referral/rewards/config', () => {
-        it('should update reward configuration with valid admin token', async () => {
-            const newConfig = {
-                baseReward: 200,
-                bonusMultiplier: 2.0,
-                maxReferralsPerCooldownPeriod: 10
-            };
-
-            const response = await supertest(app)
-                .post('/api/v1/referral/rewards/config')
-                .set('x-admin-token', 'valid-admin-token')
-                .send(newConfig)
-                .expect(200);
-
-            expect(response.body.success).toBe(true);
-            expect(response.body.data.message).toContain('Reward configuration updated successfully');
-            expect(response.body.data.config.baseReward).toBe(200);
-            expect(response.body.data.config.bonusMultiplier).toBe(2.0);
-            expect(response.body.data.config.maxReferralsPerCooldownPeriod).toBe(10);
-        });
-
-        it('should fail with 401 for invalid admin token', async () => {
-            const response = await supertest(app)
-                .post('/api/v1/referral/rewards/config')
-                .set('x-admin-token', 'invalid-token')
-                .send({ baseReward: 200 })
-                .expect(401);
-
-            expect(response.body.error).toBe('Unauthorized');
-        });
-
-        it('should fail with 401 for missing admin token', async () => {
-            const response = await supertest(app)
-                .post('/api/v1/referral/rewards/config')
-                .send({ baseReward: 200 })
-                .expect(401);
-
-            expect(response.body.error).toBe('Unauthorized');
-        });
-    });
-
-    describe('POST /api/v1/referral/rewards/process', () => {
-        it('should process reward successfully', async () => {
-            const rewardData = {
-                referrerAddress: TEST_WALLETS.referrer,
-                referreeAddress: TEST_WALLETS.newWallet,
-                actionType: 'wallet_connect',
-                actionValue: 100
-            };
-
-            const response = await supertest(app)
-                .post('/api/v1/referral/rewards/process')
-                .send(rewardData)
-                .expect(200);
-
-            expect(response.body.success).toBe(true);
-            expect(response.body.data.processed).toBe(true);
-            expect(response.body.data.rewardEvent).toBeDefined();
-        });
-
-        it('should fail with 400 for missing required fields', async () => {
-            const response = await supertest(app)
-                .post('/api/v1/referral/rewards/process')
-                .send({
-                    referrerAddress: TEST_WALLETS.referrer
-                    // Missing referreeAddress and actionType
-                })
-                .expect(400);
-
-            expect(response.body.error.message).toBe('Validation failed');
-            expect(response.body.error.details.fields.referreeAddress).toBe('This field is required');
-            expect(response.body.error.details.fields.actionType).toBe('This field is required');
         });
     });
 

@@ -63,7 +63,7 @@ app.use(cors({
 }));
 
 app.disable('x-powered-by');
-app.set('trust proxy', true);
+app.set('trust proxy', 'loopback, linklocal, uniquelocal');
 
 // Serve static files from public directory
 app.use('/api/screenshots', express.static(path.join(__dirname, 'public', 'screenshots')));

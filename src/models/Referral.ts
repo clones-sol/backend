@@ -4,15 +4,10 @@ export interface IReferral {
   _id?: mongoose.Types.ObjectId;
   referrerAddress: string; // Wallet address of the person who referred
   referreeAddress: string; // Wallet address of the person who was referred
-  referralCode: string; // Unique referral code used
-  referralLink: string; // Full referral link that was used
   onChainTxHash?: string; // Transaction hash when stored on-chain
   onChainSlot?: number; // Solana slot when stored on-chain
-  rewardAmount?: number; // Amount of reward distributed
-  rewardProcessed?: boolean; // Whether reward has been processed
-  status: 'pending' | 'confirmed' | 'failed';
   createdAt: Date;
-  updatedAt: Date;
+  updatedAt: Date | null;
 }
 
 const ReferralSchema = new mongoose.Schema<IReferral>(
@@ -28,39 +23,24 @@ const ReferralSchema = new mongoose.Schema<IReferral>(
       index: true,
       unique: true // Each wallet can only be referred once
     },
-    referralCode: {
-      type: String,
-      required: true,
-      index: true
-    },
-    referralLink: {
-      type: String,
-      required: true
-    },
     onChainTxHash: {
       type: String
     },
     onChainSlot: {
       type: Number
     },
-    rewardAmount: {
-      type: Number,
-      default: 0
+    createdAt: {
+      type: Date,
+      default: Date.now,
+      immutable: true
     },
-    rewardProcessed: {
-      type: Boolean,
-      default: false
-    },
-    status: {
-      type: String,
-      required: true,
-      enum: ['pending', 'confirmed', 'failed'],
-      default: 'pending'
+    updatedAt: {
+      type: Date,
+      default: null
     }
   },
   {
-    collection: 'referrals',
-    timestamps: true
+    collection: 'referrals'
   }
 );
 

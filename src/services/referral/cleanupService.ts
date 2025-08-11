@@ -9,7 +9,7 @@ export class ReferralCleanupService {
    */
   async cleanupExpiredCodes(): Promise<number> {
     const now = new Date();
-    
+
     // Find and deactivate expired codes
     const result = await ReferralCodeModel.updateMany(
       {
@@ -63,20 +63,20 @@ export class ReferralCleanupService {
    * Extend expiration for a referral code
    */
   async extendExpiration(
-    walletAddress: string, 
+    walletAddress: string,
     extensionDays: number = 30
   ): Promise<boolean> {
     const referralCode = await ReferralCodeModel.findOne({ walletAddress });
-    
+
     if (!referralCode) {
       return false;
     }
 
     // Extend from the current expiration date, or from now if no expiration set
-    const baseDate = referralCode.expiresAt && referralCode.expiresAt > new Date() 
-      ? referralCode.expiresAt 
+    const baseDate = referralCode.expiresAt && referralCode.expiresAt > new Date()
+      ? referralCode.expiresAt
       : new Date();
-    
+
     const newExpiration = new Date(baseDate);
     newExpiration.setDate(newExpiration.getDate() + extensionDays);
 
@@ -109,8 +109,7 @@ export class ReferralCleanupService {
     cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
     const result = await ReferralModel.deleteMany({
-      createdAt: { $lt: cutoffDate },
-      status: { $in: ['confirmed', 'failed'] }
+      createdAt: { $lt: cutoffDate }
     });
 
     return result.deletedCount || 0;
@@ -121,7 +120,7 @@ export class ReferralCleanupService {
    */
   async regenerateExpiredCode(walletAddress: string): Promise<string | null> {
     const referralCode = await ReferralCodeModel.findOne({ walletAddress });
-    
+
     if (!referralCode || !referralCode.expiresAt || referralCode.expiresAt > new Date()) {
       return null; // Not expired or doesn't exist
     }
@@ -133,14 +132,14 @@ export class ReferralCleanupService {
     let isUnique = false;
     let attempts = 0;
     const maxAttempts = MAX_REFERRAL_CODE_ATTEMPTS;
-    
+
     while (!isUnique && attempts < maxAttempts) {
       newCode = '';
       const randomBytes = crypto.randomBytes(REFERRAL_CODE_LENGTH);
       for (let i = 0; i < REFERRAL_CODE_LENGTH; i++) {
         newCode += chars.charAt(randomBytes[i] % chars.length);
       }
-      
+
       const existing = await ReferralCodeModel.findOne({ referralCode: newCode });
       if (!existing) {
         isUnique = true;
