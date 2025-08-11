@@ -538,16 +538,15 @@ describe('Referral API', () => {
         });
     });
 
-    describe('POST /api/v1/referral/create', () => {
+    describe('POST /api/v1/referral/apply-sponsor-code', () => {
         it('should create referral relationship successfully', async () => {
             const referralData = {
-                referrerAddress: TEST_WALLETS.referrer,
                 referreeAddress: TEST_WALLETS.newWallet,
                 referralCode: 'TEST123'
             };
 
             const response = await supertest(app)
-                .post('/api/v1/referral/create')
+                .post('/api/v1/referral/apply-sponsor-code')
                 .send(referralData)
                 .expect(201);
 
@@ -559,9 +558,8 @@ describe('Referral API', () => {
 
         it('should fail with 400 for missing required fields', async () => {
             const response = await supertest(app)
-                .post('/api/v1/referral/create')
+                .post('/api/v1/referral/apply-sponsor-code')
                 .send({
-                    referrerAddress: TEST_WALLETS.referrer,
                     referreeAddress: TEST_WALLETS.newWallet
                 })
                 .expect(400);
@@ -572,17 +570,30 @@ describe('Referral API', () => {
 
         it('should fail with 400 for invalid referral code', async () => {
             const referralData = {
-                referrerAddress: TEST_WALLETS.referrer,
                 referreeAddress: TEST_WALLETS.newWallet,
                 referralCode: 'INVALID'
             };
 
             const response = await supertest(app)
-                .post('/api/v1/referral/create')
+                .post('/api/v1/referral/apply-sponsor-code')
                 .send(referralData)
                 .expect(400);
 
-            expect(response.body.error.message).toContain('Invalid referral code');
+            expect(response.body.error.message).toContain('Invalid or expired referral code.');
+        });
+
+        it('should fail with 400 when user tries to refer themselves', async () => {
+            const referralData = {
+                referreeAddress: TEST_WALLETS.referrer, // Same as the owner of TEST123
+                referralCode: 'TEST123'
+            };
+
+            const response = await supertest(app)
+                .post('/api/v1/referral/apply-sponsor-code')
+                .send(referralData)
+                .expect(400);
+
+            expect(response.body.error.message).toContain('You cannot refer yourself.');
         });
     });
 
