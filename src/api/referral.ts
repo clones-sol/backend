@@ -122,9 +122,12 @@ router.post(
   requireWalletAddress,
   validateBody(generateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
+
+    interface RequestWithWalletAddress extends Request {
+      walletAddress: string;
+    }
     const { walletAddress } = req.body;
-    //@ts-ignore
-    if (req.walletAddress !== walletAddress) {
+    if ((req as RequestWithWalletAddress).walletAddress !== walletAddress) {
       throw ApiError.forbidden('You can only generate a referral code for your own wallet.');
     }
 
