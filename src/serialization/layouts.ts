@@ -1,4 +1,4 @@
-import { struct, u8, u64, publicKey, str, bool } from '@solana/buffer-layout';
+import { struct, u8, u64, publicKey, str, bool } from 'buffer-layout';
 import { PublicKey } from '@solana/web3.js';
 import BN from 'bn.js';
 
