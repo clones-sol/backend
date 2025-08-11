@@ -84,7 +84,7 @@ export const getBalanceSchema: ValidationSchema = {
       ValidationRules.isString(),
       ValidationRules.sanitizeString(),
       ValidationRules.matches(/^[A-Z]{2,10}$/, 'Symbol must be 2-10 uppercase letters'),
-      ValidationRules.isIn(['SOL', 'CLONE', 'USDC', 'USDT'], 'Unsupported token symbol')
+      ValidationRules.isIn(['SOL', 'CLONES', 'USDC', 'USDT'], 'Unsupported token symbol')
     ]
   }
 };

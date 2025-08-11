@@ -268,7 +268,7 @@ router.get(
  *         schema:
  *           type: string
  *         required: true
- *         description: The token symbol (e.g., "CLONE").
+ *         description: The token symbol (e.g., "CLONES").
  *     responses:
  *       200:
  *         description: Balance retrieved successfully.
