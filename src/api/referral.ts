@@ -4,23 +4,23 @@ import {
   withdrawalLimiter,
   taskCompletionLimiter,
   adminLimiter
-} from '../middleware/rateLimiter';
-import { referralService } from '../services/referral/index.ts';
-import { errorHandlerAsync } from '../middleware/errorHandler.ts';
-import { validateBody, validateParams } from '../middleware/validator.ts';
-import { ApiError, successResponse } from '../middleware/types/errors.ts';
-import { requireAdminAuth } from '../middleware/auth.ts';
-import { DEFAULT_FRONTEND_URL } from '../constants/referral.ts';
+} from '../middleware/rateLimiter.js';
+import { referralService } from '../services/referral/index.js';
+import { errorHandlerAsync } from '../middleware/errorHandler.js';
+import { validateBody, validateParams } from '../middleware/validator.js';
+import { ApiError, successResponse } from '../middleware/types/errors.js';
+import { requireAdminAuth } from '../middleware/auth.js';
+import { DEFAULT_FRONTEND_URL } from '../constants/referral.js';
 import {
   generateCodeSchema,
   applyReferrerCodeSchema,
   extendExpirationSchema,
   regenerateCodeSchema,
   walletAddressParamSchema
-} from './schemas/referral.ts';
-import { requireWalletAddress } from '../middleware/auth.ts';
-import { ReferralModel } from '../models/Referral.ts';
-import { AuthenticatedRequest } from '../middleware/types/request.ts';
+} from './schemas/referral.js';
+import { requireWalletAddress } from '../middleware/auth.js';
+import { ReferralModel } from '../models/Referral.js';
+import { AuthenticatedRequest } from '../middleware/types/request.js';
 
 const router = express.Router();
 
