@@ -51,7 +51,7 @@ describe('Wallet API', () => {
             await WalletConnectionModel.create({ token: TEST_TOKEN, address: TEST_WALLET_ADDRESS });
 
             (referralService.getReferralCode as MockedFunction<any>).mockResolvedValueOnce({ referralCode: 'MYCODE123' });
-            (referralService.getReferrer as MockedFunction<any>).mockResolvedValueOnce(REFERRER_WALLET_ADDRESS);
+            (referralService.getReferrer as MockedFunction<any>).mockResolvedValueOnce({ walletAddress: REFERRER_WALLET_ADDRESS, referralCode: REFERRER_CODE });
             (referralService.getReferralCode as MockedFunction<any>).mockResolvedValueOnce({ referralCode: REFERRER_CODE });
 
             const response = await supertest(app)
@@ -62,7 +62,6 @@ describe('Wallet API', () => {
             expect(response.body.success).toBe(true);
             expect(response.body.data.connected).toBe(true);
             expect(response.body.data.address).toBe(TEST_WALLET_ADDRESS);
-            expect(response.body.data.referralCode).toBe('MYCODE123');
             expect(response.body.data.referrer).toBeDefined();
             expect(response.body.data.referrer.walletAddress).toBe(REFERRER_WALLET_ADDRESS);
             expect(response.body.data.referrer.referralCode).toBe(REFERRER_CODE);

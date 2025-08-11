@@ -224,14 +224,14 @@ router.get(
     let referralCode: string | null = null;
     let referrer: { walletAddress: string; referralCode: string | null } | null = null;
     if (connection?.address) {
-      const referralCodeDoc = await referralService.getReferralCode(connection.address);
-      referralCode = referralCodeDoc?.referralCode || null;
-      const referrerAddress = await referralService.getReferrer(connection.address);
-      if (referrerAddress) {
-        const referrerCodeDoc = await referralService.getReferralCode(referrerAddress);
+      const referralCodeInfo = await referralService.getReferralCode(connection.address);
+      referralCode = referralCodeInfo?.referralCode || null;
+      const referrerInfo = await referralService.getReferrer(connection.address);
+      if (referrerInfo && referrerInfo.walletAddress) {
+        const referrerCodeInfo = await referralService.getReferralCode(referrerInfo.walletAddress);
         referrer = {
-          walletAddress: referrerAddress,
-          referralCode: referrerCodeDoc?.referralCode || null
+          walletAddress: referrerInfo.walletAddress,
+          referralCode: referrerCodeInfo?.referralCode || null
         };
       }
     }
