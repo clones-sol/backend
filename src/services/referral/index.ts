@@ -95,8 +95,8 @@ export class ReferralService {
   /**
    * Get referral code for a wallet address
    */
-  async getReferralCode(walletAddress: string): Promise<(IReferralCode & mongoose.Document) | null> {
-    return await ReferralCodeModel.findOne({ walletAddress, isActive: true });
+  async getReferralCode(walletAddress: string): Promise<IReferralCode | null> {
+    return await ReferralCodeModel.findOne({ walletAddress, isActive: true }).lean<IReferralCode>().exec();
   }
 
   /**
@@ -245,7 +245,7 @@ export class ReferralService {
 
     return {
       referralInfo: {
-        ...referralCode.toObject(),
+        ...referralCode,
         totalReferrals
       },
       referrals

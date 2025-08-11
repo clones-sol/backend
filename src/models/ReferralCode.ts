@@ -8,7 +8,7 @@ export interface IReferralCode {
   totalRewards: number; // Total rewards earned from referrals
   expiresAt?: Date; // When the referral code expires
   createdAt: Date;
-  updatedAt: Date | null;
+  updatedAt?: Date;
 }
 
 const ReferralCodeSchema = new mongoose.Schema<IReferralCode>(
