@@ -96,7 +96,7 @@ export class ReferralService {
    * Get referral code for a wallet address
    */
   async getReferralCode(walletAddress: string): Promise<IReferralCode | null> {
-    return await ReferralCodeModel.findOne({ walletAddress, isActive: true }).lean<IReferralCode>().exec();
+    return await ReferralCodeModel.findOne({ walletAddress, isActive: true }).lean().exec();
   }
 
   /**
@@ -243,11 +243,13 @@ export class ReferralService {
       referrerAddress: walletAddress
     });
 
+    const referralInfo: IReferralCode & { totalReferrals: number } = {
+      ...referralCode,
+      totalReferrals
+    };
+
     return {
-      referralInfo: {
-        ...referralCode,
-        totalReferrals
-      },
+      referralInfo,
       referrals
     };
   }
