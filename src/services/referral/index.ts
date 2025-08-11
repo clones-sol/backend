@@ -140,18 +140,18 @@ export class ReferralService {
           // Check if referree has already been referred (atomic within transaction)
           const existingReferral = await ReferralModel.findOne({ referreeAddress }).session(session);
           if (existingReferral) {
-            throw new Error('User has already been referred');
+            throw ApiError.conflict('User has already been referred');
           }
 
           // Validate referral code
           const validReferrer = await this.validateReferralCode(referralCode);
           if (!validReferrer || validReferrer !== referrerAddress) {
-            throw new Error('Invalid referral code');
+            throw ApiError.badRequest('Invalid referral code');
           }
 
           // Prevent self-referral
           if (referrerAddress === referreeAddress) {
-            throw new Error('Cannot refer yourself');
+            throw ApiError.conflict('Cannot refer yourself');
           }
 
           // Create referral record (atomic within transaction)
@@ -200,7 +200,7 @@ export class ReferralService {
     // Check if referree has already been referred
     const existingReferral = await ReferralModel.findOne({ referreeAddress });
     if (existingReferral) {
-      throw new Error('User has already been referred');
+      throw ApiError.conflict('User has already been referred');
     }
 
     // Validate referral code
@@ -211,7 +211,7 @@ export class ReferralService {
 
     // Prevent self-referral
     if (referrerAddress === referreeAddress) {
-      throw new Error('Cannot refer yourself');
+      throw ApiError.conflict('Cannot refer yourself');
     }
 
     // Create referral record
@@ -258,9 +258,18 @@ export class ReferralService {
   /**
    * Get referrer for a wallet
    */
-  async getReferrer(walletAddress: string): Promise<string | null> {
+  async getReferrer(walletAddress: string): Promise<{ walletAddress: string; referralCode: string | null } | null> {
     const referral = await ReferralModel.findOne({ referreeAddress: walletAddress });
-    return referral ? referral.referrerAddress : null;
+    if (!referral) {
+      return null;
+    }
+
+    const referrerCodeDoc = await this.getReferralCode(referral.referrerAddress);
+
+    return {
+      walletAddress: referral.referrerAddress,
+      referralCode: referrerCodeDoc?.referralCode || null
+    };
   }
 
   /**

@@ -236,13 +236,12 @@ router.get(
     }
 
     // Check if this wallet has been referred by someone
-    const referrerAddress = await referralService.getReferrer(walletAddress);
+    const referrerInfo = await referralService.getReferrer(walletAddress);
     let referrer = null;
-    if (referrerAddress) {
-      const referrerCode = await referralService.getReferralCode(referrerAddress);
+    if (referrerInfo) {
       referrer = {
-        walletAddress: referrerAddress,
-        referralCode: referrerCode ? referrerCode.referralCode : null
+        walletAddress: referrerInfo.walletAddress,
+        referralCode: referrerInfo.referralCode
       };
     }
 
