@@ -152,10 +152,6 @@ router.post(
               referrerAddress,
               address,
               req.body.referralCode,
-              referralLink,
-              'wallet_connect',
-              { connectionToken: token },
-              0 // actionValue - wallet connection has no monetary value
             );
             referralCreated = true;
           }
@@ -202,6 +198,15 @@ router.post(
  *                 referralCode:
  *                   type: string
  *                   nullable: true
+ *                 referrer:
+ *                   type: object
+ *                   nullable: true
+ *                   properties:
+ *                     walletAddress:
+ *                       type: string
+ *                     referralCode:
+ *                       type: string
+ *                       nullable: true
  *       400:
  *         description: Bad request.
  *         content:
@@ -217,16 +222,26 @@ router.get(
 
     const connection = await WalletConnectionModel.findOne({ token });
     let referralCode: string | null = null;
+    let referrer: { walletAddress: string; referralCode: string | null } | null = null;
     if (connection?.address) {
       const referralCodeDoc = await referralService.getReferralCode(connection.address);
       referralCode = referralCodeDoc?.referralCode || null;
+      const referrerAddress = await referralService.getReferrer(connection.address);
+      if (referrerAddress) {
+        const referrerCodeDoc = await referralService.getReferralCode(referrerAddress);
+        referrer = {
+          walletAddress: referrerAddress,
+          referralCode: referrerCodeDoc?.referralCode || null
+        };
+      }
     }
 
     res.status(200).json(
       successResponse({
         connected: !!connection,
         address: connection?.address,
-        referralCode
+        referralCode,
+        referrer
       })
     );
   })

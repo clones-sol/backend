@@ -21,9 +21,9 @@ export const validateCodeSchema: ValidationSchema = {
 };
 
 /**
- * Schema for applying a sponsor code
+ * Schema for applying a referrer code
  */
-export const applySponsorCodeSchema: ValidationSchema = {
+export const applyReferrerCodeSchema: ValidationSchema = {
   referreeAddress: {
     required: true,
     rules: [ValidationRules.isString(), ValidationRules.isSolanaAddress()]

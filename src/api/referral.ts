@@ -8,8 +8,7 @@ import { requireAdminAuth } from '../middleware/auth.ts';
 import { DEFAULT_FRONTEND_URL } from '../constants/referral.ts';
 import {
   generateCodeSchema,
-  validateCodeSchema,
-  applySponsorCodeSchema,
+  applyReferrerCodeSchema,
   extendExpirationSchema,
   regenerateCodeSchema,
   walletAddressParamSchema
@@ -198,6 +197,19 @@ router.post(
  *                           type: boolean
  *                           description: Whether the referral code is active
  *                           example: true
+ *                         referrer:
+ *                           type: object
+ *                           nullable: true
+ *                           description: Information about the user who referred this wallet.
+ *                           properties:
+ *                             walletAddress:
+ *                               type: string
+ *                               description: The referrer's wallet address.
+ *                               example: "Gw7p..."
+ *                             referralCode:
+ *                               type: string
+ *                               description: The referrer's referral code.
+ *                               example: "REFER1"
  *       404:
  *         description: Referral code not found for this wallet
  *         content:
@@ -223,6 +235,17 @@ router.get(
       throw ApiError.notFound('Referral code not found for this wallet');
     }
 
+    // Check if this wallet has been referred by someone
+    const referrerAddress = await referralService.getReferrer(walletAddress);
+    let referrer = null;
+    if (referrerAddress) {
+      const referrerCode = await referralService.getReferralCode(referrerAddress);
+      referrer = {
+        walletAddress: referrerAddress,
+        referralCode: referrerCode ? referrerCode.referralCode : null
+      };
+    }
+
     const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCode.referralCode}`;
 
     return res.status(200).json(successResponse({
@@ -231,17 +254,18 @@ router.get(
       walletAddress: referralCode.walletAddress,
       totalReferrals: referralCode.totalReferrals,
       totalRewards: referralCode.totalRewards,
-      isActive: referralCode.isActive
+      isActive: referralCode.isActive,
+      referrer
     }));
   })
 );
 
 /**
  * @swagger
- * /referral/apply-sponsor-code:
+ * /referral/apply-referrer-code:
  *   post:
- *     summary: Apply a sponsor code
- *     description: Applies a sponsor code to create a referral relationship. This establishes the connection between referrer and referree.
+ *     summary: Apply a referrer code
+ *     description: Applies a referrer code to create a referral relationship. This establishes the connection between referrer and referree.
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -301,9 +325,9 @@ router.get(
  */
 // Create referral relationship (called when user performs first action)
 router.post(
-  '/apply-sponsor-code',
+  '/apply-referrer-code',
   sensitiveRateLimiter, // Sensitive operation - creating referrals
-  validateBody(applySponsorCodeSchema),
+  validateBody(applyReferrerCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const {
       referreeAddress,

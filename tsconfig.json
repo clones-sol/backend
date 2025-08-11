@@ -12,7 +12,8 @@
     "moduleDetection": "force",
     "allowImportingTsExtensions": true,
     "types": [
-      "node"
+      "node",
+      "vitest/globals"
     ],
     "declaration": true,
     "emitDeclarationOnly": true,
@@ -28,6 +29,7 @@
     "src/**/*"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "node_modules/express-rate-limit/tsconfig.json"
   ]
 }
