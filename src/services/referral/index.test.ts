@@ -4,7 +4,6 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import { ReferralService } from './index.ts';
 import { ReferralModel, IReferral } from '../../models/Referral.ts';
 import { ReferralCodeModel, IReferralCode } from '../../models/ReferralCode.ts';
-import { connectToDatabase } from '../database.ts';
 
 // Mock external services
 vi.mock('../blockchain/index.ts', () => ({
@@ -112,15 +111,13 @@ describe('ReferralService', () => {
             isActive: true,
             totalReferrals: 0,
             totalRewards: 0,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            updatedAt: null
         });
 
         testReferral = await ReferralModel.create({
             referrerAddress: 'referrer123',
-            referreeAddress: 'referree123',
-            referralCode: 'TEST123',
-            referralLink: 'https://clones-ai.com/ref/TEST123',
-            status: 'pending'
+            referreeAddress: 'referree123'
         });
     });
 
@@ -159,7 +156,8 @@ describe('ReferralService', () => {
                 isActive: true,
                 totalReferrals: 0,
                 totalRewards: 0,
-                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                updatedAt: null
             });
 
             // Clear any existing code for the test wallet
@@ -191,7 +189,8 @@ describe('ReferralService', () => {
                 walletAddress: 'expired-wallet',
                 referralCode: 'EXPIRED',
                 isActive: true,
-                expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000) // 1 day ago
+                expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
+                updatedAt: null
             });
 
             const referrerAddress = await referralService.validateReferralCode('EXPIRED');
@@ -213,14 +212,11 @@ describe('ReferralService', () => {
             const referral = await referralService.createReferral(
                 'referrer123',
                 'new-referree',
-                'TEST123',
-                'https://clones-ai.com/ref/TEST123',
+                'TEST123'
             );
 
             expect(referral.referrerAddress).toBe('referrer123');
             expect(referral.referreeAddress).toBe('new-referree');
-            expect(referral.referralCode).toBe('TEST123');
-            expect(referral.status).toBe('pending');
 
             // Verify referrer stats were updated
             const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'referrer123' });
@@ -232,8 +228,7 @@ describe('ReferralService', () => {
                 referralService.createReferral(
                     'referrer123',
                     'referree123', // Already referred
-                    'TEST123',
-                    'https://clones-ai.com/ref/TEST123',
+                    'TEST123'
                 )
             ).rejects.toThrow('User has already been referred');
         });
@@ -243,8 +238,7 @@ describe('ReferralService', () => {
                 referralService.createReferral(
                     'referrer123',
                     'new-referree',
-                    'INVALID',
-                    'https://clones-ai.com/ref/INVALID',
+                    'INVALID'
                 )
             ).rejects.toThrow('Invalid referral code');
         });
@@ -254,8 +248,7 @@ describe('ReferralService', () => {
                 referralService.createReferral(
                     'referrer123',
                     'referrer123', // Same as referrer
-                    'TEST123',
-                    'https://clones-ai.com/ref/TEST123',
+                    'TEST123'
                 )
             ).rejects.toThrow('Cannot refer yourself');
         });
@@ -303,26 +296,6 @@ describe('ReferralService', () => {
         });
     });
 
-    describe('storeReferralOnChain', () => {
-        it('should store referral on-chain successfully', async () => {
-            const result = await referralService.storeReferralOnChain(testReferral._id!.toString());
-
-            expect(result.txHash).toBe('mock-tx-hash');
-            expect(result.slot).toBe(12345);
-
-            // Verify referral status was updated
-            const updatedReferral = await ReferralModel.findById(testReferral._id);
-            expect(updatedReferral?.status).toBe('confirmed');
-            expect(updatedReferral?.onChainTxHash).toBe('mock-tx-hash');
-        });
-
-        it('should throw error for non-existent referral', async () => {
-            await expect(
-                referralService.storeReferralOnChain('507f1f77bcf86cd799439011')
-            ).rejects.toThrow('Referral not found');
-        });
-    });
-
     describe('cleanup methods', () => {
         it('should cleanup expired codes', async () => {
             const cleanedCount = await referralService.cleanupExpiredCodes();
@@ -345,7 +318,8 @@ describe('ReferralService', () => {
                 referralCode: 'RACE123',
                 isActive: true,
                 totalReferrals: 0,
-                totalRewards: 0
+                totalRewards: 0,
+                updatedAt: null
             });
 
             // Simulate concurrent referral creation attempts
@@ -353,20 +327,17 @@ describe('ReferralService', () => {
                 referralService.createReferral(
                     'race-referrer',
                     'referree1',
-                    'RACE123',
-                    'https://clones-ai.com/ref/RACE123',
+                    'RACE123'
                 ),
                 referralService.createReferral(
                     'race-referrer',
                     'referree2',
-                    'RACE123',
-                    'https://clones-ai.com/ref/RACE123',
+                    'RACE123'
                 ),
                 referralService.createReferral(
                     'race-referrer',
                     'referree3',
-                    'RACE123',
-                    'https://clones-ai.com/ref/RACE123',
+                    'RACE123'
                 )
             ];
 
@@ -393,7 +364,8 @@ describe('ReferralService', () => {
                 referralCode: 'DUPE123',
                 isActive: true,
                 totalReferrals: 0,
-                totalRewards: 0
+                totalRewards: 0,
+                updatedAt: null
             });
 
             // Simulate concurrent attempts to refer the same person
@@ -401,20 +373,17 @@ describe('ReferralService', () => {
                 referralService.createReferral(
                     'dupe-referrer',
                     'same-referree',
-                    'DUPE123',
-                    'https://clones-ai.com/ref/DUPE123',
+                    'DUPE123'
                 ),
                 referralService.createReferral(
                     'dupe-referrer',
                     'same-referree',
-                    'DUPE123',
-                    'https://clones-ai.com/ref/DUPE123',
+                    'DUPE123'
                 ),
                 referralService.createReferral(
                     'dupe-referrer',
                     'same-referree',
-                    'DUPE123',
-                    'https://clones-ai.com/ref/DUPE123',
+                    'DUPE123'
                 )
             ];
 

@@ -5,12 +5,11 @@ export interface IReferralCode {
   walletAddress: string; // Wallet address that owns this referral code
   referralCode: string; // Unique referral code
   isActive: boolean; // Whether this referral code is active
-  referralLink: string; // Full referral link that was used
   totalReferrals: number; // Total number of successful referrals
   totalRewards: number; // Total rewards earned from referrals
   expiresAt?: Date; // When the referral code expires
   createdAt: Date;
-  updatedAt: Date;
+  updatedAt: Date | null;
 }
 
 const ReferralCodeSchema = new mongoose.Schema<IReferralCode>(
@@ -39,11 +38,19 @@ const ReferralCodeSchema = new mongoose.Schema<IReferralCode>(
     },
     expiresAt: {
       type: Date
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+      immutable: true
+    },
+    updatedAt: {
+      type: Date,
+      default: null
     }
   },
   {
-    collection: 'referral_codes',
-    timestamps: true
+    collection: 'referral_codes'
   }
 );
 

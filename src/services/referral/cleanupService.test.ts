@@ -39,7 +39,8 @@ describe('ReferralCleanupService', () => {
             isActive: true,
             totalReferrals: 0,
             totalRewards: 0,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            updatedAt: null
         });
     });
 
@@ -55,13 +56,15 @@ describe('ReferralCleanupService', () => {
                     walletAddress: 'expired1',
                     referralCode: 'EXPIRED1',
                     isActive: true,
-                    expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000) // 1 day ago
+                    expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
+                    updatedAt: null
                 },
                 {
                     walletAddress: 'expired2',
                     referralCode: 'EXPIRED2',
                     isActive: true,
-                    expiresAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) // 2 days ago
+                    expiresAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+                    updatedAt: null
                 }
             ];
 
@@ -84,7 +87,8 @@ describe('ReferralCleanupService', () => {
                 walletAddress: 'active1',
                 referralCode: 'ACTIVE1',
                 isActive: true,
-                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 1 day from now
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day from now
+                updatedAt: null
             });
 
             const cleanedCount = await cleanupService.cleanupExpiredCodes();
@@ -110,25 +114,29 @@ describe('ReferralCleanupService', () => {
                     walletAddress: 'expired1',
                     referralCode: 'EXPIRED1',
                     isActive: true,
-                    expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000) // Expired
+                    expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // Expired
+                    updatedAt: null
                 },
                 {
                     walletAddress: 'expired2',
                     referralCode: 'EXPIRED2',
                     isActive: false,
-                    expiresAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) // Already inactive
+                    expiresAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // Already inactive
+                    updatedAt: null
                 },
                 {
                     walletAddress: 'active1',
                     referralCode: 'ACTIVE1',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // Active
+                    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // Active
+                    updatedAt: null
                 },
                 {
                     walletAddress: 'expiring1',
                     referralCode: 'EXPIRING1',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // Expiring soon (within 7 days)
+                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // Expiring soon (within 7 days)
+                    updatedAt: null
                 }
             ];
 
@@ -146,7 +154,8 @@ describe('ReferralCleanupService', () => {
             await ReferralCodeModel.create({
                 walletAddress: 'no-expiry',
                 referralCode: 'NOEXPIRY',
-                isActive: true
+                isActive: true,
+                updatedAt: null
             });
 
             const stats = await cleanupService.getExpiredCodeStats();
@@ -200,19 +209,22 @@ describe('ReferralCleanupService', () => {
                     walletAddress: 'expiring1',
                     referralCode: 'EXPIRING1',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 days
+                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
+                    updatedAt: null
                 },
                 {
                     walletAddress: 'expiring2',
                     referralCode: 'EXPIRING2',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) // 5 days
+                    expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days
+                    updatedAt: null
                 },
                 {
                     walletAddress: 'not-expiring',
                     referralCode: 'NOTEXPIRING',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000) // 10 days
+                    expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days
+                    updatedAt: null
                 }
             ];
 
@@ -232,13 +244,15 @@ describe('ReferralCleanupService', () => {
                     walletAddress: 'expiring2',
                     referralCode: 'EXPIRING2',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) // 5 days
+                    expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days
+                    updatedAt: null
                 },
                 {
                     walletAddress: 'expiring1',
                     referralCode: 'EXPIRING1',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 days
+                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
+                    updatedAt: null
                 }
             ];
 
@@ -263,17 +277,11 @@ describe('ReferralCleanupService', () => {
                 {
                     referrerAddress: 'referrer1',
                     referreeAddress: 'referree1',
-                    referralCode: 'OLD1',
-                    referralLink: 'https://clones-ai.com/ref/OLD1',
-                    status: 'confirmed',
                     createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000) // 400 days ago
                 },
                 {
                     referrerAddress: 'referrer2',
                     referreeAddress: 'referree2',
-                    referralCode: 'OLD2',
-                    referralLink: 'https://clones-ai.com/ref/OLD2',
-                    status: 'failed',
                     createdAt: new Date(Date.now() - 380 * 24 * 60 * 60 * 1000) // 380 days ago
                 }
             ];
@@ -294,9 +302,6 @@ describe('ReferralCleanupService', () => {
             await ReferralModel.create({
                 referrerAddress: 'referrer1',
                 referreeAddress: 'referree1',
-                referralCode: 'RECENT',
-                referralLink: 'https://clones-ai.com/ref/RECENT',
-                status: 'confirmed',
                 createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
             });
 
@@ -308,39 +313,6 @@ describe('ReferralCleanupService', () => {
             const remainingReferrals = await ReferralModel.find({});
             expect(remainingReferrals).toHaveLength(1);
         });
-
-        it('should only delete confirmed and failed referrals', async () => {
-            // Create referrals with different statuses
-            const referrals = [
-                {
-                    referrerAddress: 'referrer1',
-                    referreeAddress: 'referree1',
-                    referralCode: 'CONFIRMED',
-                    referralLink: 'https://clones-ai.com/ref/CONFIRMED',
-                    status: 'confirmed',
-                    createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000)
-                },
-                {
-                    referrerAddress: 'referrer2',
-                    referreeAddress: 'referree2',
-                    referralCode: 'PENDING',
-                    referralLink: 'https://clones-ai.com/ref/PENDING',
-                    status: 'pending',
-                    createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000)
-                }
-            ];
-
-            await ReferralModel.insertMany(referrals);
-
-            const deletedCount = await cleanupService.cleanupOldReferrals(365);
-
-            expect(deletedCount).toBe(1); // Only confirmed should be deleted
-
-            // Verify pending referral remains
-            const remainingReferrals = await ReferralModel.find({});
-            expect(remainingReferrals).toHaveLength(1);
-            expect(remainingReferrals[0].status).toBe('pending');
-        });
     });
 
     describe('regenerateExpiredCode', () => {
@@ -350,7 +322,8 @@ describe('ReferralCleanupService', () => {
                 walletAddress: 'expired-wallet',
                 referralCode: 'EXPIRED',
                 isActive: true,
-                expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000) // 1 day ago
+                expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
+                updatedAt: null
             });
 
             const newCode = await cleanupService.regenerateExpiredCode('expired-wallet');
@@ -387,14 +360,16 @@ describe('ReferralCleanupService', () => {
                 walletAddress: 'expired-wallet',
                 referralCode: 'EXPIRED',
                 isActive: true,
-                expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
+                expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                updatedAt: null
             });
 
             // Create another code with the same pattern that would be generated
             await ReferralCodeModel.create({
                 walletAddress: 'existing-wallet',
                 referralCode: 'AAAAAA',
-                isActive: true
+                isActive: true,
+                updatedAt: null
             });
 
             const newCode = await cleanupService.regenerateExpiredCode('expired-wallet');

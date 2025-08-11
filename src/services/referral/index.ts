@@ -1,8 +1,5 @@
 import { ReferralModel, IReferral } from '../../models/Referral.ts';
 import { ReferralCodeModel, IReferralCode } from '../../models/ReferralCode.ts';
-import BlockchainService from '../blockchain/index.ts';
-import { ReferralProgramService } from '../blockchain/referralProgram.ts';
-import { RewardService } from './rewardService.ts';
 import { ReferralCleanupService } from './cleanupService.ts';
 import { handleTransactionError } from '../../utils/transactionUtils.ts';
 import { REFERRAL_CODE_CHARS, REFERRAL_CODE_LENGTH, MAX_REFERRAL_CODE_ATTEMPTS } from '../../constants/referral.ts';
@@ -11,24 +8,9 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 
 export class ReferralService {
-  private blockchainService: BlockchainService;
-  private referralProgramService: ReferralProgramService;
-  private rewardService: RewardService;
   private cleanupService: ReferralCleanupService;
 
   constructor() {
-    this.blockchainService = new BlockchainService(
-      process.env.RPC_URL || '',
-      ''
-    );
-    this.referralProgramService = new ReferralProgramService(
-      process.env.RPC_URL || '',
-      process.env.REFERRAL_PROGRAM_ID || '11111111111111111111111111111111'
-    );
-    this.rewardService = new RewardService(
-      process.env.RPC_URL || '',
-      process.env.REFERRAL_PROGRAM_ID || '11111111111111111111111111111111'
-    );
     this.cleanupService = new ReferralCleanupService();
   }
 
@@ -147,8 +129,7 @@ export class ReferralService {
   async createReferral(
     referrerAddress: string,
     referreeAddress: string,
-    referralCode: string,
-    referralLink: string
+    referralCode: string
   ): Promise<IReferral> {
     try {
       // Try to use transactions if available (replica set)
@@ -176,10 +157,7 @@ export class ReferralService {
           // Create referral record (atomic within transaction)
           const referral = await ReferralModel.create([{
             referrerAddress,
-            referreeAddress,
-            referralCode: referralCode.toUpperCase(),
-            referralLink,
-            status: 'pending'
+            referreeAddress
           }], { session });
 
           // Update referrer's stats (atomic within transaction)
@@ -205,8 +183,7 @@ export class ReferralService {
         () => this.createReferralWithoutTransaction(
           referrerAddress,
           referreeAddress,
-          referralCode,
-          referralLink
+          referralCode
         )
       );
     }
@@ -218,8 +195,7 @@ export class ReferralService {
   private async createReferralWithoutTransaction(
     referrerAddress: string,
     referreeAddress: string,
-    referralCode: string,
-    referralLink: string
+    referralCode: string
   ): Promise<IReferral> {
     // Check if referree has already been referred
     const existingReferral = await ReferralModel.findOne({ referreeAddress });
@@ -241,10 +217,7 @@ export class ReferralService {
     // Create referral record
     const referral = await ReferralModel.create({
       referrerAddress,
-      referreeAddress,
-      referralCode: referralCode.toUpperCase(),
-      referralLink,
-      status: 'pending'
+      referreeAddress
     });
 
     // Update referrer's stats
@@ -257,44 +230,6 @@ export class ReferralService {
   }
 
   /**
-   * Store referral relationship on-chain
-   */
-  async storeReferralOnChain(referralId: string): Promise<{ txHash: string; slot: number }> {
-    const referral = await ReferralModel.findById(referralId);
-    if (!referral) {
-      throw new Error('Referral not found');
-    }
-
-    try {
-      // Store referral data on-chain
-      const referralData = {
-        referrerAddress: referral.referrerAddress,
-        referreeAddress: referral.referreeAddress,
-        referralCode: referral.referralCode,
-        timestamp: Math.floor(referral.createdAt.getTime() / 1000),
-        rewardAmount: 0 // Will be set when rewards are distributed
-      };
-
-      const onChainResult = await this.referralProgramService.storeReferral(referralData);
-
-      // Update referral with on-chain data
-      await ReferralModel.findByIdAndUpdate(referralId, {
-        onChainTxHash: onChainResult.txHash,
-        onChainSlot: onChainResult.slot,
-        status: 'confirmed'
-      });
-
-      return onChainResult;
-    } catch (error) {
-      // Update referral status to failed
-      await ReferralModel.findByIdAndUpdate(referralId, {
-        status: 'failed'
-      });
-      throw error;
-    }
-  }
-
-  /**
    * Get referral statistics for a wallet
    */
   async getReferralStats(walletAddress: string): Promise<{
@@ -303,8 +238,7 @@ export class ReferralService {
   }> {
     const referralCode = await this.getReferralCode(walletAddress);
     const referrals = await ReferralModel.find({
-      referrerAddress: walletAddress,
-      status: 'confirmed'
+      referrerAddress: walletAddress
     }).sort({ createdAt: -1 });
 
     return {
@@ -327,61 +261,6 @@ export class ReferralService {
   async getReferrer(walletAddress: string): Promise<string | null> {
     const referral = await ReferralModel.findOne({ referreeAddress: walletAddress });
     return referral ? referral.referrerAddress : null;
-  }
-
-  /**
-   * Get reward statistics for a wallet
-   */
-  async getRewardStats(walletAddress: string) {
-    return await this.rewardService.getRewardStats(walletAddress);
-  }
-
-  /**
-   * Get reward configuration
-   */
-  async getRewardConfig() {
-    const config = this.rewardService.getRewardConfig();
-    return {
-      baseReward: config.baseReward,
-      bonusMultiplier: config.bonusMultiplier,
-      maxReferrals: config.maxReferrals,
-      minActionValue: config.minActionValue,
-      cooldownPeriod: config.cooldownPeriod,
-      maxReferralsPerCooldownPeriod: config.maxReferralsPerCooldownPeriod
-    };
-  }
-
-  /**
-   * Update reward configuration
-   */
-  async updateRewardConfig(newConfig: any) {
-    this.rewardService.updateRewardConfig(newConfig);
-    const updatedConfig = this.rewardService.getRewardConfig();
-    return {
-      baseReward: updatedConfig.baseReward,
-      bonusMultiplier: updatedConfig.bonusMultiplier,
-      maxReferrals: updatedConfig.maxReferrals,
-      minActionValue: updatedConfig.minActionValue,
-      cooldownPeriod: updatedConfig.cooldownPeriod,
-      maxReferralsPerCooldownPeriod: updatedConfig.maxReferralsPerCooldownPeriod
-    };
-  }
-
-  /**
-   * Process reward for a specific action
-   */
-  async processReward(
-    referrerAddress: string,
-    referreeAddress: string,
-    actionType: string,
-    actionValue: number
-  ) {
-    return await this.rewardService.processReward(
-      referrerAddress,
-      referreeAddress,
-      actionType,
-      actionValue
-    );
   }
 
   /**
