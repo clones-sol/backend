@@ -105,13 +105,20 @@ describe('ReferralService', () => {
         await ReferralModel.deleteMany({});
 
         // Create test data
-        testReferralCode = await ReferralCodeModel.create({
+        await ReferralCodeModel.create({
             walletAddress: 'referrer123',
             referralCode: 'TEST123',
             isActive: true,
             totalRewards: 0,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            updatedAt: null
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        });
+
+        await ReferralCodeModel.create({
+            walletAddress: 'new-referrer',
+            referralCode: 'NEWCODE',
+            isActive: true,
+            totalRewards: 0,
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
         });
 
         testReferral = await ReferralModel.create({
@@ -196,19 +203,18 @@ describe('ReferralService', () => {
 
     describe('createReferral', () => {
         it('should create referral relationship successfully', async () => {
-            const initialCount = await ReferralModel.countDocuments({ referrerAddress: 'referrer123' });
+            const initialCount = await ReferralModel.countDocuments();
 
             const referral = await referralService.createReferral(
-                'referrer123',
+                'new-referrer',
                 'new-referree',
-                'TEST123'
+                'NEWCODE'
             );
 
-            expect(referral.referrerAddress).toBe('referrer123');
+            expect(referral.referrerAddress).toBe('new-referrer');
             expect(referral.referreeAddress).toBe('new-referree');
 
-            // Verify referral count has increased by one
-            const finalCount = await ReferralModel.countDocuments({ referrerAddress: 'referrer123' });
+            const finalCount = await ReferralModel.countDocuments();
             expect(finalCount).toBe(initialCount + 1);
         });
 
@@ -216,10 +222,10 @@ describe('ReferralService', () => {
             await expect(
                 referralService.createReferral(
                     'referrer123',
-                    'referree123', // Already referred
+                    'referree123', // This one was created in beforeEach
                     'TEST123'
                 )
-            ).rejects.toThrow('User has already been referred');
+            ).rejects.toThrow('This wallet has already been referred.');
         });
 
         it('should throw error for invalid referral code', async () => {
@@ -227,19 +233,19 @@ describe('ReferralService', () => {
                 referralService.createReferral(
                     'referrer123',
                     'new-referree',
-                    'INVALID'
+                    'INVALIDCODE'
                 )
-            ).rejects.toThrow('Invalid referral code');
+            ).rejects.toThrow('Invalid or expired referral code.');
         });
 
         it('should throw error for self-referral', async () => {
             await expect(
                 referralService.createReferral(
                     'referrer123',
-                    'referrer123', // Same as referrer
+                    'referrer123',
                     'TEST123'
                 )
-            ).rejects.toThrow('Cannot refer yourself');
+            ).rejects.toThrow('You cannot refer yourself.');
         });
     });
 

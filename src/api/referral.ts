@@ -342,10 +342,6 @@ router.post(
       throw ApiError.badRequest('Invalid or expired referral code.');
     }
 
-    if (referrerAddress === referreeAddress) {
-      throw ApiError.badRequest('You cannot refer yourself.');
-    }
-
     const referral = await referralService.createReferral(
       referrerAddress,
       referreeAddress,
