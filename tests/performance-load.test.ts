@@ -34,7 +34,7 @@ describe('Performance and Load Tests', () => {
 
     // Initialize Solana connection
     connection = new Connection(PERFORMANCE_CONFIG.RPC_URL, 'confirmed');
-    
+
     // Generate test keypairs
     platformAuthority = Keypair.generate();
     testFarmers = Array.from({ length: 10 }, () => Keypair.generate());
@@ -52,17 +52,17 @@ describe('Performance and Load Tests', () => {
     try {
       const airdropPromises = [
         connection.requestAirdrop(platformAuthority.publicKey, 5 * LAMPORTS_PER_SOL),
-        ...testFarmers.map(farmer => 
+        ...testFarmers.map(farmer =>
           connection.requestAirdrop(farmer.publicKey, 2 * LAMPORTS_PER_SOL)
         )
       ];
-      
+
       const signatures = await Promise.all(airdropPromises);
       await Promise.all(signatures.map(sig => connection.confirmTransaction(sig)));
     } catch (error) {
       console.warn('Airdrop failed (expected on non-devnet):', error);
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     await teardownTestMongoDB(mongoServer);
@@ -82,7 +82,7 @@ describe('Performance and Load Tests', () => {
     it('should handle small load (10 concurrent tasks)', async () => {
       const loadSize = PERFORMANCE_CONFIG.SMALL_LOAD;
       const startTime = Date.now();
-      
+
       // Create concurrent task submissions
       const taskPromises = Array.from({ length: loadSize }, async (_, index) => {
         const taskId = `small-load-task-${Date.now()}-${index}`;
@@ -100,7 +100,7 @@ describe('Performance and Load Tests', () => {
               task_id: taskId
             }
           },
-          status: 'COMPLETED',
+          status: 'completed',
           grade_result: {
             score: 85 + (index % 15),
             summary: 'Good performance',
@@ -141,7 +141,7 @@ describe('Performance and Load Tests', () => {
     it('should handle medium load (50 concurrent tasks)', async () => {
       const loadSize = PERFORMANCE_CONFIG.MEDIUM_LOAD;
       const startTime = Date.now();
-      
+
       // Create concurrent task submissions
       const taskPromises = Array.from({ length: loadSize }, async (_, index) => {
         const taskId = `medium-load-task-${Date.now()}-${index}`;
@@ -159,7 +159,7 @@ describe('Performance and Load Tests', () => {
               task_id: taskId
             }
           },
-          status: 'COMPLETED',
+          status: 'completed',
           grade_result: {
             score: 80 + (index % 20),
             summary: 'Good performance',
@@ -200,7 +200,7 @@ describe('Performance and Load Tests', () => {
     it('should handle high load (100 concurrent tasks)', async () => {
       const loadSize = PERFORMANCE_CONFIG.HIGH_LOAD;
       const startTime = Date.now();
-      
+
       // Create concurrent task submissions
       const taskPromises = Array.from({ length: loadSize }, async (_, index) => {
         const taskId = `high-load-task-${Date.now()}-${index}`;
@@ -218,7 +218,7 @@ describe('Performance and Load Tests', () => {
               task_id: taskId
             }
           },
-          status: 'COMPLETED',
+          status: 'completed',
           grade_result: {
             score: 75 + (index % 25),
             summary: 'Good performance',
@@ -280,7 +280,7 @@ describe('Performance and Load Tests', () => {
               task_id: taskId
             }
           },
-          status: 'COMPLETED',
+          status: 'completed',
           grade_result: {
             score: 85,
             summary: 'Good performance',
@@ -352,16 +352,16 @@ describe('Performance and Load Tests', () => {
 
       // Verify benchmark results
       expect(benchmarkResults).toHaveLength(batchSizes.length);
-      
+
       // Larger batch sizes should generally be more efficient
       for (let i = 1; i < benchmarkResults.length; i++) {
         const current = benchmarkResults[i];
         const previous = benchmarkResults[i - 1];
-        
+
         // Larger batches should use less gas per task
         const currentGasPerTask = current.gasUsed / (totalTasks / current.batchSize);
         const previousGasPerTask = previous.gasUsed / (totalTasks / previous.batchSize);
-        
+
         console.log(`Batch ${current.batchSize}: ${currentGasPerTask} gas per task`);
         console.log(`Batch ${previous.batchSize}: ${previousGasPerTask} gas per task`);
       }
@@ -373,7 +373,7 @@ describe('Performance and Load Tests', () => {
       const loadSize = PERFORMANCE_CONFIG.STRESS_LOAD;
       const startTime = Date.now();
       const maxConcurrent = 20; // Limit concurrent operations
-      
+
       // Create tasks in batches to avoid overwhelming the system
       const batches = [];
       for (let i = 0; i < loadSize; i += maxConcurrent) {
@@ -402,7 +402,7 @@ describe('Performance and Load Tests', () => {
                   task_id: taskId
                 }
               },
-              status: 'COMPLETED',
+              status: 'completed',
               grade_result: {
                 score: 70 + (index % 30),
                 summary: 'Good performance',
@@ -467,10 +467,10 @@ describe('Performance and Load Tests', () => {
     it('should handle memory pressure gracefully', async () => {
       const loadSize = 200;
       const startTime = Date.now();
-      
+
       // Monitor memory usage
       const initialMemory = process.memoryUsage();
-      
+
       // Create large number of submissions
       const submissions = [];
       for (let i = 0; i < loadSize; i++) {
@@ -488,7 +488,7 @@ describe('Performance and Load Tests', () => {
               task_id: taskId
             }
           },
-          status: 'COMPLETED',
+          status: 'completed',
           grade_result: {
             score: 80,
             summary: 'Good performance',
@@ -515,7 +515,7 @@ describe('Performance and Load Tests', () => {
       }
 
       const midMemory = process.memoryUsage();
-      
+
       // Process all submissions
       const processingPromises = submissions.map(async (submission, index) => {
         const taskId = `memory-test-task-${Date.now()}-${index}`;
@@ -523,7 +523,7 @@ describe('Performance and Load Tests', () => {
         const farmerAddress = farmer.publicKey.toString();
 
         const pendingRewards = await rewardPoolService.getPendingRewards(farmerAddress);
-        
+
         const withdrawalResult = await rewardPoolService.executeWithdrawal(
           [taskId],
           pendingRewards.withdrawalNonce,
@@ -595,7 +595,7 @@ describe('Performance and Load Tests', () => {
                 task_id: taskId
               }
             },
-            status: 'COMPLETED',
+            status: 'completed',
             grade_result: {
               score: 85,
               summary: 'Good performance',
@@ -669,7 +669,7 @@ describe('Performance and Load Tests', () => {
               task_id: taskId
             }
           },
-          status: 'COMPLETED',
+          status: 'completed',
           grade_result: {
             score: 80 + (i % 20),
             summary: 'Good performance',
@@ -703,23 +703,23 @@ describe('Performance and Load Tests', () => {
       // Query 1: Find all submissions for a specific user
       const userAddress = testFarmers[0].publicKey.toString();
       const userSubmissions = await ForgeRaceSubmission.find({ address: userAddress });
-      
+
       // Query 2: Find all completed submissions
       const completedSubmissions = await ForgeRaceSubmission.find({ status: 'COMPLETED' });
-      
+
       // Query 3: Find submissions with specific reward range
-      const highRewardSubmissions = await ForgeRaceSubmission.find({ 
-        reward: { $gte: 80000 } 
+      const highRewardSubmissions = await ForgeRaceSubmission.find({
+        reward: { $gte: 80000 }
       });
-      
+
       // Query 4: Aggregate query - count submissions by status
       const statusCounts = await ForgeRaceSubmission.aggregate([
         { $group: { _id: '$status', count: { $sum: 1 } } }
       ]);
-      
+
       // Query 5: Complex query with multiple conditions
       const complexQuery = await ForgeRaceSubmission.find({
-        status: 'COMPLETED',
+        status: 'completed',
         'smartContractReward.isRecorded': true,
         'smartContractReward.isWithdrawn': false,
         reward: { $gte: 50000, $lte: 150000 }

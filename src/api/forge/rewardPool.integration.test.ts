@@ -26,6 +26,20 @@ vi.mock('../../services/redis.ts', () => {
   };
 });
 
+// Mock RewardPoolService
+const mockGetInstance = vi.fn();
+vi.mock('../../services/blockchain/rewardPool.ts', () => ({
+  RewardPoolService: {
+    getInstance: mockGetInstance,
+  },
+  RewardPoolServiceError: class extends Error { },
+  RewardPoolError: {
+    INVALID_WALLET_ADDRESS: 'INVALID_WALLET_ADDRESS',
+    CONNECTION_FAILED: 'CONNECTION_FAILED',
+    INVALID_CONFIGURATION: 'INVALID_CONFIGURATION',
+  },
+}));
+
 // Mock middleware
 vi.mock('../../middleware/auth.ts', () => ({
   requireWalletAddress: (req: any, res: any, next: any) => {
@@ -94,7 +108,7 @@ describe('Reward Pool Integration Tests', () => {
       initializeRewardPool: vi.fn(),
     };
 
-    vi.mocked(RewardPoolService.getInstance).mockReturnValue(mockRewardPoolService);
+    mockGetInstance.mockReturnValue(mockRewardPoolService);
   });
 
   beforeEach(() => {
@@ -110,7 +124,7 @@ describe('Reward Pool Integration Tests', () => {
     it('should handle invalid program ID gracefully', async () => {
       // Test with invalid program ID
       const invalidProgramId = 'invalid-program-id';
-      
+
       expect(() => {
         new RewardPoolService(
           new Connection('https://api.devnet.solana.com'),
@@ -241,7 +255,7 @@ describe('Reward Pool Integration Tests', () => {
   describe('Input Validation', () => {
     it('should validate wallet address format', async () => {
       const invalidAddress = 'invalid-address';
-      
+
       const response = await supertest(app)
         .get(`/api/v1/forge/reward-pool/pending-rewards/${invalidAddress}`)
         .expect(400);
@@ -314,7 +328,7 @@ describe('Reward Pool Integration Tests', () => {
       );
 
       const responses = await Promise.all(requests);
-      
+
       responses.forEach(response => {
         expect(response.status).toBe(200);
         expect(response.body.data).toBeDefined();

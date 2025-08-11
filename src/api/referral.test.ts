@@ -20,6 +20,14 @@ vi.mock('../services/blockchain/index.ts', () => ({
     }
 }));
 
+// Mock rate limiter middleware
+vi.mock('../middleware/rateLimiter.ts', () => ({
+    generalLimiter: (req: Request, res: Response, next: NextFunction) => next(),
+    withdrawalLimiter: (req: Request, res: Response, next: NextFunction) => next(),
+    taskCompletionLimiter: (req: Request, res: Response, next: NextFunction) => next(),
+    adminLimiter: (req: Request, res: Response, next: NextFunction) => next(),
+}));
+
 vi.mock('../services/blockchain/referralProgram.ts', () => ({
     ReferralProgramService: class MockReferralProgramService {
         constructor() { }

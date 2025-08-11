@@ -31,7 +31,7 @@ describe('Reward Pool Complete Integration Tests', () => {
 
     // Initialize Solana connection
     connection = new Connection(TEST_CONFIG.RPC_URL, 'confirmed');
-    
+
     // Generate test keypairs
     platformAuthority = Keypair.generate();
     testFarmer = Keypair.generate();
@@ -49,13 +49,13 @@ describe('Reward Pool Complete Integration Tests', () => {
     try {
       const signature1 = await connection.requestAirdrop(platformAuthority.publicKey, 2 * LAMPORTS_PER_SOL);
       await connection.confirmTransaction(signature1);
-      
+
       const signature2 = await connection.requestAirdrop(testFarmer.publicKey, 1 * LAMPORTS_PER_SOL);
       await connection.confirmTransaction(signature2);
     } catch (error) {
       console.warn('Airdrop failed (expected on non-devnet):', error);
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     await teardownTestMongoDB(mongoServer);
@@ -215,7 +215,7 @@ describe('Reward Pool Complete Integration Tests', () => {
 
       // Get pending rewards
       const pendingRewards = await rewardPoolService.getPendingRewards(farmerAddress);
-      
+
       // Prepare batch withdrawal
       const withdrawalData = await rewardPoolService.prepareWithdrawalTransaction({
         farmerAddress,
@@ -605,7 +605,7 @@ describe('Reward Pool Complete Integration Tests', () => {
       // Verify gas optimization
       expect(totalTime).toBeLessThan(60000); // Should complete within 60 seconds
       expect(totalGasUsed).toBeGreaterThan(0);
-      
+
       console.log(`Gas optimization test completed in ${totalTime}ms with ${totalGasUsed} estimated gas units`);
     }, 60000);
 
@@ -707,7 +707,7 @@ describe('Reward Pool Complete Integration Tests', () => {
 
       // Try to withdraw with unauthorized farmer keypair
       const unauthorizedKeypair = Keypair.generate();
-      
+
       await expect(
         rewardPoolService.executeWithdrawal(
           [taskId],
@@ -770,7 +770,7 @@ describe('Reward Pool Complete Integration Tests', () => {
 
       expect(withdrawalResult.signature).toBeDefined();
       expect(withdrawalResult.signature.length).toBeGreaterThan(0);
-      
+
       // Verify signature format (should be base58 encoded)
       expect(/^[1-9A-HJ-NP-Za-km-z]+$/.test(withdrawalResult.signature)).toBe(true);
     }, 30000);
