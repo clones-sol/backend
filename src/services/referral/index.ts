@@ -144,91 +144,59 @@ export class ReferralService {
     referreeAddress: string,
     referralCode: string
   ): Promise<IReferral> {
-    try {
-      // Try to use transactions if available (replica set)
-      const session = await mongoose.startSession();
-
-      try {
-        const result = await session.withTransaction(async () => {
-          // Check if referree has already been referred (atomic within transaction)
-          const existingReferral = await ReferralModel.findOne({ referreeAddress }).session(session);
-          if (existingReferral) {
-            throw ApiError.conflict('User has already been referred');
-          }
-
-          // Validate referral code
-          const validReferrer = await this.validateReferralCode(referralCode);
-          if (!validReferrer || validReferrer !== referrerAddress) {
-            throw ApiError.badRequest('Invalid referral code');
-          }
-
-          // Prevent self-referral
-          if (referrerAddress === referreeAddress) {
-            throw ApiError.conflict('Cannot refer yourself');
-          }
-
-          // Create referral record (atomic within transaction)
-          const referral = await ReferralModel.create([{
-            referrerAddress,
-            referreeAddress
-          }], { session });
-
-
-          return referral[0];
-        });
-
-
-        return result;
-
-      } finally {
-        await session.endSession();
-      }
-
-    } catch (error: any) {
-      return await handleTransactionError(
-        error,
-        () => this.createReferralWithoutTransaction(
-          referrerAddress,
-          referreeAddress,
-          referralCode
-        )
-      );
-    }
-  }
-
-  /**
-   * Fallback method for creating referrals without transactions (for standalone MongoDB)
-   */
-  private async createReferralWithoutTransaction(
-    referrerAddress: string,
-    referreeAddress: string,
-    referralCode: string
-  ): Promise<IReferral> {
-    // Check if referree has already been referred
-    const existingReferral = await ReferralModel.findOne({ referreeAddress });
-    if (existingReferral) {
-      throw ApiError.conflict('User has already been referred');
+    if (referrerAddress === referreeAddress) {
+      throw ApiError.badRequest('You cannot refer yourself.');
     }
 
     // Validate referral code
     const validReferrer = await this.validateReferralCode(referralCode);
     if (!validReferrer || validReferrer !== referrerAddress) {
-      throw ApiError.badRequest('Invalid referral code');
+      throw ApiError.badRequest('Invalid or expired referral code.');
     }
 
-    // Prevent self-referral
-    if (referrerAddress === referreeAddress) {
-      throw ApiError.conflict('Cannot refer yourself');
+    try {
+      // Try to use transactions if available (replica set or mongos)
+      const session = await mongoose.startSession();
+
+      try {
+        const result = await session.withTransaction(async () => {
+          // Create referral relationship within transaction
+          const referral = await ReferralModel.create(
+            [{ referrerAddress, referreeAddress }],
+            { session }
+          );
+          return referral[0];
+        });
+
+        return result;
+      } finally {
+        await session.endSession();
+      }
+    } catch (error: any) {
+      // Handle transaction not supported (standalone MongoDB)
+      if (error.message?.includes('Transaction numbers are only allowed')) {
+        try {
+          // Fallback to direct creation without transaction
+          const referral = await ReferralModel.create({
+            referrerAddress,
+            referreeAddress
+          });
+          return referral;
+        } catch (fallbackError: any) {
+          if (fallbackError.code === 11000) {
+            throw ApiError.badRequest('This wallet has already been referred.');
+          }
+          throw fallbackError;
+        }
+      }
+
+      // Handle duplicate key error from transaction
+      if (error.code === 11000) {
+        throw ApiError.badRequest('This wallet has already been referred.');
+      }
+
+      throw error;
     }
-
-    // Create referral record
-    const referral = await ReferralModel.create({
-      referrerAddress,
-      referreeAddress
-    });
-
-
-    return referral;
   }
 
   /**

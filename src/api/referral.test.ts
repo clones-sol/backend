@@ -138,6 +138,9 @@ vi.mock('../services/referral/index.ts', () => ({
             if (referralCode === 'TESTCD' || referralCode === 'testcd') {
                 return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
             }
+            if (referralCode === 'TESTAB' || referralCode === 'testab') {
+                return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
+            }
             return null;
         }
         async createReferral() {
@@ -297,20 +300,18 @@ vi.mock('../services/referral/index.ts', () => ({
                 return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
             }
             if (referralCode === 'TESTAB' || referralCode === 'testab') {
-                return '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49';
+                return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
             }
             return null;
         },
-        createReferral: async (referrerAddress: string, referreeAddress: string, referralCode: string, referralLink: string) => {
-            // Validate referral code
-            if (referralCode !== 'TESTAB' && referralCode !== 'testab') {
-                const { ApiError } = await import('../middleware/types/errors.ts');
-                throw ApiError.badRequest('Invalid or expired referral code.');
+        createReferral: async (referrerAddress: string, referreeAddress: string, referralCode: string) => {
+            const { ApiError } = await import('../middleware/types/errors.ts');
+            if (referrerAddress === referreeAddress) {
+                throw ApiError.badRequest('You cannot refer yourself.');
             }
-
             return {
                 _id: 'mock-referral-id',
-                referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
+                referrerAddress,
                 referreeAddress,
                 createdAt: new Date(),
                 updatedAt: null
