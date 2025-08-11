@@ -224,8 +224,6 @@ router.get(
     let referralCode: string | null = null;
     let referrer: { walletAddress: string; referralCode: string | null } | null = null;
     if (connection?.address) {
-      const referralCodeInfo = await referralService.getReferralCode(connection.address);
-      referralCode = referralCodeInfo?.referralCode || null;
       const [referralCodeInfo, referrerInfo] = await Promise.all([
         referralService.getReferralCode(connection.address),
         referralService.getReferrer(connection.address)
