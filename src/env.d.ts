@@ -9,8 +9,8 @@ declare namespace NodeJS {
     OPENAI_API_KEY: string;
     ANTHROPIC_API_KEY: string;
 
-    // Files path
-    PIPELINE_PATH: string;
+    // Clones Quality Agent path
+    CQA_PATH: string;
 
     // Blockchain Configuration
     RPC_URL: string;

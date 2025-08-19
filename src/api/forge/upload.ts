@@ -367,7 +367,7 @@ router.post(
         await mkdir(finalDir, { recursive: true });
 
         // Move files from extract to final directory
-        const requiredFiles = ['input_log.jsonl', 'meta.json', 'recording.mp4'];
+        const requiredFiles = ['input_log.jsonl', 'meta.json', 'recording.mp4', 'sft.json'];
         console.log(`[UPLOAD] Moving required files to final directory`);
         for (const file of requiredFiles) {
             const sourcePath = path.join(extractDir, file);

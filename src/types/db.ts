@@ -32,9 +32,15 @@ export interface DBForgeRaceSubmission {
   }>;
   grade_result?: {
     summary?: string;
-    score?: number;
+    observations?: string;
     reasoning?: string;
+    score?: number;
+    confidence?: number;
+    outcomeAchievement?: number;
+    processQuality?: number;
+    efficiency?: number;
   };
+  grading_metrics?: any;
   error?: string;
   reward?: number;
   maxReward?: number;

@@ -137,8 +137,13 @@ export interface ForgeSubmissionMetaData {
 
 export interface ForgeSubmissionGradeResult {
   summary: string;
-  score: number;
+  observations: string;
   reasoning: string;
+  score: number;
+  confidence: number;
+  outcomeAchievement: number;
+  processQuality: number;
+  efficiency: number;
 }
 
 // Interface for treasury transfer details
@@ -166,4 +171,34 @@ export interface UploadSession {
   tempDir: string;
   createdAt: Date;
   lastUpdated: Date;
+}
+
+export interface RequestMetrics {
+  responseId?: string;
+  systemFingerprint?: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  timing: {
+    startTime: number;
+    endTime: number;
+    durationMs: number;
+    retryCount: number;
+    retryDelays: number[];
+  };
+  context: {
+    sessionId: string;
+    chunkIndex?: number;
+    totalChunks?: number;
+    isFinal: boolean;
+    model: string;
+  };
+  outcome: 'success' | 'permanent_error' | 'transient_error' | 'timeout';
+  error?: {
+    type: string;
+    message: string;
+    statusCode?: number;
+  };
 }

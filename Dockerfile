@@ -33,8 +33,9 @@ RUN npm prune --omit=dev
 # Final stage for app image
 FROM base
 
-ADD https://github.com/clones-sol/pipeline/releases/latest/download/pipeline-linux-x64 /app/pipeline
-RUN chmod +x /app/pipeline
+ARG CQA_VERSION=2.0.1
+ADD https://github.com/clones-sol/clones-quality-agent/releases/download/v${CQA_VERSION}/clones-quality-agent-linux-x64 ./clones-quality-agent
+RUN chmod +x clones-quality-agent
 
 # Install runtime dependencies
 RUN apt-get update -qq && \

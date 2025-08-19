@@ -20,7 +20,7 @@ process.env.STORAGE_SECRET_KEY = 'mock-storage-secret-key';
 process.env.STORAGE_ENDPOINT = 'http://localstack:4566';
 process.env.STORAGE_REGION = 'us-east-1';
 process.env.STORAGE_BUCKET = 'training-gym';
-process.env.PIPELINE_PATH = '/app/pipeline';
+process.env.CQA_PATH = '/app/clones-quality-agent';
 process.env.ANTHROPIC_API_KEY = 'mock-anthropic-api-key';
 
 // Referral system environment variables
