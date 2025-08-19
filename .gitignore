@@ -52,8 +52,8 @@ next-env.d.ts
 /test
 trees/
 
-pipeline-linux-x64
-pipeline
+clones-quality-agent-linux-x64
+clones-quality-agent
 uploads
 
 localstack/cache

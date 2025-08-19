@@ -21,11 +21,17 @@ export const forgeRaceSubmissionSchema = new mongoose.Schema<DBForgeRaceSubmissi
     grade_result: {
       type: {
         summary: String,
+        observations: String,
+        reasoning: String,
         score: Number,
-        reasoning: String
+        confidence: Number,
+        outcomeAchievement: Number,
+        processQuality: Number,
+        efficiency: Number
       },
       required: false
     },
+    grading_metrics: { type: mongoose.Schema.Types.Mixed, required: false },
     error: { type: String, required: false },
     reward: { type: Number, required: false },
     maxReward: { type: Number, required: false },

@@ -76,9 +76,9 @@ export async function processNextInQueue() {
       address: submission.address
     });
 
-    // Run grading pipeline
+    // Run Clones Quality Agent
     const extractDir = path.join('uploads', `extract_${submissionId}`);
-    console.log('Running pipeline for directory:', extractDir);
+    console.log('Running Clones Quality Agent for directory:', extractDir);
     try {
       // Check if directory exists
       await fs.access(extractDir);
@@ -89,7 +89,7 @@ export async function processNextInQueue() {
       console.log('Directory contents:', files);
 
       await new Promise<void>((resolve, reject) => {
-        const pipeline = spawn(process.env.PIPELINE_PATH, [
+        const pipeline = spawn(process.env.CQA_PATH, [
           '-f',
           'desktop',
           '-i',
@@ -102,26 +102,26 @@ export async function processNextInQueue() {
 
         pipeline.stdout.on('data', (data) => {
           stdout += data;
-          console.log('Pipeline stdout:', data.toString());
+          console.log('Clones Quality Agent stdout:', data.toString());
         });
 
         pipeline.stderr.on('data', (data) => {
           stderr += data;
-          console.error('Pipeline stderr:', data.toString());
+          console.error('Clones Quality Agent stderr:', data.toString());
         });
 
         pipeline.on('close', (code: number) => {
           if (code === 0) {
             resolve();
           } else {
-            console.error('Pipeline stdout:', stdout);
-            console.error('Pipeline stderr:', stderr);
-            reject(new Error(`Pipeline failed:\nstdout: ${stdout}\nstderr: ${stderr}`));
+            console.error('Clones Quality Agent stdout:', stdout);
+            console.error('Clones Quality Agent stderr:', stderr);
+            reject(new Error(`Clones Quality Agent failed:\nstdout: ${stdout}\nstderr: ${stderr}`));
           }
         });
 
         pipeline.on('error', (err) => {
-          console.error('Pipeline spawn error:', err);
+          console.error('Clones Quality Agent spawn error:', err);
           reject(err);
         });
       });
@@ -133,7 +133,7 @@ export async function processNextInQueue() {
         console.log('scores.json exists');
       } catch (error) {
         console.error('scores.json not found:', error);
-        throw new Error('scores.json not found after pipeline run');
+        throw new Error('scores.json not found after Clones Quality Agent run');
       }
 
       // Read and parse scores.json
@@ -143,10 +143,23 @@ export async function processNextInQueue() {
       const gradeResult: ForgeSubmissionGradeResult = JSON.parse(scoresContent);
       console.log('Parsed grade result:', gradeResult);
 
+      // Read and parse metrics.json
+      const metricsPath = path.join(extractDir, 'metrics.json');
+      let metricsResult = null;
+      try {
+        await fs.access(metricsPath);
+        console.log('metrics.json exists');
+        const metricsContent = await fs.readFile(metricsPath, 'utf8');
+        metricsResult = JSON.parse(metricsContent);
+        console.log('Parsed metrics result:', metricsResult);
+      } catch (error) {
+        console.log('metrics.json not found or could not be parsed, continuing without metrics.');
+      }
+
       // Get pool details and calculate reward
       let reward = undefined;
       let maxReward = undefined;
-      let clampedScore = undefined;
+      const clampedScore = Math.max(0, Math.min(100, gradeResult.score));
       let treasuryTransfer: ForgeTreasuryTransfer | undefined = undefined;
       let retries = 3;
 
@@ -169,9 +182,6 @@ export async function processNextInQueue() {
           try {
             // Default maxReward is the pool's pricePerDemo
             maxReward = pool.pricePerDemo;
-
-            // Calculate final reward based on grade_result score (clamped 0-100)
-            clampedScore = Math.max(0, Math.min(100, gradeResult.score));
 
             // Reward skip conditions:
             // 1. Missing task_id
@@ -413,6 +423,7 @@ export async function processNextInQueue() {
                   clampedScore,
                   summary: gradeResult.summary,
                   feedback: gradeResult.reasoning,
+                  observations: gradeResult.observations,
                   treasuryTransfer,
                   address: submission.address,
                   pool: poolInfo
@@ -456,6 +467,9 @@ export async function processNextInQueue() {
       }
 
       submission.grade_result = gradeResult;
+      if (metricsResult) {
+        submission.grading_metrics = metricsResult;
+      }
       submission.reward = reward;
       submission.maxReward = maxReward;
       submission.clampedScore = clampedScore;
@@ -476,6 +490,7 @@ export async function processNextInQueue() {
           clampedScore: clampedScore || 0,
           summary: gradeResult.summary,
           feedback: gradeResult.reasoning,
+          observations: gradeResult.observations,
           address: submission.address,
           pool: pool
             ? {
@@ -530,6 +545,7 @@ async function notifyForgeWebhook(
     clampedScore?: number;
     summary?: string;
     feedback?: string;
+    observations?: string;
     error?: string;
     treasuryTransfer?: ForgeTreasuryTransfer;
     address?: string;
@@ -641,6 +657,14 @@ async function notifyForgeWebhook(
       fields.push({
         name: '💭 Feedback',
         value: data.feedback,
+        inline: false
+      });
+    }
+
+    if (data.observations) {
+      fields.push({
+        name: '📝 Observations',
+        value: data.observations,
         inline: false
       });
     }
