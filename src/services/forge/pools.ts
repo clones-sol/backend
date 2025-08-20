@@ -153,7 +153,7 @@ export async function updatePoolStatus(
   const tokenContractAddress = getTokenContractAddress(pool.token.symbol);
   const balance = await blockchainService.getTokenBalance(tokenContractAddress, pool.depositAddress);
   const ethBalance = await blockchainService.getEthBalance(pool.depositAddress);
-  const noGas = ethBalance <= BlockchainService.MIN_ETH_BALANCE;
+  const noGas = ethBalance < BlockchainService.MIN_ETH_BALANCE;
   let statusChanged = false;
 
   // Update pool funds
