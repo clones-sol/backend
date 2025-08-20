@@ -16,7 +16,7 @@ export const connectWalletSchema: ValidationSchema = {
       ValidationRules.matches(/^[a-zA-Z0-9_-]+$/, 'Token must contain only alphanumeric characters, underscores and hyphens')
     ]
   },
-  walletAddress: {
+  address: {
     required: true,
     rules: [
       ValidationRules.isString(),
