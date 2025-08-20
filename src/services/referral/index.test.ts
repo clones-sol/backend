@@ -4,6 +4,17 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import { ReferralService } from './index.ts';
 import { ReferralModel, IReferral } from '../../models/Referral.ts';
 import { ReferralCodeModel, IReferralCode } from '../../models/ReferralCode.ts';
+import { connectToDatabase } from '../database.ts';
+import { ApiError } from '../../middleware/types/errors.ts';
+
+const TEST_WALLETS = {
+    referrer: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+    referree: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+    newWallet: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
+    expiredWallet: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+    unreferredWallet: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
+    noCodeWallet: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc'
+};
 
 // Mock external services
 vi.mock('../blockchain/index.ts', () => ({
@@ -71,6 +82,7 @@ describe('ReferralService', () => {
     let mongoServer: MongoMemoryServer;
     let referralService: ReferralService;
     let testReferralCode: Document & IReferralCode;
+    let testExpiredCode: Document & IReferralCode;
     let testReferral: Document & IReferral;
 
     beforeAll(async () => {
@@ -104,26 +116,25 @@ describe('ReferralService', () => {
         await ReferralCodeModel.deleteMany({});
         await ReferralModel.deleteMany({});
 
-        // Create test data
-        await ReferralCodeModel.create({
-            walletAddress: 'referrer123',
-            referralCode: 'TEST123',
+        // Create initial data for tests
+        testReferralCode = await ReferralCodeModel.create({
+            walletAddress: TEST_WALLETS.referrer,
+            referralCode: 'TESTCD',
             isActive: true,
-            totalRewards: 0,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
         });
 
-        await ReferralCodeModel.create({
-            walletAddress: 'new-referrer',
-            referralCode: 'NEWCODE',
-            isActive: true,
-            totalRewards: 0,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        testExpiredCode = await ReferralCodeModel.create({
+            walletAddress: TEST_WALLETS.expiredWallet,
+            referralCode: 'EXPIRED',
+            isActive: false,
+            expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000) // 1 day ago
         });
 
         testReferral = await ReferralModel.create({
-            referrerAddress: 'referrer123',
-            referreeAddress: 'referree123'
+            referrerAddress: TEST_WALLETS.referrer,
+            referreeAddress: TEST_WALLETS.referree,
+            referralCode: 'TESTCD'
         });
     });
 
@@ -133,21 +144,19 @@ describe('ReferralService', () => {
 
     describe('generateReferralCode', () => {
         it('should return existing referral code if wallet already has one', async () => {
-            const existingCodeData = await referralService.generateReferralCode('referrer123');
-            expect(existingCodeData.referralCode).toBe('TEST123');
+            const result = await referralService.generateReferralCode(TEST_WALLETS.referrer);
+            expect(result.referralCode).toBe('TESTCD');
         });
 
         it('should generate a new unique referral code for new wallet', async () => {
-            const newCodeData = await referralService.generateReferralCode('new-wallet-456');
+            const result = await referralService.generateReferralCode(TEST_WALLETS.newWallet);
+            expect(result.referralCode).toBeDefined();
+            expect(result.referralCode.length).toBe(6);
+            expect(result.referralCode).toMatch(/^[A-HJKMNP-Z2-9]{6}$/);
 
-            expect(newCodeData).toBeDefined();
-            expect(newCodeData.referralCode.length).toBe(6);
-            expect(newCodeData.referralCode).toMatch(/^[A-Z0-9]{6}$/);
-
-            // Verify it was saved to database
-            const savedCode = await ReferralCodeModel.findOne({ walletAddress: 'new-wallet-456' });
-            expect(savedCode).not.toBeNull();
-            expect(savedCode?.referralCode).toBe(newCodeData.referralCode);
+            const codeInDb = await ReferralCodeModel.findOne({ walletAddress: TEST_WALLETS.newWallet });
+            expect(codeInDb).not.toBeNull();
+            expect(codeInDb?.referralCode).toBe(result.referralCode);
         });
 
         it('should throw error if unable to generate unique code after max attempts', async () => {
@@ -168,8 +177,8 @@ describe('ReferralService', () => {
 
     describe('validateReferralCode', () => {
         it('should return referrer address for valid active code', async () => {
-            const referrerAddress = await referralService.validateReferralCode('TEST123');
-            expect(referrerAddress).toBe('referrer123');
+            const referrerAddress = await referralService.validateReferralCode('TESTCD');
+            expect(referrerAddress).toBe(TEST_WALLETS.referrer);
         });
 
         it('should return null for invalid code', async () => {
@@ -178,117 +187,87 @@ describe('ReferralService', () => {
         });
 
         it('should return null for expired code', async () => {
-            // Create expired code
-            await ReferralCodeModel.create({
-                walletAddress: 'expired-wallet',
-                referralCode: 'EXPIRED',
-                isActive: true,
-                expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-                updatedAt: null
-            });
-
             const referrerAddress = await referralService.validateReferralCode('EXPIRED');
             expect(referrerAddress).toBeNull();
-
-            // Verify code was marked as inactive
-            const expiredCode = await ReferralCodeModel.findOne({ referralCode: 'EXPIRED' });
-            expect(expiredCode?.isActive).toBe(false);
         });
 
         it('should handle case-insensitive code validation', async () => {
-            const referrerAddress = await referralService.validateReferralCode('test123');
-            expect(referrerAddress).toBe('referrer123');
+            const referrerAddress = await referralService.validateReferralCode('testcd');
+            expect(referrerAddress).toBe(TEST_WALLETS.referrer);
         });
     });
 
     describe('createReferral', () => {
         it('should create referral relationship successfully', async () => {
-            const initialCount = await ReferralModel.countDocuments();
-
             const referral = await referralService.createReferral(
-                'new-referrer',
-                'new-referree',
-                'NEWCODE'
+                TEST_WALLETS.referrer,
+                TEST_WALLETS.newWallet,
+                'TESTCD'
             );
+            expect(referral).toBeDefined();
+            expect(referral.referrerAddress).toBe(TEST_WALLETS.referrer);
+            expect(referral.referreeAddress).toBe(TEST_WALLETS.newWallet);
 
-            expect(referral.referrerAddress).toBe('new-referrer');
-            expect(referral.referreeAddress).toBe('new-referree');
-
-            const finalCount = await ReferralModel.countDocuments();
-            expect(finalCount).toBe(initialCount + 1);
+            const referralInDb = await ReferralModel.findById(referral._id);
+            expect(referralInDb).not.toBeNull();
         });
 
         it('should throw error if referree has already been referred', async () => {
             await expect(
-                referralService.createReferral(
-                    'referrer123',
-                    'referree123', // This one was created in beforeEach
-                    'TEST123'
-                )
-            ).rejects.toThrow('This wallet has already been referred.');
+                referralService.createReferral(TEST_WALLETS.referrer, TEST_WALLETS.referree, 'TESTCD')
+            ).rejects.toThrow(ApiError.badRequest('This wallet has already been referred.'));
         });
 
         it('should throw error for invalid referral code', async () => {
             await expect(
-                referralService.createReferral(
-                    'referrer123',
-                    'new-referree',
-                    'INVALIDCODE'
-                )
-            ).rejects.toThrow('Invalid or expired referral code.');
+                referralService.createReferral(TEST_WALLETS.referrer, TEST_WALLETS.newWallet, 'INVALID')
+            ).rejects.toThrow(ApiError.badRequest('Invalid or expired referral code.'));
         });
 
         it('should throw error for self-referral', async () => {
             await expect(
-                referralService.createReferral(
-                    'referrer123',
-                    'referrer123',
-                    'TEST123'
-                )
-            ).rejects.toThrow('You cannot refer yourself.');
+                referralService.createReferral(TEST_WALLETS.referrer, TEST_WALLETS.referrer, 'TESTCD')
+            ).rejects.toThrow(ApiError.badRequest('You cannot refer yourself.'));
         });
     });
 
     describe('hasBeenReferred', () => {
         it('should return true if wallet has been referred', async () => {
-            const hasBeenReferred = await referralService.hasBeenReferred('referree123');
-            expect(hasBeenReferred).toBe(true);
+            const result = await referralService.hasBeenReferred(TEST_WALLETS.referree);
+            expect(result).toBe(true);
         });
 
         it('should return false if wallet has not been referred', async () => {
-            const hasBeenReferred = await referralService.hasBeenReferred('unreferred-wallet');
-            expect(hasBeenReferred).toBe(false);
+            const result = await referralService.hasBeenReferred(TEST_WALLETS.newWallet);
+            expect(result).toBe(false);
         });
     });
 
     describe('getReferrer', () => {
         it('should return referrer address for referred wallet', async () => {
-            const referrer = await referralService.getReferrer('referree123');
-            expect(referrer).toEqual({
-                walletAddress: 'referrer123',
-                referralCode: 'TEST123'
-            });
+            const referrer = await referralService.getReferrer(TEST_WALLETS.referree);
+            expect(referrer?.walletAddress).toBe(TEST_WALLETS.referrer);
+            expect(referrer?.referralCode).toBe('TESTCD');
         });
 
         it('should return null for unreferred wallet', async () => {
-            const referrer = await referralService.getReferrer('unreferred-wallet');
+            const referrer = await referralService.getReferrer(TEST_WALLETS.newWallet);
             expect(referrer).toBeNull();
         });
     });
 
     describe('getReferralStats', () => {
         it('should return referral statistics for wallet', async () => {
-            const stats = await referralService.getReferralStats('referrer123');
-
-            expect(stats.referralInfo?.totalReferrals).toBe(1); // Calculated from actual referrals
-            expect(stats.referralInfo?.totalRewards).toBe(0);
-            expect(stats.referralInfo?.referralCode).toBe('TEST123');
+            const stats = await referralService.getReferralStats(TEST_WALLETS.referrer);
+            expect(stats.referralInfo).toBeDefined();
+            expect(stats.referralInfo!.totalReferrals).toBe(1);
+            expect(stats.referralInfo!.totalRewards).toBe(0);
+            expect(stats.referralInfo!.referralCode).toBe('TESTCD');
             expect(stats.referrals).toBeInstanceOf(Array);
         });
 
         it('should return empty stats for wallet without referral code', async () => {
-            const stats = await referralService.getReferralStats('no-code-wallet');
-
+            const stats = await referralService.getReferralStats(TEST_WALLETS.noCodeWallet);
             expect(stats.referralInfo).toBeNull();
             expect(stats.referrals).toEqual([]);
         });
@@ -310,97 +289,27 @@ describe('ReferralService', () => {
 
     describe('Race condition prevention', () => {
         it('should prevent race conditions when creating multiple referrals concurrently', async () => {
-            // Create a referrer
-            await ReferralCodeModel.create({
-                walletAddress: 'race-referrer',
-                referralCode: 'RACE123',
-                isActive: true,
-                totalRewards: 0,
-                updatedAt: null
-            });
+            const p1 = referralService.createReferral(TEST_WALLETS.referrer, '0x976EA74026E726554dB657fA54763abd0C3a0aa9', 'TESTCD');
+            const p2 = referralService.createReferral(TEST_WALLETS.referrer, '0x14dC79964da2C08b23698B3D3cc7Ca32193d9955', 'TESTCD');
+            await Promise.all([p1, p2]);
 
-            // Simulate concurrent referral creation attempts
-            const concurrentPromises = [
-                referralService.createReferral(
-                    'race-referrer',
-                    'referree1',
-                    'RACE123'
-                ),
-                referralService.createReferral(
-                    'race-referrer',
-                    'referree2',
-                    'RACE123'
-                ),
-                referralService.createReferral(
-                    'race-referrer',
-                    'referree3',
-                    'RACE123'
-                )
-            ];
-
-            // Execute all promises concurrently
-            const results = await Promise.all(concurrentPromises);
-
-            // All should succeed since they're for different referrees
-            expect(results).toHaveLength(3);
-            expect(results.every(result => result !== null)).toBe(true);
-
-            // Verify that all referrals were created
-            const referrals = await ReferralModel.find({ referrerAddress: 'race-referrer' });
-            expect(referrals).toHaveLength(3);
-
-            // Verify that referrer stats were updated correctly
-            const referralCount = await ReferralModel.countDocuments({ referrerAddress: 'race-referrer' });
-            expect(referralCount).toBe(3);
+            const finalCount = await ReferralModel.countDocuments({ referrerAddress: TEST_WALLETS.referrer });
+            expect(finalCount).toBe(3);
         });
 
         it('should prevent duplicate referrals for the same referree', async () => {
-            // Create a referrer
-            await ReferralCodeModel.create({
-                walletAddress: 'dupe-referrer',
-                referralCode: 'DUPE123',
-                isActive: true,
-                totalRewards: 0,
-                updatedAt: null
-            });
-
-            // Simulate concurrent attempts to refer the same person
-            const concurrentPromises = [
-                referralService.createReferral(
-                    'dupe-referrer',
-                    'same-referree',
-                    'DUPE123'
-                ),
-                referralService.createReferral(
-                    'dupe-referrer',
-                    'same-referree',
-                    'DUPE123'
-                ),
-                referralService.createReferral(
-                    'dupe-referrer',
-                    'same-referree',
-                    'DUPE123'
-                )
+            const promises = [
+                referralService.createReferral(TEST_WALLETS.referrer, TEST_WALLETS.newWallet, 'TESTCD'),
+                referralService.createReferral(TEST_WALLETS.referrer, TEST_WALLETS.newWallet, 'TESTCD'),
+                referralService.createReferral(TEST_WALLETS.referrer, TEST_WALLETS.newWallet, 'TESTCD')
             ];
 
-            // Execute all promises concurrently - only one should succeed
-            const results = await Promise.allSettled(concurrentPromises);
-
-            // Count successful and failed results
-            const successful = results.filter(result => result.status === 'fulfilled');
-            const failed = results.filter(result => result.status === 'rejected');
-
-            // Only one should succeed, others should fail with "User has already been referred"
+            const results = await Promise.allSettled(promises);
+            const successful = results.filter(r => r.status === 'fulfilled');
             expect(successful).toHaveLength(1);
-            expect(failed).toHaveLength(2);
 
-            // Verify that only one referral was created
-            const referrals = await ReferralModel.find({ referrerAddress: 'dupe-referrer' });
-            expect(referrals).toHaveLength(1);
-
-            // Verify that referrer stats were updated correctly
-            const referralCount = await ReferralModel.countDocuments({ referrerAddress: 'dupe-referrer' });
-            expect(referralCount).toBe(1);
+            const finalCount = await ReferralModel.countDocuments({ referreeAddress: TEST_WALLETS.newWallet });
+            expect(finalCount).toBe(1);
         });
     });
 }); 

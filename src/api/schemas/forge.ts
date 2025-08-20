@@ -152,9 +152,9 @@ export const getTasksSchema: ValidationSchema = {
 };
 
 /**
- * Schema for withdrawing SPL tokens from a pool
+ * Schema for withdrawing ERC20 tokens from a pool
  */
-export const withdrawSplSchema: ValidationSchema = {
+export const withdrawERC20Schema: ValidationSchema = {
   poolId: {
     required: true,
     rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
@@ -166,9 +166,9 @@ export const withdrawSplSchema: ValidationSchema = {
 };
 
 /**
- * Schema for withdrawing SOL from a pool
+ * Schema for withdrawing ETH from a pool
  */
-export const withdrawSolSchema: ValidationSchema = {
+export const withdrawEthSchema: ValidationSchema = {
   poolId: {
     required: true,
     rules: [ValidationRules.isString(), ValidationRules.minLength(1)]

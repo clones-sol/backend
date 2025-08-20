@@ -16,12 +16,11 @@ export const connectWalletSchema: ValidationSchema = {
       ValidationRules.matches(/^[a-zA-Z0-9_-]+$/, 'Token must contain only alphanumeric characters, underscores and hyphens')
     ]
   },
-  address: {
+  walletAddress: {
     required: true,
     rules: [
       ValidationRules.isString(),
-      ValidationRules.sanitizeString(),
-      ValidationRules.isSolanaAddress()
+      ValidationRules.isEVMAddress()
     ]
   },
   signature: {
@@ -84,7 +83,7 @@ export const getBalanceSchema: ValidationSchema = {
       ValidationRules.isString(),
       ValidationRules.sanitizeString(),
       ValidationRules.matches(/^[A-Z]{2,10}$/, 'Symbol must be 2-10 uppercase letters'),
-      ValidationRules.isIn(['SOL', 'CLONE', 'USDC', 'USDT'], 'Unsupported token symbol')
+      ValidationRules.isIn(['ETH', 'CLONES', 'USDC', 'USDT'], 'Unsupported token symbol')
     ]
   }
 };

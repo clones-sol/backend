@@ -10,7 +10,7 @@ export const generateCodeSchema: ValidationSchema = {
     rules: [
       ValidationRules.isString(),
       ValidationRules.sanitizeString(),
-      ValidationRules.isSolanaAddress()
+      ValidationRules.isEVMAddress()
     ]
   }
 };
@@ -42,7 +42,7 @@ export const applyReferrerCodeSchema: ValidationSchema = {
     rules: [
       ValidationRules.isString(),
       ValidationRules.sanitizeString(),
-      ValidationRules.isSolanaAddress()
+      ValidationRules.isEVMAddress()
     ]
   },
   referralCode: {
@@ -67,7 +67,7 @@ export const extendExpirationSchema: ValidationSchema = {
     rules: [
       ValidationRules.isString(),
       ValidationRules.sanitizeString(),
-      ValidationRules.isSolanaAddress()
+      ValidationRules.isEVMAddress()
     ]
   },
   extensionDays: {
@@ -90,7 +90,7 @@ export const regenerateCodeSchema: ValidationSchema = {
     rules: [
       ValidationRules.isString(),
       ValidationRules.sanitizeString(),
-      ValidationRules.isSolanaAddress()
+      ValidationRules.isEVMAddress()
     ]
   }
 };
@@ -104,7 +104,7 @@ export const walletAddressParamSchema: ValidationSchema = {
     rules: [
       ValidationRules.isString(),
       ValidationRules.sanitizeString(),
-      ValidationRules.isSolanaAddress()
+      ValidationRules.isEVMAddress()
     ]
   }
 }; 

@@ -1,288 +1,176 @@
-import {
-  Connection,
-  Transaction,
-  PublicKey,
-  Keypair,
-  LAMPORTS_PER_SOL,
-  sendAndConfirmTransaction,
-  ComputeBudgetProgram,
-  SystemProgram
-} from '@solana/web3.js';
-import {
-  createTransferInstruction,
-  getAssociatedTokenAddressSync,
-  getOrCreateAssociatedTokenAccount
-} from '@solana/spl-token';
-import axios from 'axios';
+import { ethers } from "ethers";
+
+const ERC20_ABI = [
+  "function balanceOf(address) view returns (uint256)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function decimals() view returns (uint8)"
+];
 
 class BlockchainService {
-  connection: Connection;
-  programId: string;
-  constructor(solanaRpc: string, programId: string) {
-    this.connection = new Connection(solanaRpc, 'confirmed');
-    this.programId = programId;
+  provider: ethers.JsonRpcProvider;
+
+  constructor(rpcUrl: string) {
+    this.provider = new ethers.JsonRpcProvider(rpcUrl);
   }
 
-  static get MIN_SOL_BALANCE(): number {
-    return 0.017;
+  /** Minimum recommended ETH balance to cover gas */
+  static get MIN_ETH_BALANCE(): number {
+    return 0.01;
   }
 
-  static async getSolPriceInUSDT() {
-    let defaultSolPrice = 230;
-
+  /** Fetch ETH price in USD from CoinGecko */
+  static async getEthPriceInUSD(): Promise<number> {
+    const fallback = 3000;
     try {
-      try {
-        const response = await fetch(
-          'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd'
-        );
-        const data = await response.json();
-        if (data?.solana?.usd) {
-          return data.solana.usd;
-        }
-        return defaultSolPrice;
-      } catch (err) {
-        console.error('Error fetching Sol price from CoinGecko:', err);
-        return defaultSolPrice;
-      }
-    } catch (err) {
-      console.error('Error fetching token page:', err);
-      return defaultSolPrice;
+      const r = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
+      );
+      const data = await r.json();
+      return data?.ethereum?.usd ?? fallback;
+    } catch (e) {
+      console.error("Error fetching ETH price:", e);
+      return fallback;
     }
   }
 
-  async getSolBalance(walletAddress: string): Promise<number> {
+  /** Get ETH balance for an address (in ETH units) */
+  async getEthBalance(walletAddress: string): Promise<number> {
     try {
-      const walletPubkey = new PublicKey(walletAddress);
-      const balance = await this.connection.getBalance(walletPubkey);
-      return balance / LAMPORTS_PER_SOL;
-    } catch (error) {
-      console.error('Error getting SOL balance:', error);
+      const balWei = await this.provider.getBalance(walletAddress);
+      return parseFloat(ethers.formatEther(balWei));
+    } catch (e) {
+      console.error("Error getting ETH balance:", e);
       return 0;
     }
   }
 
-  async getTokenBalance(tokenMint: string, walletAddress: string): Promise<number> {
+  /** Get ERC-20 balance for an address (adjusted for decimals) */
+  async getTokenBalance(tokenAddress: string, walletAddress: string): Promise<number> {
     try {
-      // Convert string addresses to PublicKeys
-      const mintPubkey = new PublicKey(tokenMint);
-      const walletPubkey = new PublicKey(walletAddress);
-
-      // Get the associated token account address
-      const tokenAccountAddress = getAssociatedTokenAddressSync(mintPubkey, walletPubkey);
-
-      try {
-        // Get the token account info
-        const tokenAccountInfo = await this.connection.getTokenAccountBalance(tokenAccountAddress);
-        return tokenAccountInfo.value.uiAmount || 0;
-      } catch (error) {
-        // If the token account doesn't exist, return 0
-        // The error message can vary, but it's usually about not finding the account
-        if (
-          (error as any).message?.includes('could not find') ||
-          (error as any).message?.includes('Invalid param') ||
-          (error as any).code === -32602
-        ) {
-          return 0;
-        }
-        throw error; // Re-throw other errors
-      }
-    } catch (error) {
-      console.error('Error getting token balance:', error);
+      const erc20 = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
+      const [raw, decimals] = await Promise.all([
+        erc20.balanceOf(walletAddress),
+        erc20.decimals()
+      ]);
+      return Number(ethers.formatUnits(raw, decimals));
+    } catch (e) {
+      console.error("Error getting token balance:", e);
       return 0;
     }
   }
 
-  async getQuickNodePriorityFees(): Promise<number> {
+  /** Get EIP-1559 fee data (with safe fallbacks) */
+  async getFeeData(): Promise<{
+    maxFeePerGas?: bigint;
+    maxPriorityFeePerGas?: bigint;
+  }> {
     try {
-      const config = {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      };
-
-      const data = {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'qn_estimatePriorityFees',
-        params: { last_n_blocks: 100, api_version: 2 }
-      };
-
-      const response = await axios.post(process.env.RPC_URL!, data, config);
-
-      console.log('QuickNode priority fees response:', response.data);
-
-      // Use QuickNode's recommended fee or fallback to medium priority
-      const result = response.data.result;
-      // If recommended fee is available, use it, otherwise use medium priority
-      return result.recommended || result.per_compute_unit.medium || 500000;
-    } catch (error) {
-      console.error('Failed to fetch QuickNode priority fees:', error);
-      // Return a reasonable default if the API call fails
-      return 1_000_000;
+      const fee = await this.provider.getFeeData();
+      if (fee.maxFeePerGas && fee.maxPriorityFeePerGas) {
+        return {
+          maxFeePerGas: fee.maxFeePerGas,
+          maxPriorityFeePerGas: fee.maxPriorityFeePerGas
+        };
+      }
+      if (fee.gasPrice) {
+        return {
+          maxFeePerGas: fee.gasPrice,
+          maxPriorityFeePerGas: fee.gasPrice / 10n
+        };
+      }
+    } catch (e) {
+      console.error("Failed to fetch fee data:", e);
     }
+    return {
+      maxFeePerGas: ethers.parseUnits("0.5", "gwei"),
+      maxPriorityFeePerGas: ethers.parseUnits("0.1", "gwei")
+    };
   }
 
-  async transferSol(
+  /** Send ETH with retry and fee bumping */
+  async transferEth(
     amount: number,
-    fromWallet: Keypair,
-    toAddress: string,
+    fromPk: string,
+    to: string,
     retryCount: number = 0
   ): Promise<string | false> {
     try {
-      const feePercentages = [0.01, 0.1, 0.5, 1.0];
-      const currentFeePercentage = feePercentages[retryCount] || 1.0;
+      const multipliers = [1.0, 1.1, 1.25, 1.5];
+      const m = multipliers[retryCount] ?? multipliers[multipliers.length - 1];
 
-      console.log(
-        `Attempt ${retryCount + 1
-        } for SOL transfer with ${currentFeePercentage * 100}% of base priority fee`
-      );
+      const wallet = new ethers.Wallet(fromPk, this.provider);
+      const fee = await this.getFeeData();
 
-      const basePriorityFee = await this.getQuickNodePriorityFees();
-      const adjustedPriorityFee = Math.floor(basePriorityFee * currentFeePercentage);
+      const txReq: ethers.TransactionRequest = {
+        to,
+        value: ethers.parseEther(amount.toString())
+      };
 
-      const transaction = new Transaction();
+      if (fee.maxFeePerGas && fee.maxPriorityFeePerGas) {
+        txReq.maxPriorityFeePerGas = BigInt(Math.floor(Number(fee.maxPriorityFeePerGas) * m));
+        txReq.maxFeePerGas = BigInt(Math.floor(Number(fee.maxFeePerGas) * m));
+      }
 
-      // Set compute unit price before the main instruction
-      transaction.add(
-        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: adjustedPriorityFee })
-      );
+      const estimated = await this.provider.estimateGas({ ...txReq, from: wallet.address });
+      txReq.gasLimit = (estimated * 1200n) / 1000n; // +20% buffer
 
-      transaction.add(
-        SystemProgram.transfer({
-          fromPubkey: fromWallet.publicKey,
-          toPubkey: new PublicKey(toAddress),
-          lamports: amount * LAMPORTS_PER_SOL
-        })
-      );
-
-      const signature = await sendAndConfirmTransaction(this.connection, transaction, [fromWallet], {
-        commitment: 'confirmed',
-        maxRetries: 5
-      });
-
-      console.log(
-        '\x1b[32m',
-        `SOL Transfer Success!🎉`,
-        `\n    https://explorer.solana.com/tx/${signature}?cluster=mainnet`
-      );
-
-      return signature;
+      const tx = await wallet.sendTransaction(txReq);
+      const receipt = await tx.wait();
+      console.log("ETH Transfer Success:", receipt?.hash);
+      return receipt?.hash ?? tx.hash;
     } catch (error: any) {
-      if (error.message.includes('with insufficient funds for rent')) {
-        // account is out of SOL for gas
-        throw new Error('Pool SOL balance insufficient for gas.');
-      }
-      console.error('\x1b[31m', 'SOL Transfer failed:', {
-        message: error.message,
-        logs: error?.logs
-      });
-
-      // Retry with higher fee if possible
+      console.error("ETH transfer failed:", { message: error?.message });
       if (retryCount < 3) {
-        console.log(`Retrying SOL transfer with higher fee percentage...`);
-        return this.transferSol(amount, fromWallet, toAddress, retryCount + 1);
+        console.log("Retrying ETH transfer with higher fees...");
+        return this.transferEth(amount, fromPk, to, retryCount + 1);
       }
-
       return false;
     }
   }
 
+  /** Send ERC-20 tokens with retry and fee bumping */
   async transferToken(
-    tokenMint: string,
+    tokenAddress: string,
     amount: number,
-    fromWallet: Keypair,
-    toAddress: string,
+    fromPk: string,
+    to: string,
     retryCount: number = 0
-  ): Promise<{ signature: string; usedFeePercentage: number } | false> {
+  ): Promise<{ txHash: string; usedFeeMultiplier: number } | false> {
     try {
-      const feePercentages = [0.01, 0.1, 0.5, 1.0];
-      const currentFeePercentage = feePercentages[retryCount] || 1.0;
+      const multipliers = [1.0, 1.1, 1.25, 1.5];
+      const m = multipliers[retryCount] ?? multipliers[multipliers.length - 1];
 
-      console.log(
-        `Attempt ${retryCount + 1} with ${currentFeePercentage * 100}% of base priority fee`
-      );
+      const wallet = new ethers.Wallet(fromPk, this.provider);
+      const erc20 = new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
+      const decimals: number = await erc20.decimals();
+      const amountBN = ethers.parseUnits(amount.toString(), decimals);
 
-      const sourceAccount = await getOrCreateAssociatedTokenAccount(
-        this.connection,
-        fromWallet,
-        new PublicKey(tokenMint),
-        fromWallet.publicKey
-      );
+      const fee = await this.getFeeData();
+      const overrides: ethers.TransactionRequest = {};
 
-      const destinationAccount = await getOrCreateAssociatedTokenAccount(
-        this.connection,
-        fromWallet,
-        new PublicKey(tokenMint),
-        new PublicKey(toAddress)
-      );
+      if (fee.maxFeePerGas && fee.maxPriorityFeePerGas) {
+        overrides.maxPriorityFeePerGas = BigInt(Math.floor(Number(fee.maxPriorityFeePerGas) * m));
+        overrides.maxFeePerGas = BigInt(Math.floor(Number(fee.maxFeePerGas) * m));
+      }
 
-      const tokenInfo = await this.connection.getParsedAccountInfo(new PublicKey(tokenMint));
-      const decimals = (tokenInfo.value?.data as any).parsed.info.decimals;
+      const gasEstimate = await erc20.transfer.estimateGas(to, amountBN, overrides);
+      overrides.gasLimit = (gasEstimate * 1200n) / 1000n;
 
-      const basePriorityFee = await this.getQuickNodePriorityFees();
-      const adjustedPriorityFee = Math.floor(basePriorityFee * currentFeePercentage);
+      const tx = await erc20.transfer(to, amountBN, overrides);
+      const receipt = await tx.wait();
 
-      console.log(`Base priority fee: ${basePriorityFee}, Using: ${adjustedPriorityFee}`);
+      console.log("ERC-20 Transfer Success:", receipt?.hash);
 
-      const transaction = new Transaction();
-
-      // Set compute unit limits and price before the main instruction
-      transaction.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 300000 }));
-      transaction.add(
-        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: adjustedPriorityFee })
-      );
-
-      const transferAmount = amount * Math.pow(10, decimals);
-
-      transaction.add(
-        createTransferInstruction(
-          sourceAccount.address,
-          destinationAccount.address,
-          fromWallet.publicKey,
-          transferAmount
-        )
-      );
-
-      const latestBlockHash = await this.connection.getLatestBlockhash('confirmed');
-      transaction.recentBlockhash = latestBlockHash.blockhash;
-      transaction.feePayer = fromWallet.publicKey;
-
-      const signature = await sendAndConfirmTransaction(
-        this.connection,
-        transaction,
-        [fromWallet],
-        {
-          commitment: 'confirmed',
-          maxRetries: 5
-        }
-      );
-
-      console.log(
-        '\x1b[32m',
-        `Transaction Success!🎉 (${currentFeePercentage * 100}% fee)`,
-        `\n    https://explorer.solana.com/tx/${signature}?cluster=mainnet`
-      );
-
-      return {
-        signature,
-        usedFeePercentage: currentFeePercentage * 100
-      };
+      return { txHash: receipt?.hash ?? tx.hash, usedFeeMultiplier: m * 100 };
     } catch (error: any) {
-      if (error.message.includes('with insufficient funds for rent')) {
-        // account is out of SOL for gas
-        throw new Error('Pool SOL balance insufficient for gas.');
+      if (typeof error?.message === "string" && /insufficient funds/i.test(error.message)) {
+        throw new Error("Insufficient ETH balance for gas.");
       }
-      console.error('\x1b[31m', 'Transfer failed:', {
-        message: error.message,
-        logs: error?.logs
-      });
-
-      // Retry with higher fee if possible
+      console.error("ERC-20 transfer failed:", { message: error?.message });
       if (retryCount < 3) {
-        console.log(`Retrying with higher fee percentage...`);
-        return this.transferToken(tokenMint, amount, fromWallet, toAddress, retryCount + 1);
+        console.log("Retrying ERC-20 transfer with higher fees...");
+        return this.transferToken(tokenAddress, amount, fromPk, to, retryCount + 1);
       }
-
       return false;
     }
   }

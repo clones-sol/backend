@@ -74,7 +74,7 @@ export interface DBTrainingPool {
   funds: number;
   pricePerDemo: number;
   token: {
-    type: 'SOL' | 'SPL';
+    type: 'ETH' | 'ERC20';
     symbol: string;
   };
   skills: string;

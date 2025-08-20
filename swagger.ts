@@ -10,15 +10,9 @@ const options: swaggerJsdoc.Options = {
     definition: {
         openapi: '3.0.0',
         info: {
-            title: 'Clones AI Agent Forge API',
+            title: 'Clones AI API',
             version: '1.0.0',
-            description: `API for creating, managing, and deploying AI Agents on the Solana blockchain. 
-            This documentation provides details on all available endpoints for:
-            - Agent lifecycle management
-            - On-chain orchestration
-            - Versioning
-            - Monitoring
-            - Referral system management.`,
+            description: `API for Clones`,
             contact: {
                 name: 'Clones Support'
             },
@@ -88,7 +82,6 @@ const options: swaggerJsdoc.Options = {
     },
     // Path to the API docs files
     apis: [
-        path.join(__dirname, './src/api/forge/agents/*.ts'),
         path.join(__dirname, './src/api/referral.ts'),
         path.join(__dirname, './src/api/wallet.ts')
     ],

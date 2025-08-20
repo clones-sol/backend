@@ -41,9 +41,8 @@ router.post(
     const { messages, task_prompt, app } = req.body;
 
     // Format context message
-    const contextMessage = `Task: ${task_prompt}\nApp: ${app.name} (${app.type}${
-      app.type === 'executable' ? `, Path: ${app.path}` : `, URL: ${app.url}`
-    })`;
+    const contextMessage = `Task: ${task_prompt}\nApp: ${app.name} (${app.type}${app.type === 'executable' ? `, Path: ${app.path}` : `, URL: ${app.url}`
+      })`;
 
     // Randomly select 3 few-shot examples
     const randomExamples = [...TASK_SHOT_EXAMPLES].sort(() => Math.random() - 0.5).slice(0, 3);
@@ -106,23 +105,14 @@ router.post(
     const assistantMessage = response.choices[0].message;
 
     // Handle tool calls if present
-    if (assistantMessage.tool_calls?.length) {
+    if (assistantMessage.tool_calls?.[0]?.type === 'function') {
       const toolCall = assistantMessage.tool_calls[0];
       // Add tool call to response
       res.status(200).json(
         successResponse({
           role: 'assistant',
           content: assistantMessage.content,
-          tool_calls: [
-            {
-              id: toolCall.id,
-              type: 'function',
-              function: {
-                name: toolCall.function.name,
-                arguments: toolCall.function.arguments
-              }
-            }
-          ]
+          tool_calls: [toolCall]
         })
       );
     } else {

@@ -16,7 +16,7 @@ const trainingPoolSchema = new Schema<DBTrainingPool>(
     token: {
       type: {
         type: String,
-        enum: ['SOL', 'SPL'],
+        enum: ['ETH', 'ERC20'],
         required: true
       },
       symbol: { type: String, required: true }

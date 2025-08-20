@@ -2,22 +2,37 @@ import express, { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { referralService } from '../services/referral/index.ts';
 import { errorHandlerAsync } from '../middleware/errorHandler.ts';
-import { validateBody, validateParams } from '../middleware/validator.ts';
+import { validateBody, validateParams, ValidationRules } from '../middleware/validator.ts';
 import { ApiError, successResponse } from '../middleware/types/errors.ts';
-import { requireAdminAuth } from '../middleware/auth.ts';
+import { requireAdminAuth, requireWalletAddress } from '../middleware/auth.ts';
 import { DEFAULT_FRONTEND_URL } from '../constants/referral.ts';
 import {
   generateCodeSchema,
   applyReferrerCodeSchema,
   extendExpirationSchema,
   regenerateCodeSchema,
-  walletAddressParamSchema
 } from './schemas/referral.ts';
-import { requireWalletAddress } from '../middleware/auth.ts';
 import { ReferralModel } from '../models/Referral.ts';
 import { AuthenticatedRequest } from '../middleware/types/request.ts';
 
 const router = express.Router();
+
+const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
+const isEvmAddressRule = ValidationRules.matches(EVM_ADDRESS_REGEX, 'must be a valid EVM address');
+
+// Rate limiters
+const generalRateLimiter = rateLimit({
+  windowMs: 60_000, max: 100, standardHeaders: true, legacyHeaders: false,
+  message: 'Too many requests from this IP, please try again later.'
+});
+const sensitiveRateLimiter = rateLimit({
+  windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false,
+  message: 'Too many sensitive operations from this IP, please try again later.'
+});
+const adminRateLimiter = rateLimit({
+  windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false,
+  message: 'Too many admin operations from this IP, please try again later.'
+});
 
 /**
  * @swagger
@@ -26,37 +41,12 @@ const router = express.Router();
  *   description: Referral system management endpoints for tracking and rewarding user referrals
  */
 
-// Rate limiters for different endpoint types
-const generalRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 100, // Limit each IP to 100 requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'Too many requests from this IP, please try again later.'
-});
-
-const sensitiveRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // Limit each IP to 10 requests per windowMs for sensitive operations
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'Too many sensitive operations from this IP, please try again later.'
-});
-
-const adminRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 30, // Limit each IP to 30 requests per windowMs for admin operations
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'Too many admin operations from this IP, please try again later.'
-});
-
 /**
  * @swagger
  * /referral/generate-code:
  *   post:
  *     summary: Generate a new referral code for a wallet
- *     description: Creates a unique referral code for the specified wallet address. This code can be shared with others to track referrals.
+ *     description: Creates a unique referral code for the specified EVM wallet address. This code can be shared with others to track referrals.
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -66,13 +56,12 @@ const adminRateLimiter = rateLimit({
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - walletAddress
+ *             required: [walletAddress]
  *             properties:
  *               walletAddress:
  *                 type: string
- *                 description: The Solana wallet address to generate a referral code for
- *                 example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
+ *                 description: The EVM wallet address to generate a referral code for
+ *                 example: "0x12cA1c2bB28E7B8B0E1b3bB6C2f60E9a6D6d5A12"
  *     responses:
  *       200:
  *         description: Referral code generated successfully
@@ -88,57 +77,44 @@ const adminRateLimiter = rateLimit({
  *                       properties:
  *                         referralCode:
  *                           type: string
- *                           description: The generated referral code
  *                           example: "ABC123"
  *                         referralLink:
  *                           type: string
- *                           description: Complete referral link for sharing
  *                           example: "https://app.example.com/ref/ABC123"
  *                         walletAddress:
  *                           type: string
- *                           description: The wallet address the code was generated for
- *                           example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
+ *                           example: "0x12cA1c2bB28E7B8B0E1b3bB6C2f60E9a6D6d5A12"
  *                         createdAt:
  *                           type: string
  *                           format: date-time
- *                           description: The date and time the code was created
  *       400:
- *         description: Invalid wallet address
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/BadRequest'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
  *       429:
  *         description: Too many requests
  *       500:
- *         description: Internal server error
- *       403:
- *         $ref: '#/components/responses/Forbidden'
+ *         $ref: '#/components/responses/InternalError'
  */
-// Generate referral code for a wallet
 router.post(
   '/generate-code',
   sensitiveRateLimiter,
   requireWalletAddress,
   validateBody(generateCodeSchema),
   errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
-
     const { walletAddress } = req.body;
-    if (req.walletAddress !== walletAddress) {
+    if (!EVM_ADDRESS_REGEX.test(walletAddress)) throw ApiError.badRequest('Invalid EVM wallet address.');
+    if (String(req.walletAddress).toLowerCase() !== String(walletAddress).toLowerCase())
       throw ApiError.forbidden('You can only generate a referral code for your own wallet.');
-    }
 
     const referralCodeData = await referralService.generateReferralCode(walletAddress);
-    const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCodeData.referralCode
-      }`;
-    res.status(200).json(
-      successResponse({
-        referralCode: referralCodeData.referralCode,
-        createdAt: referralCodeData.createdAt,
-        referralLink,
-        walletAddress
-      })
-    );
+    const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCodeData.referralCode}`;
+    res.status(200).json(successResponse({
+      referralCode: referralCodeData.referralCode,
+      createdAt: referralCodeData.createdAt,
+      referralLink,
+      walletAddress
+    }));
   })
 );
 
@@ -147,7 +123,7 @@ router.post(
  * /referral/code/{walletAddress}:
  *   get:
  *     summary: Get referral code information for a wallet
- *     description: Retrieves the referral code and associated statistics for a specific wallet address.
+ *     description: Retrieves the referral code and associated statistics for a specific EVM wallet address.
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -155,10 +131,9 @@ router.post(
  *       - in: path
  *         name: walletAddress
  *         required: true
- *         schema:
- *           type: string
- *         description: The Solana wallet address to get referral code for
- *         example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
+ *         schema: { type: string }
+ *         description: The EVM wallet address to get referral code for
+ *         example: "0x12cA1c2bB28E7B8B0E1b3bB6C2f60E9a6D6d5A12"
  *     responses:
  *       200:
  *         description: Referral code information retrieved successfully
@@ -172,81 +147,42 @@ router.post(
  *                     data:
  *                       type: object
  *                       properties:
- *                         referralCode:
- *                           type: string
- *                           description: The referral code
- *                           example: "ABC123"
- *                         referralLink:
- *                           type: string
- *                           description: Complete referral link
- *                           example: "https://app.example.com/ref/ABC123"
- *                         walletAddress:
- *                           type: string
- *                           description: The wallet address
- *                           example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
- *                         totalReferrals:
- *                           type: number
- *                           description: Total number of successful referrals
- *                           example: 5
- *                         totalRewards:
- *                           type: number
- *                           description: Total rewards earned from referrals
- *                           example: 150
- *                         isActive:
- *                           type: boolean
- *                           description: Whether the referral code is active
- *                           example: true
+ *                         referralCode: { type: string, example: "ABC123" }
+ *                         referralLink: { type: string, example: "https://app.example.com/ref/ABC123" }
+ *                         walletAddress: { type: string, example: "0x12cA1..." }
+ *                         totalReferrals: { type: number, example: 5 }
+ *                         totalRewards: { type: number, example: 150 }
+ *                         isActive: { type: boolean, example: true }
  *                         referrer:
  *                           type: object
  *                           nullable: true
- *                           description: Information about the user who referred this wallet.
  *                           properties:
- *                             walletAddress:
- *                               type: string
- *                               description: The referrer's wallet address.
- *                               example: "Gw7p..."
- *                             referralCode:
- *                               type: string
- *                               description: The referrer's referral code.
- *                               example: "REFER1"
+ *                             walletAddress: { type: string, example: "0x5fC1..." }
+ *                             referralCode: { type: string, example: "REFER1" }
  *       404:
- *         description: Referral code not found for this wallet
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/NotFound'
  *       429:
  *         description: Too many requests
  *       500:
- *         description: Internal server error
+ *         $ref: '#/components/responses/InternalError'
  */
-// Get referral code for a wallet
 router.get(
   '/code/:walletAddress',
-  generalRateLimiter, // General read operation
-  validateParams(walletAddressParamSchema),
+  generalRateLimiter,
+  validateParams({ walletAddress: { required: true, rules: [isEvmAddressRule] } }),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
-
     const referralCode = await referralService.getReferralCode(walletAddress);
+    if (!referralCode) throw ApiError.notFound('Referral code not found for this wallet');
 
-    if (!referralCode) {
-      throw ApiError.notFound('Referral code not found for this wallet');
-    }
-
-    // Check if this wallet has been referred by someone
     const [referrerInfo, totalReferrals] = await Promise.all([
       referralService.getReferrer(walletAddress),
       ReferralModel.countDocuments({ referrerAddress: walletAddress })
     ]);
 
-    let referrer = null;
-    if (referrerInfo) {
-      referrer = {
-        walletAddress: referrerInfo.walletAddress,
-        referralCode: referrerInfo.referralCode
-      };
-    }
+    const referrer = referrerInfo
+      ? { walletAddress: referrerInfo.walletAddress, referralCode: referrerInfo.referralCode }
+      : null;
 
     const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCode.referralCode}`;
 
@@ -267,7 +203,7 @@ router.get(
  * /referral/apply-referrer-code:
  *   post:
  *     summary: Apply a referrer code
- *     description: Applies a referrer code to create a referral relationship. This establishes the connection between referrer and referree.
+ *     description: Applies a referrer code to create a referral relationship (referrer → referree).
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -277,17 +213,14 @@ router.get(
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - referreeAddress
- *               - referralCode
+ *             required: [referreeAddress, referralCode]
  *             properties:
  *               referreeAddress:
  *                 type: string
- *                 description: The wallet address of the person being referred (referree)
- *                 example: "4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49"
+ *                 description: The EVM wallet address of the person being referred
+ *                 example: "0x5fC1B4c0235D2F9cd79F2B59b4E2Df8A5c3b1E22"
  *               referralCode:
  *                 type: string
- *                 description: The referral code used
  *                 example: "ABC123"
  *     responses:
  *       201:
@@ -302,56 +235,29 @@ router.get(
  *                     data:
  *                       type: object
  *                       properties:
- *                         referralId:
- *                           type: string
- *                           description: The unique ID of the created referral
- *                           example: "507f1f77bcf86cd799439011"
- *                         referrerAddress:
- *                           type: string
- *                           description: The referrer's wallet address
- *                           example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
- *                         referreeAddress:
- *                           type: string
- *                           description: The referree's wallet address
- *                           example: "4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49"
+ *                         referralId: { type: string, example: "507f1f77bcf86cd799439011" }
+ *                         referrerAddress: { type: string, example: "0x12cA1..." }
+ *                         referreeAddress: { type: string, example: "0x5fC1..." }
  *       400:
- *         description: Invalid referral data or referral code
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/BadRequest'
  *       429:
  *         description: Too many requests
  *       500:
- *         description: Internal server error
+ *         $ref: '#/components/responses/InternalError'
  */
-// Create referral relationship (called when user performs first action)
 router.post(
   '/apply-referrer-code',
-  sensitiveRateLimiter, // Sensitive operation - creating referrals
+  sensitiveRateLimiter,
   validateBody(applyReferrerCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const {
-      referreeAddress,
-      referralCode
-    } = req.body;
+    const { referreeAddress, referralCode } = req.body;
+    if (!EVM_ADDRESS_REGEX.test(referreeAddress)) throw ApiError.badRequest('Invalid EVM wallet address.');
 
     const referrerAddress = await referralService.validateReferralCode(referralCode);
+    if (!referrerAddress) throw ApiError.badRequest('Invalid or expired referral code.');
 
-    if (!referrerAddress) {
-      throw ApiError.badRequest('Invalid or expired referral code.');
-    }
-
-    const referral = await referralService.createReferral(
-      referrerAddress,
-      referreeAddress,
-      referralCode
-    );
-
-    if (!referral._id) {
-      console.error('Referral creation failed: Missing _id');
-      throw ApiError.internalError('Failed to create referral: Missing _id');
-    }
+    const referral = await referralService.createReferral(referrerAddress, referreeAddress, referralCode);
+    if (!referral._id) throw ApiError.internalError('Failed to create referral: Missing _id');
 
     return res.status(201).json(successResponse({
       referralId: referral._id,
@@ -366,7 +272,7 @@ router.post(
  * /referral/stats/{walletAddress}:
  *   get:
  *     summary: Get referral statistics for a wallet
- *     description: Retrieves comprehensive referral statistics for a specific wallet address, including total referrals, rewards earned, and performance metrics.
+ *     description: Retrieves comprehensive referral statistics for a specific EVM wallet address.
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -374,10 +280,9 @@ router.post(
  *       - in: path
  *         name: walletAddress
  *         required: true
- *         schema:
- *           type: string
- *         description: The Solana wallet address to get statistics for
- *         example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
+ *         schema: { type: string }
+ *         description: The EVM wallet address to get statistics for
+ *         example: "0x12cA1c2bB28E7B8B0E1b3bB6C2f60E9a6D6d5A12"
  *     responses:
  *       200:
  *         description: Referral statistics retrieved successfully
@@ -390,56 +295,19 @@ router.post(
  *                   properties:
  *                     data:
  *                       type: object
- *                       properties:
- *                         referralInfo:
- *                           type: object
- *                           nullable: true
- *                           description: Information about the user's referral code.
- *                           properties:
- *                             walletAddress:
- *                               type: string
- *                             referralCode:
- *                               type: string
- *                             isActive:
- *                               type: boolean
- *                             totalReferrals:
- *                               type: number
- *                             totalRewards:
- *                               type: number
- *                             createdAt:
- *                               type: string
- *                               format: date-time
- *                             expiresAt:
- *                               type: string
- *                               format: date-time
- *                         referrals:
- *                           type: array
- *                           description: List of users referred by this wallet.
- *                           items:
- *                             type: object
- *                             properties:
- *                               referreeAddress:
- *                                 type: string
- *                               status:
- *                                 type: string
- *                               createdAt:
- *                                 type: string
- *                                 format: date-time
+ *                       description: Referral statistics data
  *       429:
  *         description: Too many requests
  *       500:
- *         description: Internal server error
+ *         $ref: '#/components/responses/InternalError'
  */
-// Get referral statistics for a wallet
 router.get(
   '/stats/:walletAddress',
-  generalRateLimiter, // General read operation
-  validateParams(walletAddressParamSchema),
+  generalRateLimiter,
+  validateParams({ walletAddress: { required: true, rules: [isEvmAddressRule] } }),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
-
     const stats = await referralService.getReferralStats(walletAddress);
-
     return res.status(200).json(successResponse(stats));
   })
 );
@@ -449,7 +317,7 @@ router.get(
  * /referral/referred/{walletAddress}:
  *   get:
  *     summary: Check if a wallet has been referred
- *     description: Checks whether a specific wallet address has been referred by someone else and returns the referrer information if applicable.
+ *     description: Checks whether a specific EVM wallet address has been referred and returns the referrer info if applicable.
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -457,10 +325,9 @@ router.get(
  *       - in: path
  *         name: walletAddress
  *         required: true
- *         schema:
- *           type: string
- *         description: The Solana wallet address to check
- *         example: "4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49"
+ *         schema: { type: string }
+ *         description: The EVM wallet address to check
+ *         example: "0x5fC1B4c0235D2F9cd79F2B59b4E2Df8A5c3b1E22"
  *     responses:
  *       200:
  *         description: Referral status checked successfully
@@ -474,41 +341,27 @@ router.get(
  *                     data:
  *                       type: object
  *                       properties:
- *                         hasBeenReferred:
- *                           type: boolean
- *                           description: Whether the wallet has been referred
- *                           example: true
+ *                         hasBeenReferred: { type: boolean, example: true }
  *                         referrer:
  *                           type: object
- *                           description: Referrer information if hasBeenReferred is true
  *                           nullable: true
  *                           properties:
- *                             walletAddress:
- *                               type: string
- *                               example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
- *                             referralCode:
- *                               type: string
- *                               example: "ABC123"
+ *                             walletAddress: { type: string, example: "0x12cA1..." }
+ *                             referralCode: { type: string, example: "ABC123" }
  *       429:
  *         description: Too many requests
  *       500:
- *         description: Internal server error
+ *         $ref: '#/components/responses/InternalError'
  */
-// Check if a wallet has been referred
 router.get(
   '/referred/:walletAddress',
-  generalRateLimiter, // General read operation
-  validateParams(walletAddressParamSchema),
+  generalRateLimiter,
+  validateParams({ walletAddress: { required: true, rules: [isEvmAddressRule] } }),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
-
     const hasBeenReferred = await referralService.hasBeenReferred(walletAddress);
     const referrer = hasBeenReferred ? await referralService.getReferrer(walletAddress) : null;
-
-    return res.status(200).json(successResponse({
-      hasBeenReferred,
-      referrer
-    }));
+    return res.status(200).json(successResponse({ hasBeenReferred, referrer }));
   })
 );
 
@@ -517,7 +370,7 @@ router.get(
  * /referral/referrer/{walletAddress}:
  *   get:
  *     summary: Get referrer information for a wallet
- *     description: Retrieves the referrer information for a specific wallet address that has been referred.
+ *     description: Retrieves the referrer information for a specific EVM wallet address that has been referred.
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -525,10 +378,9 @@ router.get(
  *       - in: path
  *         name: walletAddress
  *         required: true
- *         schema:
- *           type: string
- *         description: The Solana wallet address to get referrer for
- *         example: "4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49"
+ *         schema: { type: string }
+ *         description: The EVM wallet address to get referrer for
+ *         example: "0x12cA1c2bB28E7B8B0E1b3bB6C2f60E9a6D6d5A12"
  *     responses:
  *       200:
  *         description: Referrer information retrieved successfully
@@ -545,42 +397,24 @@ router.get(
  *                         referrer:
  *                           type: object
  *                           properties:
- *                             walletAddress:
- *                               type: string
- *                               description: The referrer's wallet address
- *                               example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
- *                             referralCode:
- *                               type: string
- *                               description: The referral code used
- *                               example: "ABC123"
+ *                             walletAddress: { type: string, example: "0x12cA1..." }
+ *                             referralCode: { type: string, example: "ABC123" }
  *       404:
- *         description: No referrer found for this wallet
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/NotFound'
  *       429:
  *         description: Too many requests
  *       500:
- *         description: Internal server error
+ *         $ref: '#/components/responses/InternalError'
  */
-// Get referrer for a wallet
 router.get(
   '/referrer/:walletAddress',
-  generalRateLimiter, // General read operation
-  validateParams(walletAddressParamSchema),
+  generalRateLimiter,
+  validateParams({ walletAddress: { required: true, rules: [isEvmAddressRule] } }),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.params;
-
     const referrer = await referralService.getReferrer(walletAddress);
-
-    if (!referrer) {
-      throw ApiError.notFound('No referrer found for this wallet');
-    }
-
-    return res.status(200).json(successResponse({
-      referrer
-    }));
+    if (!referrer) throw ApiError.notFound('No referrer found for this wallet');
+    return res.status(200).json(successResponse({ referrer }));
   })
 );
 
@@ -589,7 +423,7 @@ router.get(
  * /referral/cleanup/expired-codes:
  *   post:
  *     summary: Clean up expired referral codes (Admin only)
- *     description: Removes expired referral codes from the system. This endpoint requires admin authentication.
+ *     description: Removes expired referral codes from the system. Requires admin authentication.
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -606,36 +440,22 @@ router.get(
  *                     data:
  *                       type: object
  *                       properties:
- *                         message:
- *                           type: string
- *                           example: "Cleaned up 5 expired referral codes"
- *                         cleanedCount:
- *                           type: number
- *                           description: Number of expired codes that were cleaned up
- *                           example: 5
+ *                         message: { type: string, example: "Cleaned up 5 expired referral codes" }
+ *                         cleanedCount: { type: number, example: 5 }
  *       401:
- *         description: Unauthorized - Admin authentication required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/Unauthorized'
  *       429:
  *         description: Too many requests
  *       500:
- *         description: Internal server error
+ *         $ref: '#/components/responses/InternalError'
  */
-// Cleanup endpoints (admin only)
 router.post(
   '/cleanup/expired-codes',
-  adminRateLimiter, // Admin operation
+  adminRateLimiter,
   requireAdminAuth,
   errorHandlerAsync(async (req: Request, res: Response) => {
     const cleanedCount = await referralService.cleanupExpiredCodes();
-
-    return res.status(200).json(successResponse({
-      message: `Cleaned up ${cleanedCount} expired referral codes`,
-      cleanedCount
-    }));
+    return res.status(200).json(successResponse({ message: `Cleaned up ${cleanedCount} expired referral codes`, cleanedCount }));
   })
 );
 
@@ -644,7 +464,7 @@ router.post(
  * /referral/cleanup/stats:
  *   get:
  *     summary: Get cleanup statistics (Admin only)
- *     description: Retrieves statistics about the cleanup process, including counts of expired codes and cleanup metrics. This endpoint requires admin authentication.
+ *     description: Retrieves statistics about the cleanup process. Requires admin authentication.
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -662,23 +482,18 @@ router.post(
  *                       type: object
  *                       description: Cleanup statistics data
  *       401:
- *         description: Unauthorized - Admin authentication required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/Unauthorized'
  *       429:
  *         description: Too many requests
  *       500:
- *         description: Internal server error
+ *         $ref: '#/components/responses/InternalError'
  */
 router.get(
   '/cleanup/stats',
-  adminRateLimiter, // Admin operation
+  adminRateLimiter,
   requireAdminAuth,
   errorHandlerAsync(async (req: Request, res: Response) => {
     const stats = await referralService.getCleanupStats();
-
     return res.status(200).json(successResponse(stats));
   })
 );
@@ -688,7 +503,7 @@ router.get(
  * /referral/cleanup/extend-expiration:
  *   post:
  *     summary: Extend expiration for a referral code (Admin only)
- *     description: Extends the expiration date for a specific wallet's referral code. This endpoint requires admin authentication.
+ *     description: Extends the expiration date for a specific wallet's referral code. Requires admin authentication.
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -698,19 +513,16 @@ router.get(
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - walletAddress
+ *             required: [walletAddress]
  *             properties:
  *               walletAddress:
  *                 type: string
- *                 description: The Solana wallet address to extend expiration for
- *                 example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
+ *                 description: The EVM wallet address to extend expiration for
+ *                 example: "0x12cA1..."
  *               extensionDays:
  *                 type: number
- *                 description: Number of days to extend the expiration (optional, defaults to 30)
+ *                 description: Number of days to extend (default 30)
  *                 example: 30
- *                 minimum: 1
- *                 maximum: 365
  *     responses:
  *       200:
  *         description: Expiration extended successfully
@@ -724,46 +536,26 @@ router.get(
  *                     data:
  *                       type: object
  *                       properties:
- *                         success:
- *                           type: boolean
- *                           description: Whether the expiration was successfully extended
- *                           example: true
- *                         message:
- *                           type: string
- *                           example: "Expiration extended successfully"
+ *                         success: { type: boolean, example: true }
+ *                         message: { type: string, example: "Expiration extended successfully" }
  *       400:
- *         description: Invalid request data
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/BadRequest'
  *       401:
- *         description: Unauthorized - Admin authentication required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/Unauthorized'
  *       429:
  *         description: Too many requests
  *       500:
- *         description: Internal server error
+ *         $ref: '#/components/responses/InternalError'
  */
 router.post(
   '/cleanup/extend-expiration',
-  adminRateLimiter, // Admin operation
+  adminRateLimiter,
   validateBody(extendExpirationSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress, extensionDays } = req.body;
-
-    const success = await referralService.extendExpiration(
-      walletAddress,
-      extensionDays || 30
-    );
-
-    return res.status(200).json(successResponse({
-      success,
-      message: success ? 'Expiration extended successfully' : 'Failed to extend expiration'
-    }));
+    if (!EVM_ADDRESS_REGEX.test(walletAddress)) throw ApiError.badRequest('Invalid EVM wallet address.');
+    const success = await referralService.extendExpiration(walletAddress, extensionDays || 30);
+    return res.status(200).json(successResponse({ success, message: success ? 'Expiration extended successfully' : 'Failed to extend expiration' }));
   })
 );
 
@@ -772,7 +564,7 @@ router.post(
  * /referral/cleanup/regenerate-code:
  *   post:
  *     summary: Regenerate expired referral code (Admin only)
- *     description: Regenerates a new referral code for a wallet that has an expired code. This endpoint requires admin authentication.
+ *     description: Regenerates a new referral code for a wallet with an expired code. Requires admin authentication.
  *     tags: [Referral System]
  *     security:
  *       - walletAuth: []
@@ -782,13 +574,12 @@ router.post(
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - walletAddress
+ *             required: [walletAddress]
  *             properties:
  *               walletAddress:
  *                 type: string
- *                 description: The Solana wallet address to regenerate a code for
- *                 example: "E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97"
+ *                 description: The EVM wallet address to regenerate a code for
+ *                 example: "0x5fC1..."
  *     responses:
  *       200:
  *         description: Code regenerated successfully
@@ -802,44 +593,26 @@ router.post(
  *                     data:
  *                       type: object
  *                       properties:
- *                         success:
- *                           type: boolean
- *                           description: Whether the code was successfully regenerated
- *                           example: true
- *                         newCode:
- *                           type: string
- *                           description: The newly generated referral code
- *                           example: "XYZ789"
- *                           nullable: true
- *                         message:
- *                           type: string
- *                           example: "Code regenerated successfully"
+ *                         success: { type: boolean, example: true }
+ *                         newCode: { type: string, nullable: true, example: "XYZ789" }
+ *                         message: { type: string, example: "Code regenerated successfully" }
  *       400:
- *         description: Invalid request data
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/BadRequest'
  *       401:
- *         description: Unauthorized - Admin authentication required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/Unauthorized'
  *       429:
  *         description: Too many requests
  *       500:
- *         description: Internal server error
+ *         $ref: '#/components/responses/InternalError'
  */
 router.post(
   '/cleanup/regenerate-code',
-  adminRateLimiter, // Admin operation
+  adminRateLimiter,
   validateBody(regenerateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.body;
-
+    if (!EVM_ADDRESS_REGEX.test(walletAddress)) throw ApiError.badRequest('Invalid EVM wallet address.');
     const newCode = await referralService.regenerateExpiredCode(walletAddress);
-
     return res.status(200).json(successResponse({
       success: !!newCode,
       newCode,
@@ -848,4 +621,4 @@ router.post(
   })
 );
 
-export { router as referralApi }; 
+export { router as referralApi };

@@ -26,8 +26,5 @@ declare namespace NodeJS {
     AWS_ACCESS_KEY: string;
     AWS_SECRET_KEY: string;
     AWS_REGION: string;
-
-    // Raydium Configuration
-    SOLANA_CLUSTER: 'devnet' | 'mainnet';
   }
 }

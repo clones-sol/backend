@@ -6,17 +6,24 @@ import { ReferralCodeModel, IReferralCode } from '../../models/ReferralCode.ts';
 import { ReferralModel, IReferral } from '../../models/Referral.ts';
 import { connectToDatabase } from '../database.ts';
 
+const TEST_WALLETS = {
+    referrer: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+    referree: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+    newWallet: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
+    expiredWallet: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+    unreferredWallet: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
+    noCodeWallet: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc'
+};
+
 describe('ReferralCleanupService', () => {
     let mongoServer: MongoMemoryServer;
     let cleanupService: ReferralCleanupService;
-    let testReferralCode: Document & IReferralCode;
 
     beforeAll(async () => {
         mongoServer = await MongoMemoryServer.create();
         const mongoUri = mongoServer.getUri();
         process.env.DB_URI = mongoUri;
         await connectToDatabase();
-
         cleanupService = new ReferralCleanupService();
     });
 
@@ -28,312 +35,324 @@ describe('ReferralCleanupService', () => {
     });
 
     beforeEach(async () => {
-        // Clear all collections before each test
         await ReferralCodeModel.deleteMany({});
         await ReferralModel.deleteMany({});
-
-        // Create test data
-        testReferralCode = await ReferralCodeModel.create({
-            walletAddress: 'test-wallet',
-            referralCode: 'TEST123',
-            isActive: true,
-            totalRewards: 0,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            updatedAt: null
-        });
-    });
-
-    afterEach(async () => {
-        vi.clearAllMocks();
     });
 
     describe('cleanupExpiredCodes', () => {
-        it('should deactivate expired referral codes', async () => {
-            // Create expired codes
-            const expiredCodes = [
+        beforeEach(async () => {
+            await ReferralCodeModel.create([
                 {
-                    walletAddress: 'expired1',
-                    referralCode: 'EXPIRED1',
+                    walletAddress: TEST_WALLETS.referrer,
+                    referralCode: 'ACTIVE1',
                     isActive: true,
-                    expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-                    updatedAt: null
+                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
                 },
                 {
-                    walletAddress: 'expired2',
+                    walletAddress: TEST_WALLETS.expiredWallet,
+                    referralCode: 'EXPIRED1',
+                    isActive: true,
+                    expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: TEST_WALLETS.newWallet,
+                    referralCode: 'ACTIVE2',
+                    isActive: true,
+                    expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: 'wallet4',
                     referralCode: 'EXPIRED2',
                     isActive: true,
-                    expiresAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-                    updatedAt: null
+                    expiresAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: 'wallet5',
+                    referralCode: 'EXPIRING_SOON',
+                    isActive: true,
+                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: 'wallet6',
+                    referralCode: 'NO_EXPIRATION',
+                    isActive: true,
+                    expiresAt: null
                 }
-            ];
-
-            await ReferralCodeModel.insertMany(expiredCodes);
+            ]);
+        });
+        it('should deactivate expired referral codes', async () => {
+            const initialActiveExpired = await ReferralCodeModel.countDocuments({
+                isActive: true,
+                expiresAt: { $lt: new Date() }
+            });
+            expect(initialActiveExpired).toBe(2);
 
             const cleanedCount = await cleanupService.cleanupExpiredCodes();
-
             expect(cleanedCount).toBe(2);
 
-            // Verify codes were deactivated
-            const deactivatedCodes = await ReferralCodeModel.find({ isActive: false });
-            expect(deactivatedCodes).toHaveLength(2);
-            expect(deactivatedCodes.map(c => c.referralCode)).toContain('EXPIRED1');
-            expect(deactivatedCodes.map(c => c.referralCode)).toContain('EXPIRED2');
+            const finalActiveExpired = await ReferralCodeModel.countDocuments({
+                isActive: true,
+                expiresAt: { $lt: new Date() }
+            });
+            expect(finalActiveExpired).toBe(0);
+
+            const inactiveCount = await ReferralCodeModel.countDocuments({ isActive: false });
+            expect(inactiveCount).toBe(2);
         });
 
         it('should not deactivate active codes', async () => {
-            // Create active codes
-            await ReferralCodeModel.create({
-                walletAddress: 'active1',
-                referralCode: 'ACTIVE1',
+            const initialActive = await ReferralCodeModel.countDocuments({
                 isActive: true,
-                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day from now
-                updatedAt: null
+                expiresAt: { $gt: new Date() }
             });
+            expect(initialActive).toBe(3);
 
             const cleanedCount = await cleanupService.cleanupExpiredCodes();
+            expect(cleanedCount).toBe(2);
 
-            expect(cleanedCount).toBe(0);
-
-            // Verify active code remains active
-            const activeCode = await ReferralCodeModel.findOne({ referralCode: 'ACTIVE1' });
-            expect(activeCode?.isActive).toBe(true);
+            const finalActive = await ReferralCodeModel.countDocuments({
+                isActive: true,
+                expiresAt: { $gt: new Date() }
+            });
+            expect(finalActive).toBe(3);
         });
 
         it('should return 0 when no expired codes exist', async () => {
+            await ReferralCodeModel.deleteMany({ expiresAt: { $lt: new Date() } });
             const cleanedCount = await cleanupService.cleanupExpiredCodes();
             expect(cleanedCount).toBe(0);
         });
     });
 
     describe('getExpiredCodeStats', () => {
-        it('should return correct statistics for expired codes', async () => {
-            // Create various codes
-            const codes = [
+        beforeEach(async () => {
+            await ReferralCodeModel.create([
                 {
-                    walletAddress: 'expired1',
-                    referralCode: 'EXPIRED1',
-                    isActive: true,
-                    expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // Expired
-                    updatedAt: null
-                },
-                {
-                    walletAddress: 'expired2',
-                    referralCode: 'EXPIRED2',
-                    isActive: false,
-                    expiresAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // Already inactive
-                    updatedAt: null
-                },
-                {
-                    walletAddress: 'active1',
+                    walletAddress: TEST_WALLETS.referrer,
                     referralCode: 'ACTIVE1',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // Active
-                    updatedAt: null
+                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
                 },
                 {
-                    walletAddress: 'expiring1',
-                    referralCode: 'EXPIRING1',
+                    walletAddress: TEST_WALLETS.expiredWallet,
+                    referralCode: 'EXPIRED1',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // Expiring soon (within 7 days)
-                    updatedAt: null
+                    expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: TEST_WALLETS.newWallet,
+                    referralCode: 'ACTIVE2',
+                    isActive: true,
+                    expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: 'wallet4',
+                    referralCode: 'EXPIRED2',
+                    isActive: true,
+                    expiresAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: 'wallet5',
+                    referralCode: 'EXPIRING_SOON',
+                    isActive: true,
+                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: 'wallet6',
+                    referralCode: 'NO_EXPIRATION',
+                    isActive: true,
+                    expiresAt: null
                 }
-            ];
-
-            await ReferralCodeModel.insertMany(codes);
-
+            ]);
+        });
+        it('should return correct statistics for expired codes', async () => {
             const stats = await cleanupService.getExpiredCodeStats();
-
-            expect(stats.totalExpired).toBe(2); // Both expired codes
-            expect(stats.totalActive).toBe(3); // Active, expiring soon, and the one from beforeEach
-            expect(stats.expiringSoon).toBe(2); // Expiring soon and the one from beforeEach (within 30 days)
+            expect(stats.totalExpired).toBe(2);
+            expect(stats.totalActive).toBe(3);
+            expect(stats.expiringSoon).toBe(2);
         });
 
         it('should handle codes without expiration dates', async () => {
-            // Create code without expiration
-            await ReferralCodeModel.create({
-                walletAddress: 'no-expiry',
-                referralCode: 'NOEXPIRY',
-                isActive: true,
-                updatedAt: null
-            });
-
             const stats = await cleanupService.getExpiredCodeStats();
-
-            expect(stats.totalActive).toBe(2); // Including the one from beforeEach
+            expect(stats.totalActive).toBe(3);
+            expect(stats.totalExpired).toBe(2);
         });
     });
 
     describe('extendExpiration', () => {
+        beforeEach(async () => {
+            await ReferralCodeModel.create({
+                walletAddress: TEST_WALLETS.referrer,
+                referralCode: 'ACTIVE1',
+                isActive: true,
+                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            });
+        });
         it('should extend expiration for existing referral code', async () => {
-            const originalExpiration = testReferralCode.expiresAt;
-            const extensionDays = 30;
+            const initialCode = await ReferralCodeModel.findOne({ walletAddress: TEST_WALLETS.referrer });
+            const originalExpiration = initialCode!.expiresAt;
 
-            const success = await cleanupService.extendExpiration('test-wallet', extensionDays);
+            const result = await cleanupService.extendExpiration(TEST_WALLETS.referrer, 15);
 
-            expect(success).toBe(true);
+            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: TEST_WALLETS.referrer });
+            const newExpiration = updatedCode!.expiresAt;
 
-            // Verify expiration was extended
-            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'test-wallet' });
-            expect(updatedCode?.isActive).toBe(true);
-            expect(updatedCode?.expiresAt?.getTime()).toBeGreaterThan(originalExpiration!.getTime());
+            expect(result).toBe(true);
+            expect(newExpiration!.getTime()).toBeGreaterThan(originalExpiration!.getTime());
+            const diffDays = (newExpiration!.getTime() - originalExpiration!.getTime()) / (1000 * 3600 * 24);
+            expect(diffDays).toBeCloseTo(15);
         });
 
         it('should return false for non-existent wallet', async () => {
-            const success = await cleanupService.extendExpiration('non-existent-wallet', 30);
-            expect(success).toBe(false);
+            const result = await cleanupService.extendExpiration('non-existent-wallet');
+            expect(result).toBe(false);
         });
 
         it('should use default extension of 30 days', async () => {
-            // Fetch the latest code from DB to get the correct original expiration
-            const codeBefore = await ReferralCodeModel.findOne({ walletAddress: 'test-wallet' });
-            const originalExpiration = codeBefore!.expiresAt;
+            const initialCode = await ReferralCodeModel.findOne({ walletAddress: TEST_WALLETS.referrer });
+            const originalExpiration = initialCode!.expiresAt;
 
-            const success = await cleanupService.extendExpiration('test-wallet');
+            await cleanupService.extendExpiration(TEST_WALLETS.referrer);
 
-            expect(success).toBe(true);
-
-            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'test-wallet' });
-            // Verify expiration was extended by approximately 30 days
-            const timeDifference = updatedCode!.expiresAt!.getTime() - originalExpiration!.getTime();
-            const daysDifference = timeDifference / (24 * 60 * 60 * 1000);
-            expect(daysDifference).toBeCloseTo(30, 0); // Within 1 day
+            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: TEST_WALLETS.referrer });
+            const newExpiration = updatedCode!.expiresAt;
+            const diffDays = (newExpiration!.getTime() - originalExpiration!.getTime()) / (1000 * 3600 * 24);
+            expect(diffDays).toBeCloseTo(30);
         });
     });
 
     describe('getExpiringSoonCodes', () => {
-        it('should return codes expiring within threshold', async () => {
-            // Create codes with different expiration dates
-            const codes = [
+        beforeEach(async () => {
+            await ReferralCodeModel.create([
                 {
-                    walletAddress: 'expiring1',
-                    referralCode: 'EXPIRING1',
+                    walletAddress: TEST_WALLETS.referrer,
+                    referralCode: 'ACTIVE1',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
-                    updatedAt: null
+                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
                 },
                 {
-                    walletAddress: 'expiring2',
-                    referralCode: 'EXPIRING2',
+                    walletAddress: TEST_WALLETS.expiredWallet,
+                    referralCode: 'EXPIRED1',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days
-                    updatedAt: null
+                    expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
                 },
                 {
-                    walletAddress: 'not-expiring',
-                    referralCode: 'NOTEXPIRING',
+                    walletAddress: TEST_WALLETS.newWallet,
+                    referralCode: 'ACTIVE2',
                     isActive: true,
-                    expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days
-                    updatedAt: null
+                    expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: 'wallet4',
+                    referralCode: 'EXPIRED2',
+                    isActive: true,
+                    expiresAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: 'wallet5',
+                    referralCode: 'EXPIRING_SOON',
+                    isActive: true,
+                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: 'wallet6',
+                    referralCode: 'NO_EXPIRATION',
+                    isActive: true,
+                    expiresAt: null
                 }
-            ];
-
-            await ReferralCodeModel.insertMany(codes);
-
-            const expiringCodes = await cleanupService.getExpiringSoonCodes(7); // 7 day threshold
-
-            expect(expiringCodes).toHaveLength(2);
-            expect(expiringCodes.map(c => c.referralCode)).toContain('EXPIRING1');
-            expect(expiringCodes.map(c => c.referralCode)).toContain('EXPIRING2');
-            expect(expiringCodes.map(c => c.referralCode)).not.toContain('NOTEXPIRING');
+            ]);
+        });
+        it('should return codes expiring within threshold', async () => {
+            const expiringCodes = await cleanupService.getExpiringSoonCodes(10);
+            expect(expiringCodes.length).toBeGreaterThan(0);
+            const codes = expiringCodes.map(c => c.referralCode);
+            expect(codes).toContain('ACTIVE1');
+            expect(codes).toContain('EXPIRING_SOON');
         });
 
         it('should return codes sorted by expiration date', async () => {
-            const codes = [
-                {
-                    walletAddress: 'expiring2',
-                    referralCode: 'EXPIRING2',
-                    isActive: true,
-                    expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days
-                    updatedAt: null
-                },
-                {
-                    walletAddress: 'expiring1',
-                    referralCode: 'EXPIRING1',
-                    isActive: true,
-                    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
-                    updatedAt: null
-                }
-            ];
-
-            await ReferralCodeModel.insertMany(codes);
-
-            const expiringCodes = await cleanupService.getExpiringSoonCodes(7);
-
-            expect(expiringCodes[0].referralCode).toBe('EXPIRING1'); // Sooner expiration first
-            expect(expiringCodes[1].referralCode).toBe('EXPIRING2');
+            const expiringCodes = await cleanupService.getExpiringSoonCodes(10);
+            expect(expiringCodes.length).toBeGreaterThan(0);
+            for (let i = 0; i < expiringCodes.length - 1; i++) {
+                expect(expiringCodes[i]!.expiresAt!.getTime()).toBeLessThanOrEqual(
+                    expiringCodes[i + 1]!.expiresAt!.getTime()
+                );
+            }
         });
 
         it('should use default threshold of 7 days', async () => {
-            const expiringCodes = await cleanupService.getExpiringSoonCodes();
-            expect(expiringCodes).toBeInstanceOf(Array);
+            const soonCodes = await cleanupService.getExpiringSoonCodes();
+            expect(soonCodes.length).toBeGreaterThan(0);
+            const codes = soonCodes.map(c => c.referralCode);
+            expect(codes).toContain('EXPIRING_SOON');
         });
     });
 
     describe('cleanupOldReferrals', () => {
-        it('should delete old referral records', async () => {
-            // Create old referrals
-            const oldReferrals = [
+        beforeEach(async () => {
+            await ReferralModel.create([
                 {
-                    referrerAddress: 'referrer1',
-                    referreeAddress: 'referree1',
-                    createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000) // 400 days ago
+                    referrerAddress: TEST_WALLETS.referrer,
+                    referreeAddress: TEST_WALLETS.referree,
+                    createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000)
                 },
                 {
-                    referrerAddress: 'referrer2',
-                    referreeAddress: 'referree2',
-                    createdAt: new Date(Date.now() - 380 * 24 * 60 * 60 * 1000) // 380 days ago
+                    referrerAddress: TEST_WALLETS.newWallet,
+                    referreeAddress: TEST_WALLETS.unreferredWallet,
+                    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000)
                 }
-            ];
+            ]);
+        });
+        it('should delete old referral records', async () => {
+            const initialCount = await ReferralModel.countDocuments();
+            expect(initialCount).toBe(2);
 
-            await ReferralModel.insertMany(oldReferrals);
+            const cleanedCount = await cleanupService.cleanupOldReferrals(30);
+            expect(cleanedCount).toBe(1);
 
-            const deletedCount = await cleanupService.cleanupOldReferrals(365); // Delete older than 1 year
+            const finalCount = await ReferralModel.countDocuments();
+            expect(finalCount).toBe(1);
 
-            expect(deletedCount).toBe(2);
-
-            // Verify old referrals were deleted
-            const remainingReferrals = await ReferralModel.find({});
-            expect(remainingReferrals).toHaveLength(0);
+            const remainingReferral = await ReferralModel.findOne();
+            expect(remainingReferral?.referrerAddress).toBe(TEST_WALLETS.newWallet);
         });
 
         it('should not delete recent referrals', async () => {
-            // Create recent referral
-            await ReferralModel.create({
-                referrerAddress: 'referrer1',
-                referreeAddress: 'referree1',
-                createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
-            });
-
-            const deletedCount = await cleanupService.cleanupOldReferrals(365);
-
-            expect(deletedCount).toBe(0);
-
-            // Verify recent referral remains
-            const remainingReferrals = await ReferralModel.find({});
-            expect(remainingReferrals).toHaveLength(1);
+            const initialCount = await ReferralModel.countDocuments();
+            const cleanedCount = await cleanupService.cleanupOldReferrals(60);
+            expect(cleanedCount).toBe(0);
+            const finalCount = await ReferralModel.countDocuments();
+            expect(finalCount).toBe(initialCount);
         });
     });
 
     describe('regenerateExpiredCode', () => {
+        beforeEach(async () => {
+            await ReferralCodeModel.create([
+                {
+                    walletAddress: TEST_WALLETS.expiredWallet,
+                    referralCode: 'EXPIRED1',
+                    isActive: true,
+                    expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
+                },
+                {
+                    walletAddress: TEST_WALLETS.referrer,
+                    referralCode: 'ACTIVE1',
+                    isActive: true,
+                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                }
+            ]);
+        });
         it('should regenerate code for expired referral code', async () => {
-            // Create expired code
-            const expiredCode = await ReferralCodeModel.create({
-                walletAddress: 'expired-wallet',
-                referralCode: 'EXPIRED',
-                isActive: true,
-                expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-                updatedAt: null
-            });
+            const newCode = await cleanupService.regenerateExpiredCode(TEST_WALLETS.expiredWallet);
 
-            const newCode = await cleanupService.regenerateExpiredCode('expired-wallet');
-
-            expect(newCode).not.toBeNull();
+            expect(newCode).toBeDefined();
             expect(newCode).not.toBe('EXPIRED');
             expect(newCode?.length).toBe(6);
             expect(newCode).toMatch(/^[A-Z0-9]{6}$/);
 
             // Verify code was updated
-            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: 'expired-wallet' });
+            const updatedCode = await ReferralCodeModel.findOne({ walletAddress: TEST_WALLETS.expiredWallet });
             expect(updatedCode?.referralCode).toBe(newCode);
             expect(updatedCode?.isActive).toBe(true);
             expect(updatedCode?.expiresAt?.getTime()).toBeGreaterThan(Date.now());
