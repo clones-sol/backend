@@ -69,7 +69,11 @@ export async function createTokenDeploymentTransaction(
     };
 
     // Gas estimate with a small buffer
-    const est = await provider.estimateGas(unsignedTx).catch(() => null);
+    const est = await provider.estimateGas(unsignedTx).catch((err) => {
+        console.error("Gas estimation failed for ERC-20 deployment transaction:", err);
+        // Fallback: use a reasonable default for contract deployment
+        return 3000000n;
+    });
     if (est) {
         unsignedTx.gasLimit = (est * 1200n) / 1000n; // +20%
     }

@@ -385,9 +385,9 @@ export async function processNextInQueue() {
                     treasuryTransfer.txHash = result.txHash;
                   }
                 } catch (e) {
-                  if ((e as Error).message === 'Pool ETH balance insufficient for gas.') {
+                  if ((e as Error).message && (e as Error).message.includes('Pool ETH balance insufficient')) {
                     // update pool status
-                    pool.status === TrainingPoolStatus.noGas;
+                    pool.status = TrainingPoolStatus.noGas;
                     await pool.save();
                   }
                   throw e;
