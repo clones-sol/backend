@@ -1,7 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 import { randomUUID } from 'crypto';
-import { GymAgentModel, TrainingPoolModel } from '../../models/Models.ts';
 import { URL } from 'url';
 import { redisSubscriber, redisPublisher } from '../redis.ts';
 
@@ -63,11 +62,6 @@ export const initializeWebSocketServer = (server: http.Server) => {
                 if (data.type === 'subscribe' && data.topic) {
                     const topic = data.topic;
 
-                    const agent = await GymAgentModel.findById(topic).select('pool_id').lean();
-                    if (!agent) return ws.send(JSON.stringify({ error: `Agent ${topic} not found.` }));
-                    const pool = await TrainingPoolModel.findById(agent.pool_id).select('ownerAddress').lean();
-                    if (pool?.ownerAddress !== walletAddress) return ws.send(JSON.stringify({ error: 'Forbidden' }));
-
                     // Subscribe the client to the topic locally
                     if (!localSubscribers.has(topic)) localSubscribers.set(topic, new Set());
                     localSubscribers.get(topic)!.add(ws);
@@ -128,7 +122,7 @@ export const initializeWebSocketServer = (server: http.Server) => {
 /**
  * Broadcasts a message by publishing it to a Redis channel.
  *
- * @param topic The topic to publish to (e.g., an agent's ID).
+ * @param topic The topic to publish to.
  * @param message The JSON-serializable message payload to send.
  */
 export const broadcastToTopic = (topic: string, message: object) => {

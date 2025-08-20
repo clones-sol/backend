@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApiError } from './types/errors.ts';
-import { PublicKey } from '@solana/web3.js';
+import { isAddress } from 'ethers';
 
 /**
  * Validates if a string is a valid URL.
@@ -190,20 +190,16 @@ export const ValidationRules = {
   }),
 
   // Common validation patterns
-  isSolanaAddress: (): ValidationRule => ({
+  isEVMAddress: (): ValidationRule => ({
     validate: async (value) => {
       try {
         if (typeof value !== 'string') return false;
-        // Basic format check first
-        if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) return false;
-
-        const pubKey = new PublicKey(value);
-        return await PublicKey.isOnCurve(pubKey);
+        return isAddress(value);
       } catch (error) {
         return false;
       }
     },
-    message: 'Must be a valid Solana wallet address'
+    message: 'Must be a valid EVM wallet address'
   }),
 
   isValidName: (): ValidationRule => ({

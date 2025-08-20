@@ -102,9 +102,9 @@ describe('Enhanced ValidationRules', () => {
     });
   });
 
-  describe('enhanced isSolanaAddress', () => {
+  describe('enhanced isEVMAddress', () => {
     it('should perform basic format validation first', async () => {
-      const rule = ValidationRules.isSolanaAddress();
+      const rule = ValidationRules.isEVMAddress();
 
       // Invalid format should fail quickly
       expect(await rule.validate('invalid')).toBe(false);
@@ -114,18 +114,18 @@ describe('Enhanced ValidationRules', () => {
       expect(await rule.validate(123)).toBe(false);
     });
 
-    it('should validate proper Solana address format', async () => {
-      const rule = ValidationRules.isSolanaAddress();
+    it('should validate proper EVM address format', async () => {
+      const rule = ValidationRules.isEVMAddress();
 
       // These should pass basic format check (actual validation depends on PublicKey.isOnCurve)
       const validFormatAddresses = [
-        'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
-        '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49'
+        '0x66e016f974493F5c1438943FC6A7f3aA896AE77b',
+        '0x8a812Ac4CED3e8c82e2Bd64a46E1C4bFF0aD21d9'
       ];
 
       for (const address of validFormatAddresses) {
         // At minimum, should pass format validation
-        expect(address).toMatch(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
+        expect(address).toMatch(/^0x[a-fA-F0-9]{40}$/);
       }
     });
   });

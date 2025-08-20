@@ -12,11 +12,11 @@ import {
 import { ForgeRaceSubmission, TrainingPoolModel, ForgeAppModel } from '../../models/Models.ts';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { Keypair } from '@solana/web3.js';
 import { spawn } from 'child_process';
 import { Webhook } from '../webhook/index.ts';
 import { decrypt, encrypt, LATEST_KEY_VERSION } from '../security/crypto.ts';
-import { getTokenAddress } from '../blockchain/tokens.ts';
+import { getTokenContractAddress } from '../blockchain/tokens.ts';
+import { Wallet } from 'ethers';
 
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
 
@@ -301,7 +301,7 @@ export async function processNextInQueue() {
             reward = Math.max(0, Math.min(maxReward, (maxReward * clampedScore) / 100));
 
             // Create treasury transfer record if reward exists
-            const tokenAddress = getTokenAddress(pool.token.symbol);
+            const tokenAddress = getTokenContractAddress(pool.token.symbol);
             if (reward && reward > 0) {
               treasuryTransfer = {
                 tokenAddress: tokenAddress,
@@ -361,13 +361,10 @@ export async function processNextInQueue() {
                 }
 
                 // Create keypair from private key
-                const fromWallet = Keypair.fromSecretKey(Buffer.from(decryptedPrivateKey, 'base64'));
+                const fromWallet = new Wallet(decryptedPrivateKey);
 
                 // Get initial treasury balance
-                const blockchainService = new (await import('../blockchain/index.js')).default(
-                  process.env.RPC_URL || '',
-                  '' // Program ID not needed for token transfers
-                );
+                const blockchainService = new (await import('../blockchain/index.js')).default(process.env.RPC_URL || '');
 
                 const treasuryBalance = await blockchainService.getTokenBalance(
                   tokenAddress,
@@ -380,15 +377,15 @@ export async function processNextInQueue() {
                   const result = await blockchainService.transferToken(
                     tokenAddress,
                     reward,
-                    fromWallet,
+                    fromWallet.address,
                     submission.address
                   );
 
                   if (result && treasuryTransfer) {
-                    treasuryTransfer.txHash = result.signature;
+                    treasuryTransfer.txHash = result.txHash;
                   }
                 } catch (e) {
-                  if ((e as Error).message === 'Pool SOL balance insufficient for gas.') {
+                  if ((e as Error).message === 'Pool ETH balance insufficient for gas.') {
                     // update pool status
                     pool.status === TrainingPoolStatus.noGas;
                     await pool.save();
@@ -497,7 +494,7 @@ export async function processNextInQueue() {
               name: pool.name,
               token: {
                 symbol: pool.token.symbol,
-                address: getTokenAddress(pool.token.symbol)
+                address: getTokenContractAddress(pool.token.symbol)
               }
             }
             : undefined

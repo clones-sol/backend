@@ -83,7 +83,7 @@ export class Webhook {
       }
 
       // Add file to form data
-      const blob = new Blob([file.content], { type: 'application/octet-stream' });
+      const blob = new Blob([file.content as any], { type: 'application/octet-stream' });
       formData.append('file', blob, file.name);
 
       if (!this.url) {

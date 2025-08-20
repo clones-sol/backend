@@ -50,7 +50,7 @@ vi.mock('../services/referral/cleanupService.ts', () => ({
         }
         async regenerateExpiredCode(walletAddress: string) {
             // Return null for non-expired codes (like TEST_WALLETS.referrer)
-            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+            if (walletAddress === TEST_WALLETS.referrer) {
                 return null;
             }
             return 'NEWCODE123';
@@ -90,13 +90,13 @@ vi.mock('../services/referral/index.ts', () => ({
         constructor() { }
         async generateReferralCode(walletAddress: string) {
             // Return different codes based on wallet address
-            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+            if (walletAddress === TEST_WALLETS.referrer) {
                 return { referralCode: 'TESTCD', createdAt: new Date() };
             }
             return { referralCode: 'ABCDEF', createdAt: new Date() };
         }
         async getReferralCode(walletAddress: string) {
-            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+            if (walletAddress === TEST_WALLETS.referrer) {
                 return {
                     walletAddress,
                     referralCode: 'TESTCD',
@@ -114,7 +114,7 @@ vi.mock('../services/referral/index.ts', () => ({
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
             }
-            if (walletAddress === '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49') {
+            if (walletAddress === TEST_WALLETS.referree) {
                 return {
                     walletAddress,
                     referralCode: 'TESTBC',
@@ -123,7 +123,7 @@ vi.mock('../services/referral/index.ts', () => ({
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
             }
-            if (walletAddress === 'DKf6oSTPyp9h7V4KcTiouYeormMEQ8dCjmodZLDc73Jv') { // TEST_WALLETS.newWallet
+            if (walletAddress === TEST_WALLETS.newWallet) { // TEST_WALLETS.newWallet
                 return {
                     walletAddress,
                     referralCode: 'ABCDEF',
@@ -136,18 +136,18 @@ vi.mock('../services/referral/index.ts', () => ({
         }
         async validateReferralCode(referralCode: string) {
             if (referralCode === 'TESTCD' || referralCode === 'testcd') {
-                return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
+                return TEST_WALLETS.referrer;
             }
             if (referralCode === 'TESTAB' || referralCode === 'testab') {
-                return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
+                return TEST_WALLETS.referrer;
             }
             return null;
         }
         async createReferral() {
             return {
                 _id: 'mock-referral-id',
-                referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
-                referreeAddress: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
+                referrerAddress: TEST_WALLETS.referrer,
+                referreeAddress: TEST_WALLETS.referree,
                 createdAt: new Date(),
                 updatedAt: null
             };
@@ -156,7 +156,7 @@ vi.mock('../services/referral/index.ts', () => ({
             return { txHash: 'test-tx-hash', slot: 12345 };
         }
         async getReferralStats(walletAddress: string) {
-            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+            if (walletAddress === TEST_WALLETS.referrer) {
                 return {
                     totalReferrals: 0,
                     totalRewards: 0,
@@ -177,15 +177,15 @@ vi.mock('../services/referral/index.ts', () => ({
             return false;
         }
         async getReferrer(walletAddress: string) {
-            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+            if (walletAddress === TEST_WALLETS.referrer) {
                 return {
                     walletAddress: 'REFERRER_WALLET_ADDRESS',
                     referralCode: 'REFRAB'
                 };
             }
-            if (walletAddress === '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49') {
+            if (walletAddress === TEST_WALLETS.referree) {
                 return {
-                    walletAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
+                    walletAddress: TEST_WALLETS.referrer,
                     referralCode: 'TESTCD'
                 };
             }
@@ -221,8 +221,8 @@ vi.mock('../services/referral/index.ts', () => ({
         }
         async processReward() {
             return {
-                referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
-                referreeAddress: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
+                referrerAddress: TEST_WALLETS.referrer,
+                referreeAddress: TEST_WALLETS.referree,
                 actionType: 'test_action',
                 actionValue: 100,
                 rewardAmount: 50,
@@ -243,7 +243,7 @@ vi.mock('../services/referral/index.ts', () => ({
             return true;
         }
         async regenerateExpiredCode(walletAddress: string) {
-            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+            if (walletAddress === TEST_WALLETS.referrer) {
                 return null;
             }
             return 'NEWCODE123';
@@ -251,13 +251,13 @@ vi.mock('../services/referral/index.ts', () => ({
     },
     referralService: {
         generateReferralCode: async (walletAddress: string) => {
-            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+            if (walletAddress === TEST_WALLETS.referrer) {
                 return { referralCode: 'TESTCD', createdAt: new Date() };
             }
             return { referralCode: 'ABCDEF', createdAt: new Date() };
         },
         getReferralCode: async (walletAddress: string) => {
-            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+            if (walletAddress === TEST_WALLETS.referrer) {
                 return {
                     walletAddress,
                     referralCode: 'TESTCD',
@@ -275,7 +275,7 @@ vi.mock('../services/referral/index.ts', () => ({
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
             }
-            if (walletAddress === '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49') {
+            if (walletAddress === TEST_WALLETS.referree) {
                 return {
                     walletAddress,
                     referralCode: 'TESTBC',
@@ -284,7 +284,7 @@ vi.mock('../services/referral/index.ts', () => ({
                     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 };
             }
-            if (walletAddress === 'DKf6oSTPyp9h7V4KcTiouYeormMEQ8dCjmodZLDc73Jv') { // TEST_WALLETS.newWallet
+            if (walletAddress === TEST_WALLETS.newWallet) { // TEST_WALLETS.newWallet
                 return {
                     walletAddress,
                     referralCode: 'ABCDEF',
@@ -297,10 +297,10 @@ vi.mock('../services/referral/index.ts', () => ({
         },
         validateReferralCode: async (referralCode: string) => {
             if (referralCode === 'TESTCD' || referralCode === 'testcd') {
-                return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
+                return TEST_WALLETS.referrer;
             }
             if (referralCode === 'TESTAB' || referralCode === 'testab') {
-                return 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97';
+                return TEST_WALLETS.referrer;
             }
             return null;
         },
@@ -321,7 +321,7 @@ vi.mock('../services/referral/index.ts', () => ({
             return { txHash: 'test-tx-hash', slot: 12345 };
         },
         getReferralStats: async (walletAddress: string) => {
-            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+            if (walletAddress === TEST_WALLETS.referrer) {
                 return {
                     totalReferrals: 0,
                     totalRewards: 0,
@@ -379,8 +379,8 @@ vi.mock('../services/referral/index.ts', () => ({
             maxReferralsPerCooldownPeriod: newConfig.maxReferralsPerCooldownPeriod || 5
         }),
         processReward: async () => ({
-            referrerAddress: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
-            referreeAddress: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
+            referrerAddress: TEST_WALLETS.referrer,
+            referreeAddress: TEST_WALLETS.referree,
             actionType: 'test_action',
             actionValue: 100,
             rewardAmount: 50,
@@ -394,7 +394,7 @@ vi.mock('../services/referral/index.ts', () => ({
         }),
         extendExpiration: async () => true,
         regenerateExpiredCode: async (walletAddress: string) => {
-            if (walletAddress === 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97') {
+            if (walletAddress === TEST_WALLETS.referrer) {
                 return null;
             }
             return 'NEWCODE123';
@@ -410,12 +410,12 @@ import { errorHandler } from '../middleware/errorHandler.ts';
 
 // Valid Solana wallet addresses for testing
 const TEST_WALLETS = {
-    referrer: 'E8fgSKVQYf93xNrJhPWdQZi4Rz5fL4WDJLM727Pe2P97',
-    referree: '4ngcdKzzCe9pTd35MamzfCsvk2uS9PBfcGJwBuGVQV49',
-    newWallet: 'DKf6oSTPyp9h7V4KcTiouYeormMEQ8dCjmodZLDc73Jv',
-    expiredWallet: '66oWkuMRwh8YXEDvgtnBTEJ7ixfiEwx7nqsoQAaWJsx8',
-    unreferredWallet: '24kzcdFM1WEXdqgeq5kGXzmVdk6wPM77a7BbqFcs8Rhq',
-    noCodeWallet: '7mYm9PMV5xg5LJ1LN99hMVRBg7bGfqfU5QBcwMhGAHzg'
+    referrer: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+    referree: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+    newWallet: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
+    expiredWallet: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+    unreferredWallet: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
+    noCodeWallet: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc'
 };
 
 let app: express.Express;

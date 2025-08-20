@@ -6,7 +6,7 @@ import { ValidationSchema, ValidationRules } from '../../middleware/validator.ts
 export const questRequestSchema: ValidationSchema = {
   address: {
     required: true,
-    rules: [ValidationRules.isString(), ValidationRules.isSolanaAddress()]
+    rules: [ValidationRules.isString(), ValidationRules.isEVMAddress()]
   },
   prompt: {
     required: true,

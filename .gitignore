@@ -60,3 +60,5 @@ localstack/cache
 localstack/lib
 localstack/logs
 localstack/tmp
+
+erc20-demo

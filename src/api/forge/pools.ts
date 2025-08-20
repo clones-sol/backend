@@ -12,8 +12,8 @@ import {
   refreshPoolSchema,
   rewardQuerySchema,
   updatePoolSchema,
-  withdrawSplSchema,
-  withdrawSolSchema
+  withdrawERC20Schema,
+  withdrawEthSchema
 } from '../schemas/forge.ts';
 import {
   CreatePoolBody,
@@ -21,13 +21,13 @@ import {
   TrainingPoolStatus,
   UpdatePoolBody
 } from '../../types/index.ts';
-import { Keypair } from '@solana/web3.js';
 import { Webhook } from '../../services/webhook/index.ts';
 import { decrypt, encrypt } from '../../services/security/crypto.ts';
-import { getTokenAddress, getSupportedTokenSymbols, supportedTokens } from '../../services/blockchain/tokens.ts';
+import { getTokenContractAddress, getSupportedTokenSymbols, supportedTokens } from '../../services/blockchain/tokens.ts';
 import BlockchainService from '../../services/blockchain/index.ts';
+import { Wallet } from 'ethers';
 
-const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
+const blockchainService = new BlockchainService(process.env.RPC_URL || '');
 
 // set up the discord webhook
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
@@ -67,7 +67,7 @@ router.post(
       throw ApiError.forbidden('Not authorized to refresh this pool');
     }
 
-    const { solBalance } = await updatePoolStatus(pool);
+    const { ethBalance } = await updatePoolStatus(pool);
 
     // Get demonstration count
     const demoCount = await ForgeRaceSubmission.countDocuments({
@@ -80,7 +80,7 @@ router.post(
       successResponse({
         ...poolObj,
         demonstrations: demoCount,
-        solBalance
+        ethBalance
       })
     );
   })
@@ -105,13 +105,13 @@ router.get(
           'meta.quest.pool_id': pool._id.toString()
         });
 
-        const { solBalance, funds: tokenBalance } = await updatePoolStatus(pool);
+        const { ethBalance, funds: tokenBalance } = await updatePoolStatus(pool);
 
         const poolObj = pool.toObject();
         return {
           ...poolObj,
           demonstrations: demoCount,
-          solBalance,
+          ethBalance,
           tokenBalance
         };
       })
@@ -188,14 +188,14 @@ router.get(
       'meta.quest.pool_id': pool._id.toString()
     });
 
-    const { solBalance, funds: tokenBalance } = await updatePoolStatus(pool);
+    const { ethBalance, funds: tokenBalance } = await updatePoolStatus(pool);
 
     const poolObj = pool.toObject();
     res.status(200).json(
       successResponse({
         ...poolObj,
         demonstrations: demoCount,
-        solBalance,
+        ethBalance,
         tokenBalance
       })
     );
@@ -223,10 +223,10 @@ router.post(
       );
     }
 
-    // Generate Solana keypair for deposit address
-    const keypair = Keypair.generate();
-    const depositAddress = keypair.publicKey.toString();
-    const depositPrivateKey = encrypt(Buffer.from(keypair.secretKey).toString('base64'));
+    // Generate EVM wallet for deposit address
+    const wallet = Wallet.createRandom();
+    const depositAddress = wallet.address;
+    const depositPrivateKey = encrypt(wallet.privateKey);
 
     const pool = new TrainingPoolModel({
       name,
@@ -383,11 +383,11 @@ router.put(
   })
 );
 
-// Withdraw SPL tokens from a pool
+// Withdraw ERC20 tokens from a pool
 router.post(
-  '/withdraw/spl',
+  '/withdraw/erc20',
   requireWalletAddress,
-  validateBody(withdrawSplSchema),
+  validateBody(withdrawERC20Schema),
   errorHandlerAsync(async (req: Request<{}, {}, { poolId: string; amount: number }>, res: Response) => {
     const { poolId, amount } = req.body;
 
@@ -401,26 +401,26 @@ router.post(
       throw ApiError.forbidden('Not authorized to withdraw from this pool');
     }
 
-    const { solBalance, funds } = await updatePoolStatus(pool);
+    const { ethBalance, funds } = await updatePoolStatus(pool);
 
     if (amount > funds) {
       throw ApiError.badRequest(`Insufficient token balance. Available: ${funds}`);
     }
 
-    if (solBalance < BlockchainService.MIN_SOL_BALANCE) {
+    if (ethBalance < BlockchainService.MIN_ETH_BALANCE) {
       throw ApiError.paymentRequired(
-        `Insufficient SOL for gas. Required: ${BlockchainService.MIN_SOL_BALANCE} SOL`
+        `Insufficient ETH for gas. Required: ${BlockchainService.MIN_ETH_BALANCE} ETH`
       );
     }
 
     const decryptedKey = decrypt(pool.depositPrivateKey);
-    const fromWallet = Keypair.fromSecretKey(Buffer.from(decryptedKey, 'base64'));
-    const tokenMint = getTokenAddress(pool.token.symbol);
+    const fromWallet = new Wallet(decryptedKey);
+    const tokenMint = getTokenContractAddress(pool.token.symbol);
 
     const signature = await blockchainService.transferToken(
       tokenMint,
       amount,
-      fromWallet,
+      fromWallet.address,
       pool.ownerAddress
     );
 
@@ -435,11 +435,11 @@ router.post(
   })
 );
 
-// Withdraw SOL from a pool
+// Withdraw ETG from a pool
 router.post(
-  '/withdraw/sol',
+  '/withdraw/eth',
   requireWalletAddress,
-  validateBody(withdrawSolSchema),
+  validateBody(withdrawEthSchema),
   errorHandlerAsync(async (req: Request<{}, {}, { poolId: string; amount: number }>, res: Response) => {
     const { poolId, amount } = req.body;
 
@@ -453,23 +453,23 @@ router.post(
       throw ApiError.forbidden('Not authorized to withdraw from this pool');
     }
 
-    const { solBalance } = await updatePoolStatus(pool);
-    const requiredBalance = amount + BlockchainService.MIN_SOL_BALANCE;
+    const { ethBalance } = await updatePoolStatus(pool);
+    const requiredBalance = amount + BlockchainService.MIN_ETH_BALANCE;
 
-    if (solBalance < requiredBalance) {
+    if (ethBalance < requiredBalance) {
       throw ApiError.badRequest(
-        `Insufficient SOL balance. Available for withdrawal: ${solBalance - BlockchainService.MIN_SOL_BALANCE
-        } SOL. Required for operation: ${requiredBalance} SOL.`
+        `Insufficient ETH balance. Available for withdrawal: ${ethBalance - BlockchainService.MIN_ETH_BALANCE
+        } ETH. Required for operation: ${requiredBalance} ETH.`
       );
     }
 
     const decryptedKey = decrypt(pool.depositPrivateKey);
-    const fromWallet = Keypair.fromSecretKey(Buffer.from(decryptedKey, 'base64'));
+    const fromWallet = new Wallet(decryptedKey);
 
-    const signature = await blockchainService.transferSol(amount, fromWallet, pool.ownerAddress);
+    const signature = await blockchainService.transferEth(amount, fromWallet.address, pool.ownerAddress);
 
     if (!signature) {
-      throw ApiError.internalError('SOL transfer failed');
+      throw ApiError.internalError('ETH transfer failed');
     }
 
     // Update pool balance after withdrawal

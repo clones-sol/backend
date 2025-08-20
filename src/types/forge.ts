@@ -51,7 +51,7 @@ export interface CreatePoolBody {
   name: string;
   skills: string;
   token: {
-    type: 'SOL' | 'SPL';
+    type: 'ETH' | 'ERC20';
     symbol: string;
   };
   ownerAddress?: string; // Now optional since we get it from the token

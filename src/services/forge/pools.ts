@@ -5,10 +5,10 @@ import BlockchainService from '../blockchain/index.ts';
 import { Webhook } from '../webhook/index.ts';
 import { APP_TASK_GENERATION_PROMPT } from './prompts.ts';
 import { Document, Types } from 'mongoose';
-import { getTokenAddress } from '../blockchain/tokens.ts';
+import { getTokenContractAddress } from '../blockchain/tokens.ts';
 
 // setup the pool refresher
-const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
+const blockchainService = new BlockchainService(process.env.RPC_URL || '');
 const BALANCE_REFRESH_INTERVAL = 1000 * 60 * 60 * 2; // 2 hours
 // set up the discord webhook
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
@@ -150,16 +150,16 @@ export async function updatePoolStatus(
     DBTrainingPool &
     Required<{ _id: Types.ObjectId }> & { __v: number }
 ) {
-  const tokenMintAddress = getTokenAddress(pool.token.symbol);
-  const balance = await blockchainService.getTokenBalance(tokenMintAddress, pool.depositAddress);
-  const solBalance = await blockchainService.getSolBalance(pool.depositAddress);
-  const noGas = solBalance <= BlockchainService.MIN_SOL_BALANCE;
+  const tokenContractAddress = getTokenContractAddress(pool.token.symbol);
+  const balance = await blockchainService.getTokenBalance(tokenContractAddress, pool.depositAddress);
+  const ethBalance = await blockchainService.getEthBalance(pool.depositAddress);
+  const noGas = ethBalance <= BlockchainService.MIN_ETH_BALANCE;
   let statusChanged = false;
 
   // Update pool funds
   pool.funds = balance;
   if (noGas) {
-    // pool has no SOL
+    // pool has no ETH
     if (pool.status !== TrainingPoolStatus.noGas) {
       pool.status = TrainingPoolStatus.noGas;
       statusChanged = true;
@@ -180,5 +180,5 @@ export async function updatePoolStatus(
   }
 
   await pool.save();
-  return { solBalance, funds: balance, status: pool.status };
+  return { ethBalance, funds: balance, status: pool.status };
 }

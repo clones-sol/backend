@@ -30,10 +30,10 @@ import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
 import { ApiError, successResponse } from '../../middleware/types/errors.ts';
 import { requireWalletAddress } from '../../middleware/auth.ts';
 import { IUploadSessionDocument, UploadSessionModel } from '../../models/UploadSession.ts';
-import { getTokenAddress } from '../../services/blockchain/tokens.ts';
+import { getTokenContractAddress } from '../../services/blockchain/tokens.ts';
 
 // Initialize blockchain service
-const blockchainService = new BlockchainService(process.env.RPC_URL || '', '');
+const blockchainService = new BlockchainService(process.env.RPC_URL || '');
 
 // Configure multer for handling chunk uploads
 const upload = multer({
@@ -453,7 +453,7 @@ router.post(
             }
 
             // Get current token balance from blockchain to ensure it's up-to-date
-            const tokenAddress = getTokenAddress(pool.token.symbol);
+            const tokenAddress = getTokenContractAddress(pool.token.symbol);
             const currentBalance = await blockchainService.getTokenBalance(
                 tokenAddress,
                 pool.depositAddress

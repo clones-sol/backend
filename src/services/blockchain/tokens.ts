@@ -1,7 +1,7 @@
 export interface TokenInfo {
     name: string;
     decimals: number;
-    mintAddress: {
+    contractAddress: {
         development: string;
         test: string;
         production: string;
@@ -16,19 +16,19 @@ export const supportedTokens: TokenConfig = {
     USDC: {
         name: 'USDC',
         decimals: 6,
-        mintAddress: {
-            development: 'FvL95gvU2RzrRyQESNzib3VhZtMQVn89BZmV3VpmoxPF',
-            test: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-            production: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+        contractAddress: {
+            development: '0xaf33add7918f685b2a82c1077bd8c07d220ffa04',
+            test: '0xaf33add7918f685b2a82c1077bd8c07d220ffa04',
+            production: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
         }
     },
     CLONES: {
         name: 'Clones',
-        decimals: 6,
-        mintAddress: {
-            development: '4fmd25KposhGSi3hFSJP4tWWex2wGWjEQdu14YWTddFV',
-            test: '4fmd25KposhGSi3hFSJP4tWWex2wGWjEQdu14YWTddFV',
-            production: 'prod-clns-mint-address' // Placeholder
+        decimals: 18,
+        contractAddress: {
+            development: '0x917D31589198d61b6BE2Aa2ee03965cF5102380C',
+            test: '0x0000000000000000000000000000000000000000',
+            production: '0x0000000000000000000000000000000000000000'
         }
     }
 };
@@ -39,7 +39,7 @@ export const supportedTokens: TokenConfig = {
  * @returns The mint address for the token in the current environment.
  * @throws If the token is not supported or not configured for the current environment.
  */
-export function getTokenAddress(symbol: string): string {
+export function getTokenContractAddress(symbol: string): string {
     const env = process.env.NODE_ENV || 'development';
     const token = supportedTokens[symbol];
 
@@ -47,10 +47,10 @@ export function getTokenAddress(symbol: string): string {
         throw new Error(`Token with symbol ${symbol} is not supported.`);
     }
 
-    const address = token.mintAddress[env as keyof typeof token.mintAddress];
+    const address = token.contractAddress[env as keyof typeof token.contractAddress];
 
     if (!address) {
-        throw new Error(`Mint address for token ${symbol} is not configured for environment ${env}.`);
+        throw new Error(`Contract address for token ${symbol} is not configured for environment ${env}.`);
     }
 
     return address;
