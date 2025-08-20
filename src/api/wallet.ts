@@ -27,10 +27,11 @@ const blockchainService = new BlockchainService(process.env.RPC_URL || '');
 const isEvmAddressRule = ValidationRules.matches(/^0x[a-fA-F0-9]{40}$/, 'must be a valid EVM address');
 
 /** Accepts 0x-hex or base64 and returns a bytes-like value usable by ethers.verifyMessage */
-function normalizeSignatureToBytes(sig: string): Uint8Array | string {
+function normalizeSignatureToBytes(sig: string): string {
   if (sig.startsWith('0x')) return sig; // hex works directly
   // assume base64
-  return Uint8Array.from(Buffer.from(sig, 'base64'));
+  const buf = Buffer.from(sig, 'base64');
+  return '0x' + buf.toString('hex');
 }
 
 /**

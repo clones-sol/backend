@@ -82,8 +82,8 @@ class BlockchainService {
       console.error("Failed to fetch fee data:", e);
     }
     return {
-      maxFeePerGas: ethers.parseUnits("0.5", "gwei"),
-      maxPriorityFeePerGas: ethers.parseUnits("0.1", "gwei")
+      maxFeePerGas: ethers.parseUnits("2", "gwei"),
+      maxPriorityFeePerGas: ethers.parseUnits("1", "gwei")
     };
   }
 
@@ -164,7 +164,7 @@ class BlockchainService {
       return { txHash: receipt?.hash ?? tx.hash, usedFeeMultiplier: m * 100 };
     } catch (error: any) {
       if (typeof error?.message === "string" && /insufficient funds/i.test(error.message)) {
-        throw new Error("Insufficient ETH balance for gas.");
+        throw new Error(`Insufficient ETH balance for gas: ${error.message}`);
       }
       console.error("ERC-20 transfer failed:", { message: error?.message });
       if (retryCount < 3) {
