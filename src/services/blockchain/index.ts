@@ -15,7 +15,7 @@ class BlockchainService {
 
   /** Minimum recommended ETH balance to cover gas */
   static get MIN_ETH_BALANCE(): number {
-    return 0.01;
+    return 0.00001;
   }
 
   /** Fetch ETH price in USD from CoinGecko */
