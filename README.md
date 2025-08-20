@@ -4,9 +4,9 @@ This is the backend server for the Clones project. It manages the database, hand
 
 ## Documentation
 
-For complete setup instructions, architectural deep-dives, and contribution guidelines, please refer to the **[Clones Developer Guide](https://docs.page/clones-sol/desktop)**.
+For complete setup instructions, architectural deep-dives, and contribution guidelines, please refer to the **[Clones Developer Guide](https://docs.page/clones-ai/desktop)**.
 
-Backend-specific details are available in the **[Backend Setup Guide](https://docs.page/clones-sol/desktop/projects/backend)**.
+Backend-specific details are available in the **[Backend Setup Guide](https://docs.page/clones-ai/desktop/projects/backend)**.
 
 ## Quick Start
 
@@ -19,7 +19,7 @@ This guide covers the essential steps to get the backend running locally for dev
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/clones-sol/backend.git
+git clone https://github.com/clones-ai/clones-backend.git
 cd backend
 ```
 
@@ -31,7 +31,7 @@ The backend is configured using an `.env` file. Copy the example file to get sta
 cp .env.example .env
 ```
 
-Next, open the `.env` file and provide the necessary values. Refer to the [Environment Setup section](https://docs.page/clones-sol/desktop/projects/backend#environment-setup) in the documentation for detailed instructions.
+Next, open the `.env` file and provide the necessary values. Refer to the [Environment Setup section](https://docs.page/clones-ai/desktop/projects/backend#environment-setup) in the documentation for detailed instructions.
 
 ### 3. Run with Docker
 
