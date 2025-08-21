@@ -12,8 +12,7 @@ import {
   refreshPoolSchema,
   rewardQuerySchema,
   updatePoolSchema,
-  withdrawERC20Schema,
-  withdrawEthSchema
+  withdrawPoolSchema,
 } from '../schemas/forge.ts';
 import {
   CreatePoolBody,
@@ -26,8 +25,13 @@ import { decrypt, encrypt } from '../../services/security/crypto.ts';
 import { getTokenContractAddress, getSupportedTokenSymbols, supportedTokens } from '../../services/blockchain/tokens.ts';
 import BlockchainService from '../../services/blockchain/index.ts';
 import { Wallet } from 'ethers';
+import RewardPoolService from '../../services/blockchain/rewardPoolService.ts';
 
 const blockchainService = new BlockchainService(process.env.RPC_URL || '');
+const rewardPoolService = new RewardPoolService(
+  process.env.RPC_URL || '',
+  process.env.REWARD_POOL_CONTRACT_ADDRESS || ''
+);
 
 // set up the discord webhook
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
@@ -67,20 +71,19 @@ router.post(
       throw ApiError.forbidden('Not authorized to refresh this pool');
     }
 
-    const { ethBalance } = await updatePoolStatus(pool);
+    await updatePoolStatus(pool);
 
     // Get demonstration count
     const demoCount = await ForgeRaceSubmission.countDocuments({
       'meta.quest.pool_id': pool._id.toString()
     });
 
-    // Return pool without private key but with demo count and noGas flag
+    // Return pool without private key but with demo count
     const { depositPrivateKey: _, ...poolObj } = pool.toObject();
     res.status(200).json(
       successResponse({
         ...poolObj,
         demonstrations: demoCount,
-        ethBalance
       })
     );
   })
@@ -105,13 +108,12 @@ router.get(
           'meta.quest.pool_id': pool._id.toString()
         });
 
-        const { ethBalance, funds: tokenBalance } = await updatePoolStatus(pool);
+        const { funds: tokenBalance } = await updatePoolStatus(pool);
 
         const poolObj = pool.toObject();
         return {
           ...poolObj,
           demonstrations: demoCount,
-          ethBalance,
           tokenBalance
         };
       })
@@ -188,14 +190,13 @@ router.get(
       'meta.quest.pool_id': pool._id.toString()
     });
 
-    const { ethBalance, funds: tokenBalance } = await updatePoolStatus(pool);
+    const { funds: tokenBalance } = await updatePoolStatus(pool);
 
     const poolObj = pool.toObject();
     res.status(200).json(
       successResponse({
         ...poolObj,
         demonstrations: demoCount,
-        ethBalance,
         tokenBalance
       })
     );
@@ -383,11 +384,11 @@ router.put(
   })
 );
 
-// Withdraw ERC20 tokens from a pool
+// Withdraw funds from a pool (ERC20 or ETH)
 router.post(
-  '/withdraw/erc20',
+  '/withdraw',
   requireWalletAddress,
-  validateBody(withdrawERC20Schema),
+  validateBody(withdrawPoolSchema),
   errorHandlerAsync(async (req: Request<{}, {}, { poolId: string; amount: number }>, res: Response) => {
     const { poolId, amount } = req.body;
 
@@ -401,81 +402,28 @@ router.post(
       throw ApiError.forbidden('Not authorized to withdraw from this pool');
     }
 
-    const { ethBalance, funds } = await updatePoolStatus(pool);
-
-    if (amount > funds) {
-      throw ApiError.badRequest(`Insufficient token balance. Available: ${funds}`);
-    }
-
-    if (ethBalance < BlockchainService.MIN_ETH_BALANCE) {
-      throw ApiError.paymentRequired(
-        `Insufficient ETH for gas. Required: ${BlockchainService.MIN_ETH_BALANCE} ETH`
-      );
-    }
-
+    const tokenAddress = getTokenContractAddress(pool.token.symbol);
     const decryptedKey = decrypt(pool.depositPrivateKey);
-    const fromWallet = new Wallet(decryptedKey);
-    const tokenMint = getTokenContractAddress(pool.token.symbol);
 
-    const signature = await blockchainService.transferToken(
-      tokenMint,
+    // Step 1: Refund from the smart contract to the pool's deposit wallet
+    await rewardPoolService.refundFactory(tokenAddress, amount, decryptedKey);
+
+    // Step 2: Transfer from the pool's deposit wallet to the owner's wallet
+    const finalTx = await blockchainService.transferFunds(
+      tokenAddress,
       amount,
-      fromWallet.address,
+      decryptedKey,
       pool.ownerAddress
     );
 
-    if (!signature) {
-      throw ApiError.internalError('Token transfer failed');
+    if (!finalTx) {
+      throw ApiError.internalError('Final token transfer to owner failed');
     }
 
     // Update pool balance after withdrawal
     await updatePoolStatus(pool);
 
-    res.status(200).json(successResponse({ signature }));
-  })
-);
-
-// Withdraw ETG from a pool
-router.post(
-  '/withdraw/eth',
-  requireWalletAddress,
-  validateBody(withdrawEthSchema),
-  errorHandlerAsync(async (req: Request<{}, {}, { poolId: string; amount: number }>, res: Response) => {
-    const { poolId, amount } = req.body;
-
-    const pool = await TrainingPoolModel.findById(poolId);
-    if (!pool) {
-      throw ApiError.notFound('Training pool not found');
-    }
-
-    // @ts-ignore
-    if (pool.ownerAddress !== req.walletAddress) {
-      throw ApiError.forbidden('Not authorized to withdraw from this pool');
-    }
-
-    const { ethBalance } = await updatePoolStatus(pool);
-    const requiredBalance = amount + BlockchainService.MIN_ETH_BALANCE;
-
-    if (ethBalance < requiredBalance) {
-      throw ApiError.badRequest(
-        `Insufficient ETH balance. Available for withdrawal: ${ethBalance - BlockchainService.MIN_ETH_BALANCE
-        } ETH. Required for operation: ${requiredBalance} ETH.`
-      );
-    }
-
-    const decryptedKey = decrypt(pool.depositPrivateKey);
-    const fromWallet = new Wallet(decryptedKey);
-
-    const signature = await blockchainService.transferEth(amount, fromWallet.address, pool.ownerAddress);
-
-    if (!signature) {
-      throw ApiError.internalError('ETH transfer failed');
-    }
-
-    // Update pool balance after withdrawal
-    await updatePoolStatus(pool);
-
-    res.status(200).json(successResponse({ signature }));
+    res.status(200).json(successResponse({ signature: finalTx }));
   })
 );
 

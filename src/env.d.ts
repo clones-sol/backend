@@ -14,6 +14,8 @@ declare namespace NodeJS {
 
     // Blockchain Configuration
     RPC_URL: string;
+    REWARD_POOL_CONTRACT_ADDRESS: string;
+    BLOCK_EXPLORER_URL: string;
     IPC_SECRET: string;
 
     // GYM Configuration

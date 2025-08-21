@@ -18,8 +18,7 @@ export interface AppWithLimitInfo {
 export enum TrainingPoolStatus {
   live = 'live',
   paused = 'paused',
-  noFunds = 'no-funds',
-  noGas = 'no-gas'
+  noFunds = 'no-funds'
 }
 
 export enum UploadLimitType {
@@ -146,13 +145,14 @@ export interface ForgeSubmissionGradeResult {
   efficiency: number;
 }
 
-// Interface for treasury transfer details
-export interface ForgeTreasuryTransfer {
+// Interface for on-chain reward details
+export interface OnChainReward {
   tokenAddress: string;
-  treasuryWallet: string;
+  poolAddress: string;
   amount: number;
+  taskId: string;
+  txHash: string;
   timestamp: number;
-  txHash?: string;
 }
 
 export interface UploadChunk {

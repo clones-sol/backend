@@ -65,6 +65,7 @@ services:
     environment:
       - DB_URI=${DB_URI}
       - RPC_URL=https://sepolia.base.org
+      - BLOCK_EXPLORER_URL=https://sepolia.basescan.org
       - IPC_SECRET=
       - GYM_SECRET=
       - AX_PARSER_SECRET=
@@ -82,6 +83,7 @@ services:
       - DEPOSIT_KEY_ENCRYPTION_SECRET=${DEPOSIT_KEY_ENCRYPTION_SECRET}
       - DEPOSIT_KEY_ENCRYPTION_SALT=${DEPOSIT_KEY_ENCRYPTION_SALT}
       - REDIS_URL=redis://redis:6379
+      - REWARD_POOL_CONTRACT_ADDRESS=0x70ca2a056Ff9f460138ed161cc1C343e31A9e061
     depends_on:
       - mongodb
       - localstack

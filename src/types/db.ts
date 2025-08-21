@@ -45,12 +45,13 @@ export interface DBForgeRaceSubmission {
   reward?: number;
   maxReward?: number;
   clampedScore?: number;
-  treasuryTransfer?: {
+  onChainReward?: {
     tokenAddress?: string;
-    treasuryWallet?: string;
+    poolAddress?: string;
     amount?: number;
-    timestamp?: number;
+    taskId?: string;
     txHash?: string;
+    timestamp?: number;
   };
   createdAt?: Date;
   updatedAt?: Date;

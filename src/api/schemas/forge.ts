@@ -152,23 +152,9 @@ export const getTasksSchema: ValidationSchema = {
 };
 
 /**
- * Schema for withdrawing ERC20 tokens from a pool
+ * Schema for withdrawing ERC20 tokens/ETH from a pool
  */
-export const withdrawERC20Schema: ValidationSchema = {
-  poolId: {
-    required: true,
-    rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
-  },
-  amount: {
-    required: true,
-    rules: [ValidationRules.isNumber(), ValidationRules.min(0.000001)] // must be > 0
-  }
-};
-
-/**
- * Schema for withdrawing ETH from a pool
- */
-export const withdrawEthSchema: ValidationSchema = {
+export const withdrawPoolSchema: ValidationSchema = {
   poolId: {
     required: true,
     rules: [ValidationRules.isString(), ValidationRules.minLength(1)]

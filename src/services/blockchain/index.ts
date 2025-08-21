@@ -1,4 +1,5 @@
 import { ethers } from "ethers";
+import { ethAddressSentinel } from "./tokens.ts";
 
 const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)",
@@ -13,10 +14,6 @@ class BlockchainService {
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
   }
 
-  /** Minimum recommended ETH balance to cover gas */
-  static get MIN_ETH_BALANCE(): number {
-    return 0.00001;
-  }
 
   /** Fetch ETH price in USD from CoinGecko */
   static async getEthPriceInUSD(): Promise<number> {
@@ -46,6 +43,11 @@ class BlockchainService {
 
   /** Get ERC-20 balance for an address (adjusted for decimals) */
   async getTokenBalance(tokenAddress: string, walletAddress: string): Promise<number> {
+    // Handle native ETH case where the zero address is used as a sentinel
+    if (tokenAddress === ethAddressSentinel) {
+      return this.getEthBalance(walletAddress);
+    }
+
     try {
       const erc20 = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
       const [raw, decimals] = await Promise.all([
@@ -173,6 +175,19 @@ class BlockchainService {
       }
       return false;
     }
+  }
+
+  /** Send ETH or ERC-20 tokens with retry and fee bumping */
+  async transferFunds(
+    tokenAddress: string,
+    amount: number,
+    fromPk: string,
+    to: string
+  ): Promise<{ txHash: string; usedFeeMultiplier: number } | string | false> {
+    if (tokenAddress === ethAddressSentinel) {
+      return this.transferEth(amount, fromPk, to);
+    }
+    return this.transferToken(tokenAddress, amount, fromPk, to);
   }
 }
 

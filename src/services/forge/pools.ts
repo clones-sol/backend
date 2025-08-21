@@ -151,34 +151,26 @@ export async function updatePoolStatus(
     Required<{ _id: Types.ObjectId }> & { __v: number }
 ) {
   const tokenContractAddress = getTokenContractAddress(pool.token.symbol);
-  const balance = await blockchainService.getTokenBalance(tokenContractAddress, pool.depositAddress);
-  const ethBalance = await blockchainService.getEthBalance(pool.depositAddress);
-  const noGas = ethBalance < BlockchainService.MIN_ETH_BALANCE;
+  const balance = await blockchainService.getTokenBalance(
+    tokenContractAddress,
+    pool.depositAddress
+  );
   let statusChanged = false;
 
   // Update pool funds
   pool.funds = balance;
-  if (noGas) {
-    // pool has no ETH
-    if (pool.status !== TrainingPoolStatus.noGas) {
-      pool.status = TrainingPoolStatus.noGas;
-      statusChanged = true;
-    }
-  } else if (balance === 0 || balance < pool.pricePerDemo) {
+  if (balance === 0 || balance < pool.pricePerDemo) {
     // pool has no token funds
     if (pool.status !== TrainingPoolStatus.noFunds) {
       pool.status = TrainingPoolStatus.noFunds;
       statusChanged = true;
     }
-  } else if (
-    pool.status === TrainingPoolStatus.noFunds ||
-    pool.status === TrainingPoolStatus.noGas
-  ) {
+  } else if (pool.status === TrainingPoolStatus.noFunds) {
     // pool has been funded, re-enable it
     pool.status = TrainingPoolStatus.paused;
     statusChanged = true;
   }
 
   await pool.save();
-  return { ethBalance, funds: balance, status: pool.status };
+  return { funds: balance, status: pool.status };
 }

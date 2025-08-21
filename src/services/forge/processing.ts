@@ -1,13 +1,12 @@
 import mongoose from 'mongoose';
 import {
   ForgeSubmissionGradeResult,
-  ForgeTreasuryTransfer,
   DBForgeRaceSubmission,
   ForgeSubmissionProcessingStatus,
   WebhookColor,
   EmbedField,
   UploadLimitType,
-  TrainingPoolStatus
+  OnChainReward
 } from '../../types/index.ts';
 import { ForgeRaceSubmission, TrainingPoolModel, ForgeAppModel } from '../../models/Models.ts';
 import { promises as fs } from 'fs';
@@ -16,9 +15,15 @@ import { spawn } from 'child_process';
 import { Webhook } from '../webhook/index.ts';
 import { decrypt, encrypt, LATEST_KEY_VERSION } from '../security/crypto.ts';
 import { getTokenContractAddress } from '../blockchain/tokens.ts';
-import { Wallet } from 'ethers';
+import { ethers } from 'ethers';
+import RewardPoolService from '../blockchain/rewardPoolService.ts';
 
 const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
+
+const rewardPoolService = new RewardPoolService(
+  process.env.RPC_URL || '',
+  process.env.REWARD_POOL_CONTRACT_ADDRESS || ''
+);
 
 // Global processing queue
 let isProcessing = false;
@@ -160,7 +165,7 @@ export async function processNextInQueue() {
       let reward = undefined;
       let maxReward = undefined;
       const clampedScore = Math.max(0, Math.min(100, gradeResult.score));
-      let treasuryTransfer: ForgeTreasuryTransfer | undefined = undefined;
+      let onChainReward: OnChainReward | undefined = undefined;
       let retries = 3;
 
       // Get pool details if poolId exists
@@ -300,21 +305,14 @@ export async function processNextInQueue() {
             // All checks passed, calculate reward
             reward = Math.max(0, Math.min(maxReward, (maxReward * clampedScore) / 100));
 
-            // Create treasury transfer record if reward exists
+            // Record reward on-chain if it exists
             const tokenAddress = getTokenContractAddress(pool.token.symbol);
             if (reward && reward > 0) {
-              treasuryTransfer = {
-                tokenAddress: tokenAddress,
-                treasuryWallet: pool.depositAddress,
-                amount: reward,
-                timestamp: Date.now()
-              };
-              console.log('Creating treasury transfer for reward:', treasuryTransfer);
-              console.log('Creating treasury transfer to address:', submission.address);
+              console.log(
+                `Recording reward for submission ${submissionId} to user ${submission.address}`
+              );
 
               try {
-                console.log('Attempting blockchain transfer');
-
                 const rawPrivateKey = pool.depositPrivateKey;
                 let decryptedPrivateKey: string;
                 let needsMigration = false;
@@ -360,45 +358,37 @@ export async function processNextInQueue() {
                   }
                 }
 
-                // Create keypair from private key
-                const fromWallet = new Wallet(decryptedPrivateKey);
+                // Generate a unique task ID from the submission ID to prevent replay attacks
+                const taskId = ethers.keccak256(ethers.toUtf8Bytes(submissionId));
 
-                // Get initial treasury balance
-                const blockchainService = new (await import('../blockchain/index.js')).default(process.env.RPC_URL || '');
-
-                const treasuryBalance = await blockchainService.getTokenBalance(
+                // Attempt to record the reward on-chain
+                const result = await rewardPoolService.recordReward(
+                  submission.address,
                   tokenAddress,
-                  pool.depositAddress
+                  reward,
+                  taskId,
+                  decryptedPrivateKey
                 );
-                console.log('Initial treasury balance:', treasuryBalance);
 
-                // Attempt blockchain transfer
-                try {
-                  const result = await blockchainService.transferToken(
-                    tokenAddress,
-                    reward,
-                    fromWallet.address,
-                    submission.address
-                  );
-
-                  if (result && treasuryTransfer) {
-                    treasuryTransfer.txHash = result.txHash;
-                  }
-                } catch (e) {
-                  if ((e as Error).message && (e as Error).message.includes('Pool ETH balance insufficient')) {
-                    // update pool status
-                    pool.status = TrainingPoolStatus.noGas;
-                    await pool.save();
-                  }
-                  throw e;
+                if (result) {
+                  onChainReward = {
+                    tokenAddress: tokenAddress,
+                    poolAddress: pool.depositAddress,
+                    amount: reward,
+                    taskId: taskId,
+                    txHash: result.txHash,
+                    timestamp: Date.now()
+                  };
+                } else {
+                  // Handle case where reward recording fails definitively
+                  throw new Error('Failed to record reward on-chain, transaction was not successful.');
                 }
 
-                // Get final treasury balance
+                const blockchainService = new (await import('../blockchain/index.js')).default(process.env.RPC_URL || '');
                 const finalBalance = await blockchainService.getTokenBalance(
                   tokenAddress,
                   pool.depositAddress
                 );
-                console.log('Final treasury balance:', finalBalance);
 
                 // Include pool info in webhook
                 const poolInfo = {
@@ -421,17 +411,17 @@ export async function processNextInQueue() {
                   summary: gradeResult.summary,
                   feedback: gradeResult.reasoning,
                   observations: gradeResult.observations,
-                  treasuryTransfer,
+                  onChainReward,
                   address: submission.address,
                   pool: poolInfo
                 });
               } catch (error) {
-                console.error('Treasury transfer failed:', error);
+                console.error('On-chain reward recording failed:', error);
                 // Update submission with error
                 await ForgeRaceSubmission.findByIdAndUpdate(submissionId, {
                   status: ForgeSubmissionProcessingStatus.FAILED,
                   error:
-                    'Gym payment failed. This gym has been paused until transaction issues are resolved.'
+                    'Demonstration reward recording failed. Please contact support.'
                 });
                 // Continue processing but log the error
                 await notifyForgeWebhook('transfer-error', {
@@ -470,13 +460,13 @@ export async function processNextInQueue() {
       submission.reward = reward;
       submission.maxReward = maxReward;
       submission.clampedScore = clampedScore;
-      submission.treasuryTransfer = treasuryTransfer;
+      submission.onChainReward = onChainReward;
       submission.status = ForgeSubmissionProcessingStatus.COMPLETED;
       await submission.save();
 
       // Always send a webhook notification for successful processing, even if there was no reward
       // Only send if it wasn't already sent during the reward processing
-      if (!reward || reward === 0 || !treasuryTransfer) {
+      if (!reward || reward === 0 || !onChainReward) {
         await notifyForgeWebhook('success', {
           title: submission?.meta?.quest.title,
           app: submission?.meta?.quest.app,
@@ -544,7 +534,7 @@ async function notifyForgeWebhook(
     feedback?: string;
     observations?: string;
     error?: string;
-    treasuryTransfer?: ForgeTreasuryTransfer;
+    onChainReward?: OnChainReward;
     address?: string;
     pool?: {
       name: string;
@@ -634,10 +624,11 @@ async function notifyForgeWebhook(
       }
     }
 
-    if (data.treasuryTransfer?.txHash) {
+    if (data.onChainReward?.txHash) {
+      const explorerUrl = process.env.BLOCK_EXPLORER_URL || 'https://basescan.org';
       fields.push({
         name: '🔗 Transaction',
-        value: `[View on Solscan](https://solscan.io/tx/${data.treasuryTransfer.txHash})`,
+        value: `[View on Basescan](${explorerUrl}/tx/${data.onChainReward.txHash})`,
         inline: true
       });
     }
