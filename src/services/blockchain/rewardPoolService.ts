@@ -69,7 +69,9 @@ class RewardPoolService {
         } catch (error) {
             console.error('Failed to record reward on-chain:', error);
             // Re-throw to be caught by the calling service
-            throw error;
+            throw new Error(
+                `Failed to record reward for farmer ${farmer} with taskId ${taskId}: ${error instanceof Error ? error.message : String(error)}`
+            );
         }
     }
 

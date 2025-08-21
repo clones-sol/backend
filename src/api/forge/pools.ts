@@ -406,7 +406,10 @@ router.post(
     const decryptedKey = decrypt(pool.depositPrivateKey);
 
     // Step 1: Refund from the smart contract to the pool's deposit wallet
-    await rewardPoolService.refundFactory(tokenAddress, amount, decryptedKey);
+    const refundTx = await rewardPoolService.refundFactory(tokenAddress, amount, decryptedKey);
+    if (!refundTx) {
+      throw ApiError.internalError('Refund from smart contract failed');
+    }
 
     // Step 2: Transfer from the pool's deposit wallet to the owner's wallet
     const finalTx = await blockchainService.transferFunds(
