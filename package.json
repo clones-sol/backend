@@ -11,7 +11,10 @@
     "tsc": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "test:json": "vitest run --reporter json",
+    "typecheck": "tsc --noEmit",
+    "typecov": "type-coverage --detail --ignoreCatch"
   },
   "keywords": [],
   "author": "",
@@ -36,6 +39,7 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "tweetnacl": "^1.0.3",
+    "type-coverage": "^2.29.7",
     "unzipper": "^0.12.3",
     "uuid": "^11.1.0",
     "ws": "^8.18.3",
