@@ -12,6 +12,9 @@ export interface TokenConfig {
     [symbol: string]: TokenInfo;
 }
 
+// Sentinel address for ETH
+export const ethAddressSentinel = '0x0000000000000000000000000000000000000000';
+
 export const supportedTokens: TokenConfig = {
     USDC: {
         name: 'USDC',
@@ -27,8 +30,17 @@ export const supportedTokens: TokenConfig = {
         decimals: 18,
         contractAddress: {
             development: '0x917D31589198d61b6BE2Aa2ee03965cF5102380C',
-            test: '0x0000000000000000000000000000000000000000',
-            production: '0x0000000000000000000000000000000000000000'
+            test: '0x917D31589198d61b6BE2Aa2ee03965cF5102380C',
+            production: '0xToBeAdded'
+        }
+    },
+    ETH: {
+        name: 'ETH (Base)',
+        decimals: 18,
+        contractAddress: {
+            development: ethAddressSentinel,
+            test: ethAddressSentinel,
+            production: ethAddressSentinel
         }
     }
 };

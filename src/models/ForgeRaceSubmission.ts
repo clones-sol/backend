@@ -36,13 +36,14 @@ export const forgeRaceSubmissionSchema = new mongoose.Schema<DBForgeRaceSubmissi
     reward: { type: Number, required: false },
     maxReward: { type: Number, required: false },
     clampedScore: { type: Number, required: false },
-    treasuryTransfer: {
+    onChainReward: {
       type: {
         tokenAddress: String,
-        treasuryWallet: String,
+        poolAddress: String,
         amount: Number,
-        timestamp: Number,
-        txHash: String
+        taskId: String,
+        txHash: String,
+        timestamp: Number
       },
       required: false
     }
