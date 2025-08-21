@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import * as crypto from 'crypto';
 import {
   ForgeSubmissionGradeResult,
   DBForgeRaceSubmission,
@@ -358,8 +359,11 @@ export async function processNextInQueue() {
                   }
                 }
 
-                // Generate a unique task ID from the submission ID to prevent replay attacks
-                const taskId = ethers.keccak256(ethers.toUtf8Bytes(submissionId));
+                // Generate a unique task ID using submissionId, timestamp, and a random nonce to prevent replay attacks
+                const taskTimestamp = Date.now();
+                const taskNonce = crypto.randomBytes(16).toString('hex');
+                const taskIdInput = `${submissionId}:${taskTimestamp}:${taskNonce}`;
+                const taskId = ethers.keccak256(ethers.toUtf8Bytes(taskIdInput));
 
                 // Attempt to record the reward on-chain
                 const result = await rewardPoolService.recordReward(
