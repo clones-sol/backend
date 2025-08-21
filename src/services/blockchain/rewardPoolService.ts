@@ -13,7 +13,7 @@ class RewardPoolService {
 
     constructor(rpcUrl: string, rewardPoolAddress: string) {
         if (!rewardPoolAddress) {
-            throw new Error('RewardPool contract address is not configured.');
+            throw new Error('RewardPool contract address is not configured. Please set REWARD_POOL_CONTRACT_ADDRESS environment variable.');
         }
         this.provider = new ethers.JsonRpcProvider(rpcUrl);
         this.rewardPoolAddress = rewardPoolAddress;

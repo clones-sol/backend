@@ -385,7 +385,7 @@ export async function processNextInQueue() {
                   };
                 } else {
                   // Handle case where reward recording fails definitively
-                  throw new Error('Failed to record reward on-chain, transaction was not successful.');
+                  throw new Error(`Failed to record reward on-chain: transaction result is ${JSON.stringify(result)} (expected a valid transaction receipt).`);
                 }
 
                 const blockchainService = new (await import('../blockchain/index.js')).default(process.env.RPC_URL || '');
