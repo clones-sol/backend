@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { AmountValidator } from '../../utils/amountValidation.ts';
 import { ApiError } from '../../middleware/types/errors.ts';
+import { CircuitBreakerManager } from '../../utils/circuitBreaker.ts';
 import RewardPoolFactoryABI from '../../contracts/abis/RewardPoolFactory.json' with { type: 'json' };
 import ClaimRouterABI from '../../contracts/abis/ClaimRouter.json' with { type: 'json' };
 import RewardPoolImplementationABI from '../../contracts/abis/RewardPoolImplementation.json' with { type: 'json' };
@@ -83,15 +84,23 @@ class FactoryService {
         };
     }> {
         const factory = new ethers.Contract(this.config.factoryAddress, FACTORY_ABI, this.provider);
+        const breaker = CircuitBreakerManager.getBlockchainBreaker();
 
-        // Check if token is allowed
-        const isAllowed = await factory.allowedTokens(token);
+        // Check if token is allowed with circuit breaker protection
+        const isAllowed = await breaker.execute(
+            async () => await factory.allowedTokens(token),
+            async () => false // Fallback: assume not allowed
+        );
+        
         if (!isAllowed) {
             throw ApiError.badRequest(`Token ${token} is not in the factory allowlist`);
         }
 
         // Get current nonce for this creator/token pair (multiple pools allowed)
-        const currentNonce = await factory.poolNonce(creator, token);
+        const currentNonce = await breaker.execute(
+            async () => await factory.poolNonce(creator, token),
+            async () => BigInt(0) // Fallback: assume nonce 0
+        );
 
         return {
             contractAddress: this.config.factoryAddress,
