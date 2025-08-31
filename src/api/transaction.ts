@@ -10,7 +10,10 @@ import { createFactoryService } from '../services/blockchain/factoryTransactionS
 import { TransactionSessionService } from '../services/transactionSession.ts';
 import { v4 as uuidv4 } from 'uuid';
 import { AmountValidator } from '../utils/amountValidation.ts';
+import { ContentFilterService } from '../services/validation/contentFilter.ts';
 import mongoose from 'mongoose';
+import { createGasEstimationService } from '../services/blockchain/gasEstimationService.ts';
+import { CircuitBreakerManager } from '../utils/circuitBreaker.ts';
 import { validateTransactionSchema, estimateGasSchema, prepareTransactionSchema, transactionStatusSchema, completeTransactionSchema } from './schemas/transaction.ts';
 import ClaimRouterABI from '../contracts/abis/ClaimRouter.json' with { type: 'json' };
 import { createFactoryWithApps } from '../services/factory/factoryDatabaseService.ts';
@@ -228,42 +231,74 @@ router.post(
     const { type, creator, token, amount, poolAddress } = req.body;
 
     try {
-      // Get current gas price from network
       const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-      const feeData = await provider.getFeeData();
-
+      const factoryService = createFactoryService();
+      const gasService = createGasEstimationService();
+      const gasBreaker = CircuitBreakerManager.getGasEstimationBreaker();
+      
       let gasLimit: bigint;
-      let gasPrice: bigint = feeData.gasPrice || ethers.parseUnits('1', 'gwei');
+      let gasPrice: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint };
 
-      // Estimate gas based on transaction type
+      // Get gas price with circuit breaker protection
+      gasPrice = await gasBreaker.execute(
+        async () => await gasService.getGasPrice(),
+        async () => ({
+          maxFeePerGas: ethers.parseUnits('1', 'gwei'),
+          maxPriorityFeePerGas: ethers.parseUnits('0.1', 'gwei')
+        })
+      );
+
+      // Dynamic gas estimation based on transaction type
       switch (type) {
         case 'createFactory':
-          // Factory creation typically costs ~180k gas (per PRD)
-          gasLimit = BigInt(200000); // Adding buffer
+          gasLimit = await gasBreaker.execute(
+            async () => {
+              if (creator && token) {
+                const tokenAddr = getTokenContractAddress(token);
+                if (tokenAddr) {
+                  const txData = await factoryService.prepareCreatePoolTransaction(tokenAddr, creator);
+                  const contract = new ethers.Contract(txData.contractAddress, txData.abi, provider);
+                  const estimated = await contract.createPool.estimateGas(...txData.args, { from: creator });
+                  return (estimated * 120n) / 100n; // 20% buffer
+                }
+              }
+              return BigInt(200000); // Fallback
+            },
+            async () => BigInt(200000) // Circuit breaker fallback
+          );
           break;
 
         case 'createAndFundFactory':
-          // Combined create+fund operation costs ~250k gas (optimized vs separate transactions)
-          gasLimit = BigInt(280000); // Adding buffer for combined operation
+          gasLimit = BigInt(280000); // Combined operation - harder to estimate without actual execution
           break;
 
         case 'fundPool':
-          // Pool funding typically costs ~100k gas for first-time, ~50k for subsequent
-          gasLimit = BigInt(120000); // Adding buffer for first-time
+          gasLimit = await gasBreaker.execute(
+            async () => {
+              if (poolAddress && amount) {
+                const amountNum = AmountValidator.validateBasicAmount(amount);
+                const txData = await factoryService.prepareFundPoolTransaction(poolAddress, amountNum, creator || '0x0000000000000000000000000000000000000000');
+                const contract = new ethers.Contract(txData.contractAddress, txData.abi, provider);
+                const estimated = await contract.fund.estimateGas(...txData.args);
+                return (estimated * 120n) / 100n; // 20% buffer
+              }
+              return BigInt(120000); // Fallback
+            },
+            async () => BigInt(120000) // Circuit breaker fallback
+          );
           break;
 
         case 'claimRewards':
-          // Claim typically costs ~100-140k gas per claim (per PRD)
-          gasLimit = BigInt(150000); // Adding buffer for single claim
+          gasLimit = BigInt(150000); // Single claim estimate - batch claims use separate endpoint
           break;
 
         default:
           throw ApiError.badRequest(`Unsupported transaction type for gas estimation: ${type}`);
       }
 
-      const totalCost = gasLimit * gasPrice;
+      const totalCost = gasLimit * gasPrice.maxFeePerGas;
       const totalCostEth = ethers.formatEther(totalCost);
-      const gasPriceGwei = ethers.formatUnits(gasPrice, 'gwei');
+      const gasPriceGwei = ethers.formatUnits(gasPrice.maxFeePerGas, 'gwei');
 
       // Flag as expensive if > 0.001 ETH (per PRD anti-dust threshold)
       const isExpensive = parseFloat(totalCostEth) > 0.001;
@@ -271,8 +306,11 @@ router.post(
       res.status(200).json(successResponse({
         gasLimit: gasLimit.toString(),
         gasPrice: gasPriceGwei,
+        maxFeePerGas: ethers.formatUnits(gasPrice.maxFeePerGas, 'gwei'),
+        maxPriorityFeePerGas: ethers.formatUnits(gasPrice.maxPriorityFeePerGas, 'gwei'),
         totalCost: totalCostEth,
         isExpensive,
+        estimationType: gasLimit > BigInt(200000) ? 'dynamic' : 'fallback',
         estimatedAt: Date.now()
       }));
 
@@ -635,14 +673,38 @@ router.post(
         throw ApiError.badRequest('Token address mismatch in transaction');
       }
 
-      // Create factory with integrated apps generation
-      const skills = metadata.skills ? metadata.skills.split(',').map((s: string) => s.trim()) : [];
+      // Validate and sanitize metadata using existing services
+      if (!metadata.name || typeof metadata.name !== 'string') {
+        throw ApiError.badRequest('Factory name is required');
+      }
+      
+      const sanitizedName = ContentFilterService.sanitizeInput(metadata.name);
+      if (sanitizedName.length === 0) {
+        throw ApiError.badRequest('Factory name cannot be empty after sanitization');
+      }
+      
+      if (!metadata.skills || typeof metadata.skills !== 'string') {
+        throw ApiError.badRequest('Skills are required');
+      }
+      
+      const skills = metadata.skills.split(',')
+        .map((s: string) => ContentFilterService.sanitizeInput(s))
+        .filter((s: string) => s.length > 0);
+      
+      if (skills.length === 0) {
+        throw ApiError.badRequest('At least one valid skill is required');
+      }
+      
+      if (!metadata.apps || !Array.isArray(metadata.apps) || metadata.apps.length === 0) {
+        throw ApiError.badRequest('At least one app is required');
+      }
 
       let nbTasks = 0;
       for (const app of metadata.apps) {
-        for (const task of app.tasks) {
-          nbTasks += 1;
+        if (!app.tasks || !Array.isArray(app.tasks)) {
+          throw ApiError.badRequest('Each app must have a tasks array');
         }
+        nbTasks += app.tasks.length;
       }
       if (nbTasks === 0) {
         throw ApiError.badRequest('No tasks found in apps');
@@ -658,7 +720,7 @@ router.post(
         factory = await createFactoryWithApps(
           poolAddress,
           creatorAddress,
-          metadata.name,
+          sanitizedName,
           skills,
           {
             type: 'ERC20',
@@ -682,7 +744,7 @@ router.post(
         creatorAddress,
         tokenAddress,
         factoryId: factory.id,
-        name: metadata.name,
+        name: sanitizedName,
         skills: skills,
         txHash,
         createdAt: new Date().toISOString()
@@ -745,6 +807,34 @@ router.get(
         throw ApiError.internalError('Failed to retrieve transaction session');
       }
     }
+  })
+);
+
+/**
+ * @swagger
+ * /transaction/health:
+ *   get:
+ *     summary: Get circuit breaker health status
+ *     description: Returns the status of all circuit breakers for monitoring
+ *     tags: [Transaction]
+ *     responses:
+ *       200:
+ *         description: Circuit breaker status retrieved successfully
+ */
+router.get(
+  '/health',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const circuitBreakerStatus = CircuitBreakerManager.getAllStatus();
+    
+    const overallHealth = Object.values(circuitBreakerStatus).every(
+      (status: any) => status.isHealthy
+    );
+
+    res.status(200).json(successResponse({
+      healthy: overallHealth,
+      circuitBreakers: circuitBreakerStatus,
+      timestamp: Date.now()
+    }));
   })
 );
 
