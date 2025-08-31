@@ -11,14 +11,8 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { getTokenContractAddress } from '../blockchain/tokens.ts';
-import RewardPoolService from '../blockchain/rewardPoolService.ts';
 import { createClaimAuthService } from '../blockchain/claimAuthService.ts';
 
-
-const rewardPoolService = new RewardPoolService(
-  process.env.RPC_URL || '',
-  process.env.REWARD_POOL_CONTRACT_ADDRESS || ''
-);
 
 // Initialize claim authorization service
 let claimAuthService: ReturnType<typeof createClaimAuthService> | null = null;
@@ -192,16 +186,17 @@ export async function processNextInQueue() {
       let retries = 3;
 
       // Get factory details if factoryId exists
-      console.log('Checking for factoryId:', submission?.meta?.quest.pool_id);
+      const factoryId = submission?.meta?.quest.factory_id || submission?.meta?.quest.pool_id;
+      console.log('Checking for factoryId:', factoryId);
       let factory = null;
-      if (submission?.meta?.quest.pool_id) {
-        console.log('Looking up factory:', submission?.meta?.quest.pool_id);
-        factory = await FactoryModel.findById(submission?.meta?.quest.pool_id);
+      if (factoryId) {
+        console.log('Looking up factory:', factoryId);
+        factory = await FactoryModel.findById(factoryId);
         console.log('Found factory:', factory ? factory.name : 'null');
       }
 
-      if (submission?.meta?.quest.factory_id && !factory) {
-        throw new Error(`Factory not found: ${submission?.meta?.quest.pool_id}`);
+      if (factoryId && !factory) {
+        throw new Error(`Factory not found: ${factoryId}`);
       }
 
       if (factory) {
