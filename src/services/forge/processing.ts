@@ -1,34 +1,61 @@
 import mongoose from 'mongoose';
-import * as crypto from 'crypto';
 import {
   ForgeSubmissionGradeResult,
   DBForgeRaceSubmission,
   ForgeSubmissionProcessingStatus,
-  WebhookColor,
-  EmbedField,
   UploadLimitType,
   OnChainReward
 } from '../../types/index.ts';
-import { ForgeRaceSubmission, TrainingPoolModel, ForgeAppModel } from '../../models/Models.ts';
+import { ForgeRaceSubmission, FactoryModel } from '../../models/Models.ts';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
-import { Webhook } from '../webhook/index.ts';
-import { decrypt, encrypt, LATEST_KEY_VERSION } from '../security/crypto.ts';
 import { getTokenContractAddress } from '../blockchain/tokens.ts';
-import { ethers } from 'ethers';
 import RewardPoolService from '../blockchain/rewardPoolService.ts';
+import { createClaimAuthService } from '../blockchain/claimAuthService.ts';
 
-const FORGE_WEBHOOK = process.env.GYM_FORGE_WEBHOOK;
 
 const rewardPoolService = new RewardPoolService(
   process.env.RPC_URL || '',
   process.env.REWARD_POOL_CONTRACT_ADDRESS || ''
 );
 
+// Initialize claim authorization service
+let claimAuthService: ReturnType<typeof createClaimAuthService> | null = null;
+try {
+  claimAuthService = createClaimAuthService();
+} catch (error) {
+  console.warn('ClaimAuthService not initialized:', (error as Error).message);
+}
+
 // Global processing queue
 let isProcessing = false;
 const processingQueue: string[] = [];
+
+/**
+ * Calculate user's total cumulative earned rewards for a specific factory/pool
+ * Does NOT include already claimed amounts - only tracks earned rewards from completed submissions
+ */
+async function calculateUserCumulativeRewards(userAddress: string, factoryId: string): Promise<number> {
+  try {
+    // Find all completed submissions for this user and factory with rewards > 0
+    const submissions = await ForgeRaceSubmission.find({
+      address: userAddress,
+      'meta.factory_id': factoryId,
+      status: ForgeSubmissionProcessingStatus.COMPLETED,
+      reward: { $gt: 0 }
+    }).select('reward').lean();
+
+    // Sum all rewards (excluding current submission which hasn't been saved yet)
+    const totalEarned = submissions.reduce((sum, submission) => sum + (submission.reward || 0), 0);
+
+    console.log(`User ${userAddress} has ${submissions.length} completed submissions with total earned: ${totalEarned}`);
+    return totalEarned;
+  } catch (error) {
+    console.error('Error calculating cumulative rewards:', error);
+    return 0;
+  }
+}
 
 export async function addToProcessingQueue(submissionId: string) {
   processingQueue.push(submissionId);
@@ -75,12 +102,6 @@ export async function processNextInQueue() {
       ForgeSubmissionProcessingStatus.PROCESSING as ForgeSubmissionProcessingStatus;
     await submission.save();
 
-    await notifyForgeWebhook('processing', {
-      title: submission?.meta?.quest.title,
-      app: submission?.meta?.quest.app,
-      duration: submission.meta.duration_seconds,
-      address: submission.address
-    });
 
     // Run Clones Quality Agent
     const extractDir = path.join('uploads', `extract_${submissionId}`);
@@ -162,32 +183,33 @@ export async function processNextInQueue() {
         console.log('metrics.json not found or could not be parsed, continuing without metrics.');
       }
 
-      // Get pool details and calculate reward
+      // Get factory details and calculate reward
       let reward = undefined;
       let maxReward = undefined;
       const clampedScore = Math.max(0, Math.min(100, gradeResult.score));
       let onChainReward: OnChainReward | undefined = undefined;
+      let claimAuthorization: any = undefined;
       let retries = 3;
 
-      // Get pool details if poolId exists
-      console.log('Checking for poolId:', submission?.meta?.quest.pool_id);
-      let pool = null;
+      // Get factory details if factoryId exists
+      console.log('Checking for factoryId:', submission?.meta?.quest.pool_id);
+      let factory = null;
       if (submission?.meta?.quest.pool_id) {
-        console.log('Looking up pool:', submission?.meta?.quest.pool_id);
-        pool = await TrainingPoolModel.findById(submission?.meta?.quest.pool_id);
-        console.log('Found pool:', pool ? pool.name : 'null');
+        console.log('Looking up factory:', submission?.meta?.quest.pool_id);
+        factory = await FactoryModel.findById(submission?.meta?.quest.pool_id);
+        console.log('Found factory:', factory ? factory.name : 'null');
       }
 
-      if (submission?.meta?.quest.pool_id && !pool) {
-        throw new Error(`Pool not found: ${submission?.meta?.quest.pool_id}`);
+      if (submission?.meta?.quest.factory_id && !factory) {
+        throw new Error(`Factory not found: ${submission?.meta?.quest.pool_id}`);
       }
 
-      if (pool) {
-        console.log('Processing pool reward:', pool.name);
+      if (factory) {
+        console.log('Processing factory reward:', factory.name);
         while (retries > 0) {
           try {
-            // Default maxReward is the pool's pricePerDemo
-            maxReward = pool.pricePerDemo;
+            // Default maxReward is the factory's pricePerDemo
+            maxReward = factory.pricePerDemo;
 
             // Reward skip conditions:
             // 1. Missing task_id
@@ -205,16 +227,14 @@ export async function processNextInQueue() {
             }
 
             // Check 2: Invalid task_id
-            const app = await ForgeAppModel.findOne({
-              pool_id: pool._id.toString(),
-              'tasks._id': submission?.meta?.quest.task_id
-            });
+            // Find the task within the factory's apps
+            let task = null;
+            for (const app of factory.apps) {
+              task = app.tasks.find((t: any) => t.id === submission?.meta?.quest.task_id);
+              if (task) break;
+            }
 
-            const task = app
-              ? app.tasks.find((t) => t._id.toString() === submission?.meta?.quest.task_id)
-              : null;
-
-            if (!app || !task) {
+            if (!task) {
               reward = 0;
               gradeResult.reasoning = `( system: no reward given - invalid task_id, no corresponding task found ) ${gradeResult.reasoning}`;
               break;
@@ -228,7 +248,7 @@ export async function processNextInQueue() {
             // Check 3: Previous submission with higher/equal score
             const previousSubmission = await ForgeRaceSubmission.findOne({
               address: submission.address,
-              'meta.quest.pool_id': pool._id.toString(),
+              'meta.quest.factory_id': factory._id.toString(),
               $or: [
                 { 'meta.quest.title': submission?.meta?.quest.title },
                 { 'meta.quest.task_id': submission?.meta?.quest.task_id }
@@ -261,10 +281,10 @@ export async function processNextInQueue() {
             }
 
             // Check 5: Per-gym upload limit
-            if (pool.uploadLimit) {
+            if (factory.uploadLimit) {
               let gymSubmissionsCount;
-              const limitType = pool.uploadLimit.limitType;
-              const limitValue = pool.uploadLimit.type;
+              const limitType = factory.uploadLimit.type;
+              const limitValue = factory.uploadLimit.value;
 
               if (limitType === UploadLimitType.perDay) {
                 // Get start of today
@@ -274,7 +294,7 @@ export async function processNextInQueue() {
                 // Count submissions for today
                 gymSubmissionsCount = await ForgeRaceSubmission.countDocuments({
                   address: submission.address,
-                  'meta.quest.pool_id': pool._id.toString(),
+                  'meta.quest.factory_id': factory._id.toString(),
                   status: ForgeSubmissionProcessingStatus.COMPLETED,
                   createdAt: { $gte: startOfDay },
                   _id: { $ne: submission._id }
@@ -283,7 +303,7 @@ export async function processNextInQueue() {
                 // Count all submissions
                 gymSubmissionsCount = await ForgeRaceSubmission.countDocuments({
                   address: submission.address,
-                  'meta.quest.pool_id': pool._id.toString(),
+                  'meta.quest.factory_id': factory._id.toString(),
                   status: ForgeSubmissionProcessingStatus.COMPLETED,
                   _id: { $ne: submission._id }
                 });
@@ -299,149 +319,61 @@ export async function processNextInQueue() {
             // Check 6: Score threshold
             if (clampedScore < 50) {
               reward = 0;
-              gradeResult.reasoning = `( system: reward returned to pool due to <50% quality score ) ${gradeResult.reasoning}`;
+              gradeResult.reasoning = `( system: reward returned to factory due to <50% quality score ) ${gradeResult.reasoning}`;
               break;
             }
 
             // All checks passed, calculate reward
+            console.log('Calculating reward:', maxReward, clampedScore);
             reward = Math.max(0, Math.min(maxReward, (maxReward * clampedScore) / 100));
+            console.log('Calculated reward:', reward);
 
-            // Record reward on-chain if it exists
-            const tokenAddress = getTokenContractAddress(pool.token.symbol);
-            if (reward && reward > 0) {
+            // Generate claim authorization signature if reward > 0 and claimAuthService is available
+            const tokenAddress = getTokenContractAddress(factory.token.symbol);
+
+            if (reward && reward > 0 && claimAuthService && factory.poolAddress) {
               console.log(
-                `Recording reward for submission ${submissionId} to user ${submission.address}`
+                `Generating claim authorization for submission ${submissionId} to user ${submission.address}`
               );
 
               try {
-                const rawPrivateKey = pool.depositPrivateKey;
-                let decryptedPrivateKey: string;
-                let needsMigration = false;
-                let keyVersion = 'legacy';
-
-                if (!rawPrivateKey.includes(':')) {
-                  decryptedPrivateKey = rawPrivateKey;
-                  needsMigration = true;
-                  console.log(
-                    `[SECURITY_MIGRATION] Detected unversioned legacy key for pool ${pool._id}.`
-                  );
-                } else {
-                  keyVersion = rawPrivateKey.split(':')[0];
-                  console.log(
-                    `[AUDIT] Decrypting deposit key for pool ${pool._id} (version ${keyVersion}) for submission ${submissionId}`
-                  );
-                  decryptedPrivateKey = decrypt(rawPrivateKey);
-
-                  if (keyVersion !== LATEST_KEY_VERSION) {
-                    needsMigration = true;
-                    console.log(
-                      `[SECURITY_MIGRATION] Key for pool ${pool._id} is outdated (version ${keyVersion}).`
-                    );
-                  }
-                }
-
-                if (needsMigration) {
-                  console.log(
-                    `[SECURITY_MIGRATION] Lazily migrating key for pool ${pool._id} from ${keyVersion} to ${LATEST_KEY_VERSION}.`
-                  );
-                  try {
-                    pool.depositPrivateKey = encrypt(decryptedPrivateKey);
-                    await pool.save();
-                    console.log(
-                      `[SECURITY_MIGRATION] Successfully migrated key for pool ${pool._id}.`
-                    );
-                  } catch (migrationError) {
-                    // We don't want a failed migration to stop the transaction. Log the error and continue.
-                    console.error(
-                      `[SECURITY_MIGRATION] Failed to lazily migrate key for pool ${pool._id}:`,
-                      migrationError
-                    );
-                  }
-                }
-
-                // Generate a unique task ID using submissionId, timestamp, and a random nonce to prevent replay attacks
-                const taskTimestamp = Date.now();
-                const taskNonce = crypto.randomBytes(16).toString('hex');
-                const taskIdInput = `${submissionId}:${taskTimestamp}:${taskNonce}`;
-                const taskId = ethers.keccak256(ethers.toUtf8Bytes(taskIdInput));
-
-                // Attempt to record the reward on-chain
-                const result = await rewardPoolService.recordReward(
+                // Calculate user's total cumulative earned rewards for this pool
+                const userCumulativeEarned = await calculateUserCumulativeRewards(
                   submission.address,
-                  tokenAddress,
-                  reward,
-                  taskId,
-                  decryptedPrivateKey
+                  factory._id.toString()
                 );
 
-                if (result) {
-                  onChainReward = {
-                    tokenAddress: tokenAddress,
-                    poolAddress: pool.depositAddress,
-                    amount: reward,
-                    taskId: taskId,
-                    txHash: result.txHash,
-                    timestamp: Date.now()
-                  };
-                } else {
-                  // Handle case where reward recording fails definitively
-                  throw new Error(`Failed to record reward on-chain: transaction result is ${JSON.stringify(result)} (expected a valid transaction receipt).`);
-                }
+                console.log(`User ${submission.address} cumulative earned: ${userCumulativeEarned} (including current: ${reward})`);
 
-                const blockchainService = new (await import('../blockchain/index.js')).default(process.env.RPC_URL || '');
-                const finalBalance = await blockchainService.getTokenBalance(
-                  tokenAddress,
-                  pool.depositAddress
+                // Generate claim authorization signature with proper cumulative amount
+                claimAuthorization = await claimAuthService.generateClaimAuthorization(
+                  factory.poolAddress,
+                  submission.address,
+                  userCumulativeEarned + reward // Total earned including current reward
                 );
 
-                // Include pool info in webhook
-                const poolInfo = {
-                  name: pool.name,
-                  token: {
-                    symbol: pool.token.symbol,
-                    address: tokenAddress
-                  },
-                  treasuryBalance: finalBalance
+                console.log(`Claim authorization generated for submission ${submissionId}, cumulative amount: ${userCumulativeEarned + reward}, claimable: ${claimAuthorization.newClaimableAmount}, publisher: ${claimAuthorization.publisherUsed}`);
+
+                onChainReward = {
+                  tokenAddress: tokenAddress,
+                  poolAddress: factory.poolAddress,
+                  amount: reward, // Individual reward for this submission
+                  submissionId: submissionId, // Use correct field name
+                  txHash: '', // No immediate tx, farmer will claim later
+                  timestamp: Date.now(),
+                  cumulativeAmount: userCumulativeEarned + reward // Total cumulative earned
                 };
 
-                await notifyForgeWebhook('success', {
-                  title: submission?.meta?.quest.title,
-                  app: submission?.meta?.quest.app,
-                  duration: submission.meta.duration_seconds,
-                  score: gradeResult.score,
-                  reward,
-                  maxReward,
-                  clampedScore,
-                  summary: gradeResult.summary,
-                  feedback: gradeResult.reasoning,
-                  observations: gradeResult.observations,
-                  onChainReward,
-                  address: submission.address,
-                  pool: poolInfo
-                });
+                gradeResult.reasoning = `( system: claim authorization generated - farmer can claim ${claimAuthorization.newClaimableAmount.toFixed(2)} ${factory.token.symbol} [total earned: ${(userCumulativeEarned + reward).toFixed(2)}, already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}] ) ${gradeResult.reasoning}`;
               } catch (error) {
-                console.error('On-chain reward recording failed:', error);
-                // Update submission with error
-                await ForgeRaceSubmission.findByIdAndUpdate(submissionId, {
-                  status: ForgeSubmissionProcessingStatus.FAILED,
-                  error:
-                    'Demonstration reward recording failed. Please contact support.'
-                });
-                // Continue processing but log the error
-                await notifyForgeWebhook('transfer-error', {
-                  title: submission?.meta?.quest.title,
-                  reward,
-                  error: (error as Error).message,
-                  address: submission.address,
-                  pool: {
-                    name: pool.name,
-                    token: {
-                      symbol: pool.token.symbol,
-                      address: tokenAddress
-                    }
-                  }
-                });
+                console.error('Claim authorization generation failed:', error);
+                reward = 0;
+                gradeResult.reasoning = `( system: no reward given - claim authorization failed ) ${gradeResult.reasoning}`;
               }
+            } else if (reward > 0 && (!claimAuthService || !factory.poolAddress)) {
+              console.log('ClaimAuthService or poolAddress not available - reward set to 0');
+              reward = 0;
+              gradeResult.reasoning = `( system: no reward given - claim authorization service unavailable ) ${gradeResult.reasoning}`;
             }
 
             break; // Exit retry loop if successful
@@ -468,32 +400,6 @@ export async function processNextInQueue() {
       submission.status = ForgeSubmissionProcessingStatus.COMPLETED;
       await submission.save();
 
-      // Always send a webhook notification for successful processing, even if there was no reward
-      // Only send if it wasn't already sent during the reward processing
-      if (!reward || reward === 0 || !onChainReward) {
-        await notifyForgeWebhook('success', {
-          title: submission?.meta?.quest.title,
-          app: submission?.meta?.quest.app,
-          duration: submission.meta.duration_seconds,
-          score: gradeResult.score,
-          reward: reward || 0,
-          maxReward: maxReward || 0,
-          clampedScore: clampedScore || 0,
-          summary: gradeResult.summary,
-          feedback: gradeResult.reasoning,
-          observations: gradeResult.observations,
-          address: submission.address,
-          pool: pool
-            ? {
-              name: pool.name,
-              token: {
-                symbol: pool.token.symbol,
-                address: getTokenContractAddress(pool.token.symbol)
-              }
-            }
-            : undefined
-        });
-      }
     } catch (error) {
       throw new Error(`Failed to process submission: ${(error as Error).message}`);
     }
@@ -505,10 +411,6 @@ export async function processNextInQueue() {
       error: errorMessage
     });
 
-    await notifyForgeWebhook('error', {
-      error: errorMessage,
-      address: submission?.address
-    });
   } finally {
     // Remove from queue and reset processing flag
     processingQueue.shift();
@@ -521,184 +423,3 @@ export async function processNextInQueue() {
   }
 }
 
-/**
- * Send a notification to the forge webhook
- */
-async function notifyForgeWebhook(
-  type: 'processing' | 'success' | 'transfer-error' | 'error',
-  data: {
-    title?: string;
-    app?: string;
-    duration?: number;
-    score?: number;
-    reward?: number;
-    maxReward?: number;
-    clampedScore?: number;
-    summary?: string;
-    feedback?: string;
-    observations?: string;
-    error?: string;
-    onChainReward?: OnChainReward;
-    address?: string;
-    pool?: {
-      name: string;
-      token: {
-        symbol: string;
-        address: string;
-      };
-      treasuryBalance?: number;
-    };
-  }
-) {
-  if (!FORGE_WEBHOOK) return;
-  const webhook = new Webhook(FORGE_WEBHOOK);
-
-  try {
-    // Prepare fields based on available data
-    const fields: EmbedField[] = [];
-
-    if (data.title) {
-      fields.push({
-        name: '📝 Task',
-        value: data.title,
-        inline: true
-      });
-    }
-
-    if (data.app) {
-      fields.push({
-        name: '🖥️ App',
-        value: data.app,
-        inline: true
-      });
-    }
-
-    if (data.duration) {
-      fields.push({
-        name: '⏱️ Duration',
-        value: `${data.duration}s`,
-        inline: true
-      });
-    }
-
-    if (data.address) {
-      fields.push({
-        name: '👤 Submitter',
-        value: `[${data.address.slice(0, 4)}...${data.address.slice(
-          -4
-        )}](https://solscan.io/account/${data.address})`,
-        inline: true
-      });
-    }
-
-    if (data.score !== undefined) {
-      fields.push({
-        name: '📊 Score',
-        value: `${data.score}/100 ${data.score >= 80 ? '🏆' : '📝'}`,
-        inline: true
-      });
-    }
-
-    if (data.reward !== undefined && data.maxReward) {
-      fields.push({
-        name: '💎 Reward',
-        value: `${data.reward.toFixed(2)} ${data.pool?.token.symbol || '$CLONES'} (${data.clampedScore
-          }% of ${data.maxReward.toFixed(2)})`,
-        inline: true
-      });
-    }
-
-    if (data.pool) {
-      fields.push({
-        name: '🏦 Pool',
-        value: `${data.pool.name}\n${data.pool.token.symbol} ([${data.pool.token.address.slice(
-          0,
-          4
-        )}...${data.pool.token.address.slice(-4)}](https://solscan.io/token/${data.pool.token.address
-          }))`,
-        inline: true
-      });
-
-      if (data.pool.treasuryBalance !== undefined) {
-        fields.push({
-          name: '💰 Treasury Balance',
-          value: `${data.pool.treasuryBalance.toLocaleString()} ${data.pool.token.symbol}`,
-          inline: true
-        });
-      }
-    }
-
-    if (data.onChainReward?.txHash) {
-      const explorerUrl = process.env.BLOCK_EXPLORER_URL || 'https://basescan.org';
-      fields.push({
-        name: '🔗 Transaction',
-        value: `[View on Basescan](${explorerUrl}/tx/${data.onChainReward.txHash})`,
-        inline: true
-      });
-    }
-
-    if (data.summary) {
-      fields.push({
-        name: '📋 Summary',
-        value: data.summary,
-        inline: false
-      });
-    }
-
-    if (data.feedback) {
-      fields.push({
-        name: '💭 Feedback',
-        value: data.feedback,
-        inline: false
-      });
-    }
-
-    if (data.observations) {
-      fields.push({
-        name: '📝 Observations',
-        value: data.observations,
-        inline: false
-      });
-    }
-
-    if (data.error) {
-      fields.push({
-        name: '❌ Error',
-        value: `\`\`\`${data.error}\`\`\``,
-        inline: false
-      });
-    }
-
-    // Determine title and color based on type
-    let title = '';
-    let color = WebhookColor.INFO;
-
-    switch (type) {
-      case 'processing':
-        title = '🎯 Processing New Submission';
-        color = WebhookColor.INFO;
-        break;
-      case 'success':
-        title = '✨ Submission Graded Successfully';
-        color = WebhookColor.SUCCESS;
-        break;
-      case 'transfer-error':
-        title = '⚠️ Treasury Transfer Failed';
-        color = WebhookColor.WARNING;
-        break;
-      case 'error':
-        title = '❌ Submission Processing Failed';
-        color = WebhookColor.ERROR;
-        break;
-    }
-
-    // Send webhook using the webhook service
-    await webhook.sendEmbed({
-      title,
-      fields,
-      color
-    });
-  } catch (error) {
-    console.error('Error sending forge webhook:', error);
-  }
-}

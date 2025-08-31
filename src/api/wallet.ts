@@ -5,7 +5,6 @@ import {
   validateBody,
   validateParams,
   validateQuery,
-  ValidationRules
 } from '../middleware/validator.ts';
 import { WalletConnectionModel } from '../models/Models.ts';
 import { ConnectBody } from '../types/index.ts';
@@ -14,7 +13,10 @@ import { referralService } from '../services/referral/index.ts';
 import {
   checkConnectionSchema,
   connectWalletSchema,
-  getBalanceSchema
+  getBalanceSchema,
+  addressParamSchema,
+  getNicknameSchema,
+  setNicknameSchema,
 } from './schemas/wallet.ts';
 import { requireWalletAddress } from '../middleware/auth.ts';
 import { getTokenContractAddress } from '../services/blockchain/tokens.ts';
@@ -22,9 +24,6 @@ import { ethers } from 'ethers';
 
 const router: Router = express.Router();
 const blockchainService = new BlockchainService(process.env.RPC_URL || '');
-
-// ---- Helpers ----
-const isEvmAddressRule = ValidationRules.matches(/^0x[a-fA-F0-9]{40}$/, 'must be a valid EVM address');
 
 /** Accepts 0x-hex or base64 and returns a bytes-like value usable by ethers.verifyMessage */
 function normalizeSignatureToBytes(sig: string): string {
@@ -216,7 +215,7 @@ router.get(
  */
 router.get(
   '/balance/:address',
-  validateParams({ address: { required: true, rules: [isEvmAddressRule] } }),
+  validateParams(addressParamSchema),
   validateQuery(getBalanceSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { address } = req.params;
@@ -249,7 +248,7 @@ router.get(
  */
 router.get(
   '/nickname',
-  validateQuery({ address: { required: true, rules: [isEvmAddressRule] } }),
+  validateQuery(getNicknameSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { address } = req.query as { address: string };
     const nickname = (await WalletConnectionModel.findOne({ address }))?.nickname;
@@ -288,10 +287,7 @@ router.get(
 router.put(
   '/nickname',
   requireWalletAddress,
-  validateBody({
-    address: { required: true, rules: [isEvmAddressRule] },
-    nickname: { required: true, rules: [ValidationRules.isString(), ValidationRules.maxLength(25)] }
-  }),
+  validateBody(setNicknameSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { address, nickname } = req.body;
     // only let the current wallet update their own nickname

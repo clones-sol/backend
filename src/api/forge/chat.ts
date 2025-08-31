@@ -2,7 +2,7 @@ const router: Router = express.Router();
 import express, { Request, Response, Router } from 'express';
 import { successResponse } from '../../middleware/types/errors.ts';
 import { validateBody } from '../../middleware/validator.ts';
-import { chatRequestSchema } from '../schemas/forge.ts';
+import { chatRequestSchema } from '../schemas/chat.ts';
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
 import { AppInfo } from '../../types/index.ts';
 import { SYSTEM_PROMPT, TASK_SHOT_EXAMPLES } from '../../services/forge/index.ts';

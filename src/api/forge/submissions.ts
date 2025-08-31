@@ -3,10 +3,31 @@ import express, { Request, Response, Router } from 'express';
 import { requireWalletAddress } from '../../middleware/auth.ts';
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
 import { ApiError, successResponse } from '../../middleware/types/errors.ts';
-import { ForgeRaceSubmission, TrainingPoolModel } from '../../models/Models.ts';
+import { ForgeRaceSubmission, FactoryModel } from '../../models/Models.ts';
 import { validateParams, ValidationRules } from '../../middleware/validator.ts';
 export { router as forgeSubmissionsApi };
 
+/**
+ * @swagger
+ * tags:
+ *   name: Submissions
+ *   description: Submissions of demonstrations
+ */
+
+/**
+ * @swagger
+ * /forge/submissions/user:
+ *   get:
+ *     summary: Get submissions for authenticated user
+ *     tags: [Submissions]
+ *     responses:
+ *       '200':
+ *         description: Submissions for the user
+ *       '403':
+ *         description: Not authorized to view submissions for this user
+ *       '500':
+ *         description: Internal server error
+ */
 // Get submissions for authenticated user
 router.get(
   '/user',
@@ -23,7 +44,28 @@ router.get(
   })
 );
 
-// Get submissions for a pool
+/**
+ * @swagger
+ * /forge/submissions/pool/{poolId}:
+ *   get:
+ *     summary: Get submissions for a pool
+ *     tags: [Submissions]
+ *     parameters:
+ *       - in: path
+ *         name: poolId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       '200':
+ *         description: Submissions for the pool
+ *       '400':
+ *         description: Invalid pool ID
+ *       '403':
+ *         description: Not authorized to view submissions for this pool
+ *       '500':
+ *         description: Internal server error
+ */
 router.get(
   '/pool/:poolId',
   requireWalletAddress,
@@ -36,13 +78,13 @@ router.get(
     const address = req.walletAddress;
 
     // Verify that the pool belongs to the user
-    const pool = await TrainingPoolModel.findById(poolId);
-    if (!pool) {
-      throw ApiError.notFound('Pool not found');
+    const factory = await FactoryModel.findById(poolId);
+    if (!factory) {
+      throw ApiError.notFound('Factory not found');
     }
 
-    if (pool.ownerAddress !== address) {
-      throw ApiError.unauthorized('Not authorized to view submissions for this pool');
+    if (factory.ownerAddress.toLowerCase() !== address.toLowerCase()) {
+      throw ApiError.unauthorized('Not authorized to view submissions for this factory');
     }
 
     const submissions = await ForgeRaceSubmission.find({ 'meta.quest.pool_id': poolId })
@@ -53,7 +95,30 @@ router.get(
   })
 );
 
-// Get any submission status -- requires authentication
+/**
+ * @swagger
+ * /forge/submissions/{id}:
+ *   get:
+ *     summary: Get any submission status
+ *     tags: [Submissions]
+ *     security:
+ *       - walletAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       '200':
+ *         description: Submission status
+ *       '400':
+ *         description: Invalid submission ID
+ *       '403':
+ *         description: Not authorized to view this submission
+ *       '500':
+ *         description: Internal server error
+ */
 router.get(
   '/:id',
   validateParams({ id: { required: true, rules: [ValidationRules.isString()] } }),

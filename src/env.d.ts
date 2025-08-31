@@ -18,8 +18,6 @@ declare namespace NodeJS {
     BLOCK_EXPLORER_URL: string;
     IPC_SECRET: string;
 
-    // GYM Configuration
-    GYM_FORGE_WEBHOOK: string;
 
     // Authentication & Security
     AX_PARSER_SECRET: string;

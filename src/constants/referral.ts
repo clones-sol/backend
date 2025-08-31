@@ -11,6 +11,3 @@ export const DEFAULT_REFERRAL_CODE_EXPIRY_DAYS = 30;
 export const DEFAULT_EXTENSION_DAYS = 30;
 export const DEFAULT_CLEANUP_DAYS_THRESHOLD = 7;
 export const DEFAULT_OLD_REFERRALS_DAYS = 365;
-
-// Frontend URL fallback
-export const DEFAULT_FRONTEND_URL = 'https://clones-ai.com'; 

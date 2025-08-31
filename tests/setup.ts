@@ -1,20 +1,15 @@
 // This file is run by Vitest before any tests are executed.
-import { randomBytes } from 'crypto';
-
-// Set environment variables for the test suite
-process.env.DEPOSIT_KEY_ENCRYPTION_SECRET = randomBytes(32).toString('hex');
-process.env.DEPOSIT_KEY_ENCRYPTION_SALT = randomBytes(16).toString('hex');
 
 process.env.DB_URI = 'mongodb://admin:admin@mongodb:27017/dev?authSource=admin';
 process.env.RPC_URL = 'http://mock-rpc-url-for-tests.com';
 process.env.OPENAI_API_KEY = 'mock-openai-api-key';
-process.env.FORGE_WEBHOOK = 'mock-forge-webhook';
-process.env.GYM_FORGE_WEBHOOK = 'mock-gym-forge-webhook';
 process.env.IPC_SECRET = 'mock-ipc-secret';
 process.env.GYM_SECRET = 'mock-gym-secret';
 process.env.AX_PARSER_SECRET = 'mock-ax-parser-secret';
-process.env.FEEDBACK_WEBHOOK = 'mock-feedback-webhook';
-process.env.GYM_TREASURY_WEBHOOK = 'mock-gym-treasury-webhook';
+process.env.REWARD_POOL_FACTORY_ADDRESS = '0xMockFactoryAddress';
+process.env.CLAIM_ROUTER_ADDRESS = '0xMockClaimRouter';
+process.env.PUBLISHER_ADDRESS = '0xMockPublisher';
+process.env.BLOCK_EXPLORER_URL = 'https://mock-explorer.com';
 process.env.STORAGE_ACCESS_KEY = 'mock-storage-access-key';
 process.env.STORAGE_SECRET_KEY = 'mock-storage-secret-key';
 process.env.STORAGE_ENDPOINT = 'http://localstack:4566';

@@ -49,7 +49,7 @@ export const forgeRaceSubmissionSchema = new mongoose.Schema<DBForgeRaceSubmissi
     }
   },
   {
-    collection: 'forge_race_submissions',
+    collection: 'demonstration_submissions',
     timestamps: true
   }
 );

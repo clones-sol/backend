@@ -125,7 +125,7 @@ describe('Enhanced ValidationRules', () => {
 
       for (const address of validFormatAddresses) {
         // At minimum, should pass format validation
-        expect(address).toMatch(/^0x[a-fA-F0-9]{40}$/);
+        expect(await rule.validate(address)).toBe(true);
       }
     });
   });
@@ -181,7 +181,7 @@ describe('Enhanced validateObject', () => {
     // Reserved username
     result = await validateObject({ username: 'admin' }, schema);
     expect(result.valid).toBe(false);
-    expect(result.errors.username).toBe('Username is reserved');
+    expect(result.errors.username).toBe('Username is reserved (received: "admin")');
   });
 
   it('should handle multiple validation rules', async () => {
@@ -216,7 +216,7 @@ describe('Enhanced validateObject', () => {
     // Custom validation failure
     result = await validateObject({ referralCode: 'CUSTOM' }, schema);
     expect(result.valid).toBe(false);
-    expect(result.errors.referralCode).toBe('Must be a valid 6-character referral code (cannot contain O, 0, I, L)');
+    expect(result.errors.referralCode).toBe('Must be a valid 6-character referral code (cannot contain O, 0, I, L) (received: "CUSTOM")');
   });
 
   it('should stop at first validation error', async () => {
@@ -235,7 +235,7 @@ describe('Enhanced validateObject', () => {
     const result = await validateObject({ test: 123 }, schema);
 
     expect(result.valid).toBe(false);
-    expect(result.errors.test).toBe('Must be a string');
+    expect(result.errors.test).toBe('Must be a string (received: 123)');
     expect(mockValidator).not.toHaveBeenCalled();
   });
 });

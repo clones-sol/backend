@@ -309,7 +309,8 @@ export async function validateObject(
     if (validation.rules && value !== null) {
       for (const rule of validation.rules) {
         if (!(await rule.validate(value))) {
-          errors[field] = rule.message;
+          const receivedValue = JSON.stringify(value);
+          errors[field] = `${rule.message} (received: ${receivedValue})`;
           break;
         }
 

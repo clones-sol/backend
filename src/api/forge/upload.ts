@@ -6,13 +6,12 @@ import * as path from 'path';
 import { Extract } from 'unzipper';
 import { createHash } from 'crypto';
 import { ObjectStorageService } from '../../services/storage/index.ts';
-import { ForgeAppModel, ForgeRaceSubmission } from '../../models/Models.ts';
-import { TrainingPoolModel } from '../../models/TrainingPool.ts';
+import { ForgeRaceSubmission, FactoryModel } from '../../models/Models.ts';
 import BlockchainService from '../../services/blockchain/index.ts';
 import {
     DBForgeRaceSubmission,
     ForgeSubmissionProcessingStatus,
-    TrainingPoolStatus,
+    FactoryPoolStatus,
     UploadLimitType,
     UploadSession
 } from '../../types/index.ts';
@@ -30,7 +29,6 @@ import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
 import { ApiError, successResponse } from '../../middleware/types/errors.ts';
 import { requireWalletAddress } from '../../middleware/auth.ts';
 import { IUploadSessionDocument, UploadSessionModel } from '../../models/UploadSession.ts';
-import { getTokenContractAddress } from '../../services/blockchain/tokens.ts';
 
 // Initialize blockchain service
 const blockchainService = new BlockchainService(process.env.RPC_URL || '');
@@ -73,7 +71,43 @@ export const requireUploadSession = errorHandlerAsync(
 
 const router: Router = express.Router();
 
-// Initialize a new upload session
+/**
+ * @swagger
+ * tags:
+ *   name: Upload
+ *   description: Uploads of demonstrations
+ */
+
+
+/**
+ * @swagger
+ *  /forge/upload/init:
+ *   post:
+ *     summary: Initialize a new upload session
+ *     tags: [Upload]
+ *     security:
+ *       - walletAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               totalChunks:
+ *                 type: number
+ *               metadata:
+ *                 type: object
+ *     responses:
+ *       '200':
+ *         description: Upload session initialized
+ *       '400':
+ *         description: Bad request
+ *       '401':
+ *         description: Unauthorized
+ *       '500':
+ *         description: Internal server error
+ */
 router.post(
     '/init',
     requireWalletAddress,
@@ -115,7 +149,44 @@ router.post(
     })
 );
 
-// Upload a chunk
+/**
+ * @swagger
+ * /forge/upload/chunk/{uploadId}:
+ *   post:
+ *     summary: Upload a chunk
+ *     tags: [Upload]
+ *     security:
+ *       - walletAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: uploadId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               chunk:
+ *                 type: string
+ *                 format: binary
+ *               chunkIndex:
+ *                 type: number
+ *               checksum:
+ *                 type: string
+ *     responses:
+ *       '200':
+ *         description: Chunk uploaded successfully
+ *       '400':
+ *         description: Bad request
+ *       '401':
+ *         description: Unauthorized
+ *       '500':
+ *         description: Internal server error
+ */
 router.post(
     '/chunk/:uploadId',
     requireWalletAddress,
@@ -177,7 +248,30 @@ router.post(
     })
 );
 
-// Get upload status
+/**
+ * @swagger
+ * /forge/upload/status/{uploadId}:
+ *   get:
+ *     summary: Get upload status
+ *     tags: [Upload]
+ *     security:
+ *       - walletAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: uploadId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       '200':
+ *         description: Upload status
+ *       '400':
+ *         description: Bad request
+ *       '401':
+ *         description: Unauthorized
+ *       '500':
+ *         description: Internal server error
+ */
 router.get(
     '/status/:uploadId',
     requireWalletAddress,
@@ -200,7 +294,30 @@ router.get(
     })
 );
 
-// Cancel upload
+/**
+ * @swagger
+ * /forge/upload/cancel/{uploadId}:
+ *   delete:
+ *     summary: Cancel upload
+ *     tags: [Upload]
+ *     security:
+ *       - walletAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: uploadId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       '200':
+ *         description: Upload cancelled successfully
+ *       '400':
+ *         description: Bad request
+ *       '401':
+ *         description: Unauthorized
+ *       '500':
+ *         description: Internal server error
+ */
 router.delete(
     '/cancel/:uploadId',
     requireWalletAddress,
@@ -219,7 +336,30 @@ router.delete(
     })
 );
 
-// Complete upload and process files
+/**
+ * @swagger
+ * /forge/upload/complete/{uploadId}:
+ *   post:
+ *     summary: Complete upload and process files
+ *     tags: [Upload]
+ *     security:
+ *       - walletAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: uploadId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       '200':
+ *         description: Upload completed successfully
+ *       '400':
+ *         description: Bad request
+ *       '401':
+ *         description: Unauthorized
+ *       '500':
+ *         description: Internal server error
+ */
 router.post(
     '/complete/:uploadId',
     requireWalletAddress,
@@ -432,63 +572,51 @@ router.post(
         );
         console.log(`[UPLOAD] All files uploaded to object storage successfully`);
 
-        meta.poolId = meta.quest.pool_id;
+        meta.factoryId = meta.quest.pool_id;
 
-        // Verify time if poolId
-        if (meta.poolId) {
-            console.log(`[UPLOAD] Verifying time for pool submission, poolId: ${meta.poolId}`);
-
-            // Verify pool exists and check balance
-            console.log(`[UPLOAD] Verifying pool balance and status for poolId: ${meta.poolId}`);
-            const pool = await TrainingPoolModel.findById(meta.poolId);
-            if (!pool) {
-                console.log(`[UPLOAD] Pool not found: ${meta.poolId}`);
-                throw ApiError.notFound('Pool not found');
+        // Verify pool exists and check balance
+        if (meta.factoryId) {
+            console.log(`[UPLOAD] Verifying pool balance and status for factoryId: ${meta.factoryId}`);
+            const factory = await FactoryModel.findById(meta.factoryId);
+            if (!factory) {
+                throw ApiError.notFound('Factory not found');
             }
 
-            // Check if pool is in live status
-            if (pool.status !== TrainingPoolStatus.live) {
-                console.log(`[UPLOAD] Pool not in live status: ${pool.status}`);
-                throw ApiError.badRequest(`Pool is not active (status: ${pool.status})`);
+            // Check if factory is in active status  
+            if (factory.status !== 'active') {
+                throw ApiError.badRequest(`Factory is not active (status: ${factory.status})`);
             }
 
             // Get current token balance from blockchain to ensure it's up-to-date
-            const tokenAddress = getTokenContractAddress(pool.token.symbol);
+            const tokenAddress = factory.token.address;
             const currentBalance = await blockchainService.getTokenBalance(
                 tokenAddress,
-                pool.depositAddress
+                factory.poolAddress
             );
 
-            // Check if pool has sufficient funds
-            if (currentBalance < pool.pricePerDemo) {
-                console.log(`[UPLOAD] Insufficient funds: ${currentBalance} < ${pool.pricePerDemo}`);
-                throw ApiError.insufficientFunds('Pool has insufficient funds');
+            // Check if factory has sufficient funds
+            if (currentBalance < factory.pricePerDemo) {
+                console.log(`[UPLOAD] Insufficient funds: ${currentBalance} < ${factory.pricePerDemo}`);
+                throw ApiError.insufficientFunds('Factory has insufficient funds');
             }
 
-            // Update pool funds in database with current balance
-            if (pool.funds !== currentBalance) {
-                pool.funds = currentBalance;
-                await pool.save();
-                console.log(`[UPLOAD] Updated pool funds from ${pool.funds} to ${currentBalance}`);
-            }
-
-            // check if pool has upload limits
-            if (pool.uploadLimit?.type) {
+            // check if factory has upload limits
+            if (factory.uploadLimit?.value) {
                 let gymSubmissions;
-                const poolId = pool._id.toString();
+                const factoryId = factory._id.toString();
 
-                switch (pool.uploadLimit.limitType) {
+                switch (factory.uploadLimit.type) {
                     case UploadLimitType.perDay:
                         const today = new Date();
                         today.setHours(0, 0, 0, 0);
                         gymSubmissions = await ForgeRaceSubmission.countDocuments({
-                            'meta.quest.pool_id': poolId,
+                            'meta.quest.pool_id': factoryId,
                             createdAt: { $gte: today },
                             status: ForgeSubmissionProcessingStatus.COMPLETED, // Only count completed submissions
                             reward: { $gt: 0 } // Only count submissions that received a reward
                         });
 
-                        if (gymSubmissions >= pool.uploadLimit.type) {
+                        if (gymSubmissions >= factory.uploadLimit.value) {
                             console.log(`[UPLOAD] Daily upload limit reached for pool.`);
                             throw ApiError.forbidden('Daily upload limit reached for this pool');
                         }
@@ -496,12 +624,12 @@ router.post(
 
                     case UploadLimitType.total:
                         gymSubmissions = await ForgeRaceSubmission.countDocuments({
-                            'meta.quest.pool_id': poolId,
+                            'meta.quest.pool_id': factoryId,
                             status: ForgeSubmissionProcessingStatus.COMPLETED, // Only count completed submissions
                             reward: { $gt: 0 } // Only count submissions that received a reward
                         });
 
-                        if (gymSubmissions >= pool.uploadLimit.type) {
+                        if (gymSubmissions >= factory.uploadLimit.value) {
                             console.log(`[UPLOAD] Total upload limit reached for pool.`);
                             throw ApiError.forbidden('Total upload limit reached for this pool.');
                         }
@@ -511,13 +639,18 @@ router.post(
 
             // Check task-specific upload limit
             if (meta.quest?.task_id) {
-                const app = await ForgeAppModel.findOne({
-                    pool_id: meta.poolId,
-                    'tasks._id': meta.quest.task_id
+                const factory = await FactoryModel.findOne({
+                    _id: meta.factoryId,
+                    'apps.tasks.id': meta.quest.task_id
                 });
 
-                if (app) {
-                    const task = app.tasks.find((t) => t._id.toString() === meta.quest.task_id);
+                if (factory) {
+                    // Find the task within the factory's apps
+                    let task = null;
+                    for (const app of factory.apps) {
+                        task = app.tasks.find((t: any) => t.id === meta.quest.task_id);
+                        if (task) break;
+                    }
                     const taskSubmissions = await ForgeRaceSubmission.countDocuments({
                         'meta.quest.task_id': meta.quest.task_id,
                         status: ForgeSubmissionProcessingStatus.COMPLETED, // Only count completed submissions
@@ -531,18 +664,18 @@ router.post(
 
                         // Check gym-wide per-task limit if applicable
                         if (
-                            pool.uploadLimit?.limitType === UploadLimitType.perTask &&
-                            pool.uploadLimit?.type &&
-                            taskSubmissions >= pool.uploadLimit.type
+                            factory.uploadLimit?.type === UploadLimitType.perTask &&
+                            factory.uploadLimit?.type &&
+                            taskSubmissions >= factory.uploadLimit.value
                         ) {
                             console.log(`[UPLOAD] Per-Task upload limit reached for pool.`);
                             throw ApiError.forbidden('Per-task upload limit reached for this pool');
                         }
                     } else if (
                         // also check gym-wide task limit even if there is no limit on the task itself
-                        pool.uploadLimit?.limitType === UploadLimitType.perTask &&
-                        pool.uploadLimit.type &&
-                        taskSubmissions >= pool.uploadLimit.type
+                        factory.uploadLimit?.type === UploadLimitType.perTask &&
+                        factory.uploadLimit.value &&
+                        taskSubmissions >= factory.uploadLimit.value
                     ) {
                         console.log(`[UPLOAD] Per-Task upload limit reached for pool.`);
                         throw ApiError.forbidden('Per-task upload limit reached for this pool');
@@ -624,7 +757,7 @@ router.post(
  * {
  *   "totalChunks": 10,           // Required: Total number of chunks to expect
  *   "metadata": {                 // Required: Metadata about the upload
- *     "poolId": "pool123",        // Optional: Pool ID if applicable
+ *     "factoryId": "pool123",        // Optional: Pool ID if applicable
  *     "generatedTime": 1647123456789, // Optional: Timestamp when content was generated
  *     "id": "unique-race-id"      // Required: Unique identifier for the race
  *   }
@@ -743,7 +876,7 @@ router.post(
  *   },
  *   body: JSON.stringify({
  *     totalChunks: 3,
- *     metadata: { id: 'race-123', poolId: 'pool-456' }
+ *     metadata: { id: 'race-123', factoryId: 'pool-456' }
  *   })
  * });
  * const { uploadId } = await initResponse.json();

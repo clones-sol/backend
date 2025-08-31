@@ -5,7 +5,6 @@ import { errorHandlerAsync } from '../middleware/errorHandler.ts';
 import { validateBody, validateParams, ValidationRules } from '../middleware/validator.ts';
 import { ApiError, successResponse } from '../middleware/types/errors.ts';
 import { requireAdminAuth, requireWalletAddress } from '../middleware/auth.ts';
-import { DEFAULT_FRONTEND_URL } from '../constants/referral.ts';
 import {
   generateCodeSchema,
   applyReferrerCodeSchema,
@@ -17,8 +16,7 @@ import { AuthenticatedRequest } from '../middleware/types/request.ts';
 
 const router = express.Router();
 
-const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
-const isEvmAddressRule = ValidationRules.matches(EVM_ADDRESS_REGEX, 'must be a valid EVM address');
+const isEvmAddressRule = ValidationRules.isEVMAddress();
 
 // Rate limiters
 const generalRateLimiter = rateLimit({
@@ -103,12 +101,11 @@ router.post(
   validateBody(generateCodeSchema),
   errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
     const { walletAddress } = req.body;
-    if (!EVM_ADDRESS_REGEX.test(walletAddress)) throw ApiError.badRequest('Invalid EVM wallet address.');
     if (String(req.walletAddress).toLowerCase() !== String(walletAddress).toLowerCase())
       throw ApiError.forbidden('You can only generate a referral code for your own wallet.');
 
     const referralCodeData = await referralService.generateReferralCode(walletAddress);
-    const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCodeData.referralCode}`;
+    const referralLink = `${process.env.FRONTEND_URL}/ref/${referralCodeData.referralCode}`;
     res.status(200).json(successResponse({
       referralCode: referralCodeData.referralCode,
       createdAt: referralCodeData.createdAt,
@@ -149,7 +146,7 @@ router.post(
  *                       properties:
  *                         referralCode: { type: string, example: "ABC123" }
  *                         referralLink: { type: string, example: "https://app.example.com/ref/ABC123" }
- *                         walletAddress: { type: string, example: "0x12cA1..." }
+ *                         walletAddress: { type: string, example: "0x12cA..." }
  *                         totalReferrals: { type: number, example: 5 }
  *                         totalRewards: { type: number, example: 150 }
  *                         isActive: { type: boolean, example: true }
@@ -184,7 +181,7 @@ router.get(
       ? { walletAddress: referrerInfo.walletAddress, referralCode: referrerInfo.referralCode }
       : null;
 
-    const referralLink = `${process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL}/ref/${referralCode.referralCode}`;
+    const referralLink = `${process.env.FRONTEND_URL}/ref/${referralCode.referralCode}`;
 
     return res.status(200).json(successResponse({
       referralCode: referralCode.referralCode,
@@ -251,7 +248,6 @@ router.post(
   validateBody(applyReferrerCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { referreeAddress, referralCode } = req.body;
-    if (!EVM_ADDRESS_REGEX.test(referreeAddress)) throw ApiError.badRequest('Invalid EVM wallet address.');
 
     const referrerAddress = await referralService.validateReferralCode(referralCode);
     if (!referrerAddress) throw ApiError.badRequest('Invalid or expired referral code.');
@@ -553,7 +549,6 @@ router.post(
   validateBody(extendExpirationSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress, extensionDays } = req.body;
-    if (!EVM_ADDRESS_REGEX.test(walletAddress)) throw ApiError.badRequest('Invalid EVM wallet address.');
     const success = await referralService.extendExpiration(walletAddress, extensionDays || 30);
     return res.status(200).json(successResponse({ success, message: success ? 'Expiration extended successfully' : 'Failed to extend expiration' }));
   })
@@ -611,7 +606,6 @@ router.post(
   validateBody(regenerateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.body;
-    if (!EVM_ADDRESS_REGEX.test(walletAddress)) throw ApiError.badRequest('Invalid EVM wallet address.');
     const newCode = await referralService.regenerateExpiredCode(walletAddress);
     return res.status(200).json(successResponse({
       success: !!newCode,

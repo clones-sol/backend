@@ -12,35 +12,32 @@ export interface TokenConfig {
     [symbol: string]: TokenInfo;
 }
 
-// Sentinel address for ETH
-export const ethAddressSentinel = '0x0000000000000000000000000000000000000000';
-
 export const supportedTokens: TokenConfig = {
     USDC: {
         name: 'USDC',
         decimals: 6,
         contractAddress: {
-            development: '0xaf33add7918f685b2a82c1077bd8c07d220ffa04',
-            test: '0xaf33add7918f685b2a82c1077bd8c07d220ffa04',
+            development: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+            test: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
             production: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
         }
     },
     CLONES: {
-        name: 'Clones',
+        name: 'CLONES',
         decimals: 18,
         contractAddress: {
-            development: '0x917D31589198d61b6BE2Aa2ee03965cF5102380C',
-            test: '0x917D31589198d61b6BE2Aa2ee03965cF5102380C',
+            development: '0x15eB86c7E54B350bf936d916Df33AEF697202E29',
+            test: '0x15eB86c7E54B350bf936d916Df33AEF697202E29',
             production: '0xToBeAdded'
         }
     },
-    ETH: {
-        name: 'ETH (Base)',
+    WETH: {
+        name: 'WETH (Base)',
         decimals: 18,
         contractAddress: {
-            development: ethAddressSentinel,
-            test: ethAddressSentinel,
-            production: ethAddressSentinel
+            development: '0x4200000000000000000000000000000000000006',
+            test: '0x4200000000000000000000000000000000000006',
+            production: '0x4200000000000000000000000000000000000006'
         }
     }
 };
