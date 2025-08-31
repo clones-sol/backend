@@ -1,5 +1,5 @@
 import { ValidationRules, ValidationSchema } from '../../middleware/validator.ts';
-import { ConnectBody } from '../../types/index.ts';
+import { getSupportedTokenSymbols } from '../../services/blockchain/tokens.ts';
 import { ContentFilterService } from '../../services/validation/contentFilter.ts';
 
 /**
@@ -83,7 +83,32 @@ export const getBalanceSchema: ValidationSchema = {
       ValidationRules.isString(),
       ValidationRules.sanitizeString(),
       ValidationRules.matches(/^[A-Z]{2,10}$/, 'Symbol must be 2-10 uppercase letters'),
-      ValidationRules.isIn(['ETH', 'CLONES', 'USDC', 'USDT'], 'Unsupported token symbol')
+      ValidationRules.isIn(getSupportedTokenSymbols(), 'Unsupported token symbol')
     ]
+  }
+};
+
+export const addressParamSchema: ValidationSchema = {
+  address: {
+    required: true,
+    rules: [ValidationRules.isEVMAddress()]
+  }
+};
+
+export const getNicknameSchema: ValidationSchema = {
+  address: {
+    required: true,
+    rules: [ValidationRules.isEVMAddress()]
+  }
+};
+
+export const setNicknameSchema: ValidationSchema = {
+  address: {
+    required: true,
+    rules: [ValidationRules.isEVMAddress()]
+  },
+  nickname: {
+    required: true,
+    rules: [ValidationRules.isString(), ValidationRules.maxLength(25)]
   }
 };

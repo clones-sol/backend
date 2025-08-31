@@ -2,6 +2,15 @@
 
 This is the backend server for the Clones project. It manages the database, handles API requests, and powers real-time agent operations.
 
+## 🔒 Security Architecture
+
+This backend follows a **transaction preparation security model**:
+- **No private keys stored server-side**: All transactions are signed client-side via MetaMask
+- **Transaction preparation APIs**: Server prepares contract interaction data for frontend execution
+- **Session-based validation**: Secure transaction parameter validation
+- **EIP-712 compliance**: Structured data preparation for wallet signatures
+- **Atomic operations**: Single-transaction create+fund for optimal UX and gas efficiency
+
 ## Documentation
 
 For complete setup instructions, architectural deep-dives, and contribution guidelines, please refer to the **[Clones Developer Guide](https://docs.page/clones-ai/desktop)**.
@@ -50,3 +59,42 @@ docker exec backend npm run <command>
 # Stop and remove all containers, networks, and volumes
 docker compose down
 ```
+
+## Transaction API
+
+### Supported Transaction Types
+
+The backend supports the following blockchain transaction types:
+
+- **`createFactory`** - Create a new reward pool factory (without funding)
+- **`createAndFundFactory`** - Create and fund a reward pool atomically (optimal UX)
+- **`fundPool`** - Fund an existing reward pool
+- **`claimRewards`** - Claim rewards from pools
+
+### Key Endpoints
+
+#### POST `/api/v1/transaction/prepare-tx`
+Prepares transaction data for client-side execution.
+
+**Parameters:**
+- `type` - Transaction type (`createFactory`, `createAndFundFactory`, `fundPool`, `claimRewards`)
+- `sessionToken` - Authenticated session token
+- `creator` - Creator wallet address (for create operations)
+- `token` - Token symbol (e.g., "USDC")
+- `amount` - Amount to fund (for funding operations)
+- `poolAddress` - Pool address (for fund/claim operations)
+
+**Returns:** Contract call data for MetaMask execution
+
+#### POST `/api/v1/transaction/estimate-gas`
+Estimates gas costs for transactions.
+
+#### POST `/api/v1/transaction/validate-tx`
+Validates transaction parameters before execution.
+
+### Gas Optimization
+
+- **createFactory**: ~200k gas
+- **createAndFundFactory**: ~280k gas (vs ~600k for separate transactions)
+- **fundPool**: ~120k gas
+- **claimRewards**: ~150k gas per claim

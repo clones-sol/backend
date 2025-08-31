@@ -1,5 +1,4 @@
 import { ethers } from 'ethers';
-import { ethAddressSentinel } from './tokens.ts';
 
 const REWARD_POOL_ABI = [
     'function recordReward(address farmer, address token, uint256 amount, bytes32 taskId)',
@@ -44,16 +43,14 @@ class RewardPoolService {
             );
 
             let decimals;
-            if (tokenAddress === ethAddressSentinel) {
-                decimals = 18; // Native ETH always has 18 decimals
-            } else {
-                const tokenContract = new ethers.Contract(
-                    tokenAddress,
-                    ['function decimals() view returns (uint8)'],
-                    this.provider
-                );
-                decimals = await tokenContract.decimals();
-            }
+
+            const tokenContract = new ethers.Contract(
+                tokenAddress,
+                ['function decimals() view returns (uint8)'],
+                this.provider
+            );
+            decimals = await tokenContract.decimals();
+
             const rawAmount = ethers.parseUnits(amount.toString(), decimals);
 
             // Validate taskId is a bytes32 string
@@ -94,15 +91,6 @@ class RewardPoolService {
                 REWARD_POOL_ABI,
                 factoryWallet
             );
-
-            // Handle native ETH refund
-            if (tokenAddress === ethAddressSentinel) {
-                const rawAmount = ethers.parseEther(amount.toString());
-                const tx = await rewardPoolContract.refundFactoryNative(rawAmount);
-                const receipt = await tx.wait();
-                console.log('Native ETH refund successful. Tx hash:', receipt.hash);
-                return { txHash: receipt.hash };
-            }
 
             // Handle ERC20 token refund
             const tokenContract = new ethers.Contract(

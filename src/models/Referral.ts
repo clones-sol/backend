@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
+import { isAddress } from 'ethers';
 
-const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/;
 
 export interface IReferral {
@@ -19,14 +19,14 @@ const ReferralSchema = new mongoose.Schema<IReferral>(
       type: String,
       required: true,
       index: true,
-      match: [EVM_ADDRESS_REGEX, 'referrerAddress must be a valid EVM address']
+      validate: [isAddress, 'referrerAddress must be a valid EVM address']
     },
     referreeAddress: {
       type: String,
       required: true,
       index: true,
       unique: true, // each wallet can only be referred once
-      match: [EVM_ADDRESS_REGEX, 'referreeAddress must be a valid EVM address']
+      validate: [isAddress, 'referreeAddress must be a valid EVM address']
     },
     onChainTxHash: {
       type: String,

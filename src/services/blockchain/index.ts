@@ -1,5 +1,4 @@
 import { ethers } from "ethers";
-import { ethAddressSentinel } from "./tokens.ts";
 
 const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)",
@@ -43,17 +42,13 @@ class BlockchainService {
 
   /** Get ERC-20 balance for an address (adjusted for decimals) */
   async getTokenBalance(tokenAddress: string, walletAddress: string): Promise<number> {
-    // Handle native ETH case where the zero address is used as a sentinel
-    if (tokenAddress === ethAddressSentinel) {
-      return this.getEthBalance(walletAddress);
-    }
-
     try {
       const erc20 = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
       const [raw, decimals] = await Promise.all([
         erc20.balanceOf(walletAddress),
         erc20.decimals()
       ]);
+
       return Number(ethers.formatUnits(raw, decimals));
     } catch (e) {
       console.error("Error getting token balance:", e);
@@ -184,9 +179,6 @@ class BlockchainService {
     fromPk: string,
     to: string
   ): Promise<{ txHash: string; usedFeeMultiplier: number } | string | false> {
-    if (tokenAddress === ethAddressSentinel) {
-      return this.transferEth(amount, fromPk, to);
-    }
     return this.transferToken(tokenAddress, amount, fromPk, to);
   }
 }

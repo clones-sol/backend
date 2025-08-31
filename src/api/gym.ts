@@ -1,14 +1,12 @@
 import express, { Request, Response } from 'express';
-import DatabaseService from '../services/db/index.ts';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
-import { TrainingEventModel } from '../models/TrainingEvent.ts';
 import { ChatCompletionContentPartImage } from 'openai/resources/index.mjs';
 import { errorHandlerAsync } from '../middleware/errorHandler.ts';
 import { validateBody } from '../middleware/validator.ts';
-import { questRequestSchema, progressCheckSchema } from './schemas/gym.ts';
-import { ApiError, successResponse } from '../middleware/types/errors.ts';
-import { generateDesktopQuest, getLeaderboardData } from '../services/gym/gym.ts';
+import { progressCheckSchema } from './schemas/gym.ts';
+import { successResponse } from '../middleware/types/errors.ts';
+import { getLeaderboardData } from '../services/gym/gym.ts';
 
 dotenv.config();
 
@@ -19,68 +17,6 @@ const openai = new OpenAI({
 // Clean up cache periodically (every hour)
 
 const router = express.Router();
-
-// Request a quest/hint
-router.post(
-  '/quest',
-  validateBody(questRequestSchema),
-  errorHandlerAsync(async (req: Request, res: Response) => {
-    const { address, prompt, installed_applications } = req.body;
-    const screenshot = ''; // TODO: remove
-
-    // Create or get session
-    let session = await DatabaseService.getGymSession(address);
-    if (!session) {
-      const newSession = await DatabaseService.createGymSession({
-        address,
-        status: 'active' as const,
-        created_at: new Date(),
-        updated_at: new Date()
-      });
-
-      if (!newSession) {
-        throw ApiError.internalError('Failed to create session');
-      }
-
-      session = newSession;
-    }
-
-    const sessionId = session._id?.toString();
-    if (!sessionId) {
-      throw ApiError.internalError('Invalid session ID');
-    }
-
-    // Store latest screenshot in session metadata
-    await DatabaseService.updateGymSession(sessionId, {
-      preview: screenshot,
-      updated_at: new Date()
-    });
-
-    // Get current quest from latest quest event
-    const latestQuestEvent = await TrainingEventModel.findOne(
-      { session: sessionId, type: 'quest' },
-      {},
-      { sort: { timestamp: -1 } }
-    ).lean();
-
-    // Get hint history
-    const hintEvents = await TrainingEventModel.find(
-      { session: sessionId, type: 'hint' },
-      { message: 1 },
-      { sort: { timestamp: -1 }, limit: 3 }
-    ).lean();
-    const hintHistory = hintEvents.map((e) => e.message);
-
-    const questData = await generateDesktopQuest(
-      screenshot,
-      installed_applications || '',
-      prompt,
-      sessionId
-    );
-
-    return res.status(200).json(successResponse(questData));
-  })
-);
 
 // Check quest progress based on recent screenshots
 router.post(
@@ -112,10 +48,10 @@ Base your analysis on visual evidence from the screenshots showing completed act
             },
             ...recentScreenshots.map(
               (screenshot: string) =>
-                ({
-                  type: 'image_url',
-                  image_url: { url: screenshot }
-                } as ChatCompletionContentPartImage)
+              ({
+                type: 'image_url',
+                image_url: { url: screenshot }
+              } as ChatCompletionContentPartImage)
             )
           ]
         }

@@ -1,19 +1,18 @@
 import express, { Request, Response, Router } from 'express';
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
-import { ForgeAppModel, ForgeRaceSubmission, TrainingPoolModel } from '../../models/Models.ts';
+import { ForgeRaceSubmission, FactoryModel } from '../../models/Models.ts';
 import { ApiError, ErrorCode, successResponse } from '../../middleware/types/errors.ts';
 import { validateBody, validateQuery } from '../../middleware/validator.ts';
-import { generateContentSchema, getTasksSchema } from '../schemas/forge.ts';
+import { generateContentSchema, getTasksSchema } from '../schemas/forgeFactory.ts';
 import { APP_TASK_GENERATION_PROMPT } from '../../services/forge/index.ts';
 import OpenAI from 'openai';
 import {
   AppWithLimitInfo,
-  DBTrainingPool,
   ForgeSubmissionProcessingStatus,
   TaskWithLimitInfo,
-  TrainingPoolStatus,
   UploadLimitType
 } from '../../types/index.ts';
+import { FactoryStatus } from '../../types/factory.ts';
 
 const router: Router = express.Router();
 
@@ -21,14 +20,31 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Get all possible categories
+
+
+/**
+ * @swagger
+ * tags:
+ *   name: Apps
+ *   description: Apps management and search
+ */
+
+
+/**
+ * @swagger
+ * /forge/factories/apps/categories:
+ *   get:
+ *     summary: Get all possible categories
+ *     tags: [Apps]
+ */
 router.get(
   '/categories',
   errorHandlerAsync(async (_req: Request, res: Response) => {
-    // Aggregate to get unique categories across all apps
-    const categoriesResult = await ForgeAppModel.aggregate([
-      { $unwind: '$categories' },
-      { $group: { _id: '$categories' } },
+    // Aggregate to get unique categories across all factories' apps
+    const categoriesResult = await FactoryModel.aggregate([
+      { $unwind: '$apps' },
+      { $unwind: '$apps.categories' },
+      { $group: { _id: '$apps.categories' } },
       { $sort: { _id: 1 } }
     ]);
 
@@ -38,12 +54,33 @@ router.get(
     res.status(200).json(successResponse(categories));
   })
 );
-// Generate apps endpoint
+
+/**
+ * @swagger
+ * /forge/factories/apps:
+ *   post:
+ *     summary: Generate new apps for factories
+ *     tags: [Apps]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               prompt:
+ *                 type: string
+ *               factoryId:
+ *                 type: string
+ *             required:
+ *               - prompt
+ *               - factoryId
+ */
 router.post(
   '/',
   validateBody(generateContentSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { prompt } = req.body;
+    const { prompt, factoryId } = req.body;
 
     // Generate new apps using OpenAI
     const formatted_prompt = APP_TASK_GENERATION_PROMPT.replace('{skill list}', prompt);
@@ -63,9 +100,18 @@ router.post(
       throw new Error('Empty response from OpenAI');
     }
 
-    // Parse JSON content
+    // Parse JSON content and optionally save to factory
     try {
       const parsedContent = JSON.parse(content);
+      
+      // If factoryId is provided, add apps to the factory
+      if (factoryId) {
+        await FactoryModel.findByIdAndUpdate(
+          factoryId,
+          { $push: { apps: { $each: parsedContent.apps } } }
+        );
+      }
+
       res.status(200).json(
         successResponse({
           content: parsedContent
@@ -98,7 +144,13 @@ const ADULT_KEYWORDS = [
   'adult material'
 ];
 
-// Get all tasks with filtering options
+/**
+ * @swagger
+ * /forge/factories/apps/tasks:
+ *   get:
+ *     summary: Get all tasks with filtering options
+ *     tags: [Apps]
+ */
 router.get(
   '/tasks',
   validateQuery(getTasksSchema),
@@ -111,34 +163,48 @@ router.get(
       return ADULT_KEYWORDS.some((keyword) => lowerText.includes(keyword.toLowerCase()));
     };
 
-    // Build initial query for apps
-    let appQuery: any = {};
+    // Build aggregation pipeline for factories
+    const pipeline: any[] = [];
 
-    // If hide_adult is true, filter out apps with adult content in name or description
-    if (hide_adult === 'true') {
-      appQuery.$and = [
-        { name: { $not: { $regex: ADULT_KEYWORDS.join('|'), $options: 'i' } } },
-        {
-          $or: [
-            { description: { $exists: false } },
-            { description: { $not: { $regex: ADULT_KEYWORDS.join('|'), $options: 'i' } } }
-          ]
-        }
-      ];
-    }
-
-    // Filter by pool_id if specified
+    // Match stage - filter factories
+    const matchStage: any = {};
+    
+    // Filter by pool_id (factory _id) if specified
     if (pool_id) {
-      appQuery.pool_id = pool_id.toString();
+      matchStage._id = pool_id.toString();
+    } else {
+      // Only include active factories if no specific pool_id
+      matchStage.status = FactoryStatus.active;
     }
+
+    // Apply reward filtering at factory level
+    if (min_reward !== undefined || max_reward !== undefined) {
+      if (min_reward !== undefined) {
+        matchStage.pricePerDemo = { $gte: Number(min_reward) };
+      }
+      if (max_reward !== undefined) {
+        matchStage.pricePerDemo = { 
+          ...matchStage.pricePerDemo, 
+          $lte: Number(max_reward) 
+        };
+      }
+    }
+
+    pipeline.push({ $match: matchStage });
+
+    // Unwind apps and tasks
+    pipeline.push({ $unwind: '$apps' });
+    pipeline.push({ $unwind: '$apps.tasks' });
+
+    // Filter apps and tasks
+    const appTaskMatchStage: any = {};
 
     // Filter by categories if specified
     if (categories) {
       try {
         const categoriesArray = typeof categories === 'string' ? categories.split(',') : categories;
-
         if (Array.isArray(categoriesArray) && categoriesArray.length > 0) {
-          appQuery.categories = { $in: categoriesArray };
+          appTaskMatchStage['apps.categories'] = { $in: categoriesArray };
         }
       } catch (e) {
         console.error('Error parsing categories parameter:', e);
@@ -148,306 +214,316 @@ router.get(
     // Text search for app name and task prompts
     if (query && typeof query === 'string') {
       const searchRegex = new RegExp(query, 'i');
-      appQuery.$or = [{ name: searchRegex }, { 'tasks.prompt': searchRegex }];
+      appTaskMatchStage.$or = [
+        { 'apps.name': searchRegex }, 
+        { 'apps.tasks.prompt': searchRegex }
+      ];
     }
 
-    // Get all apps matching the initial query
-    let apps = await ForgeAppModel.find(appQuery).populate(
-      'pool_id',
-      'name status pricePerDemo uploadLimit token'
-    );
-
-    // Filter by live pools if no specific pool_id was provided
-    if (!pool_id) {
-      apps = apps.filter((app) => {
-        const pool = app.pool_id as unknown as DBTrainingPool;
-        return pool && pool.status === TrainingPoolStatus.live;
-      });
+    // Hide adult content filter
+    if (hide_adult === 'true') {
+      const adultRegex = ADULT_KEYWORDS.join('|');
+      appTaskMatchStage.$and = [
+        { 'apps.name': { $not: { $regex: adultRegex, $options: 'i' } } },
+        { 'apps.tasks.prompt': { $not: { $regex: adultRegex, $options: 'i' } } },
+        {
+          $or: [
+            { 'apps.description': { $exists: false } },
+            { 'apps.description': { $not: { $regex: adultRegex, $options: 'i' } } }
+          ]
+        }
+      ];
     }
 
-    // Process apps to extract tasks and apply reward filtering
+    if (Object.keys(appTaskMatchStage).length > 0) {
+      pipeline.push({ $match: appTaskMatchStage });
+    }
+
+    // Project the required fields
+    pipeline.push({
+      $project: {
+        _id: '$apps.tasks.id',
+        prompt: '$apps.tasks.prompt',
+        uploadLimit: '$apps.tasks.uploadLimit',
+        rewardLimit: '$apps.tasks.rewardLimit',
+        factoryId: '$_id',
+        pricePerDemo: '$pricePerDemo',
+        uploadLimitType: '$uploadLimit.type',
+        uploadLimitValue: '$uploadLimit.value',
+        app: {
+          _id: '$apps.id',
+          name: '$apps.name',
+          domain: '$apps.domain',
+          description: '$apps.description',
+          categories: '$apps.categories',
+          pool_id: '$_id'
+        }
+      }
+    });
+
+    const tasksFromDB = await FactoryModel.aggregate(pipeline);
+
+    // Process tasks and calculate limits
     const tasks = [];
 
-    for (const app of apps) {
-      const pool = app.pool_id as unknown as DBTrainingPool;
+    for (const taskData of tasksFromDB) {
+      // Skip tasks with adult content if hide_adult is true (already filtered in pipeline but double check)
+      if (hide_adult === 'true' && containsAdultContent(taskData.prompt)) {
+        continue;
+      }
 
-      // Check gym-wide upload limit
+      // Determine the effective reward for this task
+      const effectiveReward = taskData.rewardLimit !== undefined ? taskData.rewardLimit : taskData.pricePerDemo;
+
+      // Apply additional reward filtering (already done in pipeline but double check for task-specific rewards)
+      if (
+        (min_reward !== undefined && (effectiveReward || 0) < Number(min_reward)) ||
+        (max_reward !== undefined && (effectiveReward || 0) > Number(max_reward))
+      ) {
+        continue;
+      }
+
+      // Calculate factory-wide upload limits
       let gymLimitReached = false;
       let gymSubmissions = 0;
 
-      if (pool.uploadLimit?.type) {
-        const poolId = (pool as any)._id.toString();
-
-        switch (pool.uploadLimit.limitType) {
+      if (taskData.uploadLimitValue) {
+        switch (taskData.uploadLimitType) {
           case UploadLimitType.perDay:
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             gymSubmissions = await ForgeRaceSubmission.countDocuments({
-              'meta.quest.pool_id': poolId,
+              'meta.quest.pool_id': taskData.factoryId,
               createdAt: { $gte: today },
               status: ForgeSubmissionProcessingStatus.COMPLETED,
               reward: { $gt: 0 }
             });
-
-            // Check if gym has reached daily limit
-            gymLimitReached = gymSubmissions >= pool.uploadLimit.type;
+            gymLimitReached = gymSubmissions >= taskData.uploadLimitValue;
             break;
 
           case UploadLimitType.total:
             gymSubmissions = await ForgeRaceSubmission.countDocuments({
-              'meta.quest.pool_id': poolId,
+              'meta.quest.pool_id': taskData.factoryId,
               status: ForgeSubmissionProcessingStatus.COMPLETED,
               reward: { $gt: 0 }
             });
-
-            // Check if gym has reached total limit
-            gymLimitReached = gymSubmissions >= pool.uploadLimit.type;
+            gymLimitReached = gymSubmissions >= taskData.uploadLimitValue;
             break;
         }
       }
 
-      // Process each task in the app
-      for (const task of app.tasks) {
-        // Skip tasks marked as adult content or containing adult keywords when hide_adult is true
-        if (hide_adult === 'true' && containsAdultContent(task.prompt)) {
-          continue;
-        }
-        // Determine the effective reward for this task
-        // First check if task has a specific rewardLimit, otherwise use pool's pricePerDemo
-        const effectiveReward =
-          task.rewardLimit !== undefined ? task.rewardLimit : pool.pricePerDemo;
+      // Calculate task-specific limits
+      let taskLimitReached = false;
+      let taskSubmissions = 0;
+      let limitReason: string | null = null;
 
-        // Apply reward filtering
-        if (
-          (min_reward !== undefined && (effectiveReward || 0) < Number(min_reward)) ||
-          (max_reward !== undefined && (effectiveReward || 0) > Number(max_reward))
-        ) {
-          // Skip this task if it doesn't meet the reward criteria
-          continue;
-        }
-
-        // Calculate task limit information
-        let taskLimitReached = false;
-        let taskSubmissions = 0;
-        let limitReason: string | null = null;
-
-        // Count submissions for this specific task
-        if (
-          task.uploadLimit ||
-          (pool.uploadLimit?.limitType === UploadLimitType.perTask && pool.uploadLimit?.type)
-        ) {
-          taskSubmissions = await ForgeRaceSubmission.countDocuments({
-            'meta.quest.task_id': task._id.toString(),
-            status: ForgeSubmissionProcessingStatus.COMPLETED,
-            reward: { $gt: 0 }
-          });
-
-          // Check if task has reached its limit
-          if (task.uploadLimit && taskSubmissions >= task.uploadLimit) {
-            taskLimitReached = true;
-            limitReason = 'Task limit reached';
-          }
-
-          // Check gym-wide per-task limit if applicable
-          if (
-            !taskLimitReached &&
-            pool.uploadLimit?.limitType === UploadLimitType.perTask &&
-            pool.uploadLimit?.type &&
-            taskSubmissions >= pool.uploadLimit.type
-          ) {
-            taskLimitReached = true;
-            limitReason = 'Per-task gym limit reached';
-          }
-        }
-
-        // If gym limit is reached, mark all tasks as limited
-        if (gymLimitReached) {
-          taskLimitReached = true;
-          limitReason =
-            pool.uploadLimit?.limitType === UploadLimitType.perDay
-              ? 'Daily gym limit reached'
-              : 'Total gym limit reached';
-        }
-
-        // Add task with app information to the result array
-        tasks.push({
-          _id: task._id,
-          prompt: task.prompt,
-          uploadLimit: task.uploadLimit,
-          rewardLimit: task.rewardLimit,
-          uploadLimitReached: taskLimitReached,
-          currentSubmissions: taskSubmissions,
-          limitReason: limitReason,
-          app: {
-            _id: app._id,
-            name: app.name,
-            domain: app.domain,
-            description: app.description,
-            categories: app.categories,
-            gymLimitType: pool.uploadLimit?.limitType,
-            gymSubmissions: gymSubmissions,
-            gymLimitValue: pool.uploadLimit?.type,
-            pool_id: app.pool_id
-          }
+      // Count submissions for this specific task
+      if (
+        taskData.uploadLimit ||
+        (taskData.uploadLimitType === UploadLimitType.perTask && taskData.uploadLimitValue)
+      ) {
+        taskSubmissions = await ForgeRaceSubmission.countDocuments({
+          'meta.quest.task_id': taskData._id,
+          status: ForgeSubmissionProcessingStatus.COMPLETED,
+          reward: { $gt: 0 }
         });
+
+        // Check if task has reached its limit
+        if (taskData.uploadLimit && taskSubmissions >= taskData.uploadLimit) {
+          taskLimitReached = true;
+          limitReason = 'Task limit reached';
+        }
+
+        // Check factory-wide per-task limit if applicable
+        if (
+          !taskLimitReached &&
+          taskData.uploadLimitType === UploadLimitType.perTask &&
+          taskData.uploadLimitValue &&
+          taskSubmissions >= taskData.uploadLimitValue
+        ) {
+          taskLimitReached = true;
+          limitReason = 'Per-task gym limit reached';
+        }
       }
+
+      // If factory limit is reached, mark all tasks as limited
+      if (gymLimitReached) {
+        taskLimitReached = true;
+        limitReason =
+          taskData.uploadLimitType === UploadLimitType.perDay
+            ? 'Daily gym limit reached'
+            : 'Total gym limit reached';
+      }
+
+      // Add task with app information to the result array
+      tasks.push({
+        _id: taskData._id,
+        prompt: taskData.prompt,
+        uploadLimit: taskData.uploadLimit,
+        rewardLimit: taskData.rewardLimit,
+        uploadLimitReached: taskLimitReached,
+        currentSubmissions: taskSubmissions,
+        limitReason: limitReason,
+        app: {
+          ...taskData.app,
+          gymLimitType: taskData.uploadLimitType,
+          gymSubmissions: gymSubmissions,
+          gymLimitValue: taskData.uploadLimitValue
+        }
+      });
     }
 
     res.status(200).json(successResponse(tasks));
   })
 );
 
-// Get all apps with filtering options
+/**
+ * @swagger
+ * /forge/factories/apps:
+ *   get:
+ *     summary: Get all apps with filtering options
+ *     tags: [Apps]
+ */
 router.get(
   '/',
   validateQuery(getTasksSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { pool_id, min_reward, max_reward, categories, query } = req.query;
 
-    // First, build a query for pools if we need to filter by reward
-    let poolQuery: any = {};
-    let poolIds: string[] = [];
+    // Build aggregation pipeline for factories
+    const pipeline: any[] = [];
 
+    // Match stage - filter factories
+    const matchStage: any = {};
+    
+    // Filter by pool_id (factory _id) if specified
+    if (pool_id) {
+      matchStage._id = pool_id.toString();
+    } else {
+      // Only include active factories if no specific pool_id
+      matchStage.status = FactoryStatus.active;
+    }
+
+    // Apply reward filtering at factory level
     if (min_reward !== undefined || max_reward !== undefined) {
       if (min_reward !== undefined) {
-        poolQuery.pricePerDemo = { $gte: Number(min_reward) };
+        matchStage.pricePerDemo = { $gte: Number(min_reward) };
       }
-
       if (max_reward !== undefined) {
-        poolQuery.pricePerDemo = {
-          ...poolQuery.pricePerDemo,
-          $lte: Number(max_reward)
+        matchStage.pricePerDemo = { 
+          ...matchStage.pricePerDemo, 
+          $lte: Number(max_reward) 
         };
       }
-
-      // If no pool_id specified, only include live pools
-      if (!pool_id) {
-        poolQuery.status = TrainingPoolStatus.live;
-      }
-
-      // Get matching pool IDs
-      const pools = await TrainingPoolModel.find(poolQuery).select('_id');
-      poolIds = pools.map((pool) => pool._id.toString());
-
-      // If no pools match the reward criteria, return empty array early
-      if (poolIds.length === 0) {
-        res.json([]);
-        return;
-      }
     }
 
-    // Build query for apps
-    let appQuery: any = {};
+    pipeline.push({ $match: matchStage });
 
-    // Filter by pool_id if specified, or by poolIds from reward filter
-    if (pool_id) {
-      appQuery.pool_id = pool_id.toString();
-    } else if (poolIds.length > 0) {
-      appQuery.pool_id = { $in: poolIds };
-    }
+    // Unwind apps
+    pipeline.push({ $unwind: '$apps' });
+
+    // Filter apps
+    const appMatchStage: any = {};
 
     // Filter by categories if specified
     if (categories) {
       try {
-        // Parse the JSON array of categories
-        const categoriesArray = (categories as string).split(',');
+        const categoriesArray = typeof categories === 'string' ? categories.split(',') : categories;
         if (Array.isArray(categoriesArray) && categoriesArray.length > 0) {
-          // Use $in operator to match any of the categories
-          appQuery.categories = { $in: categoriesArray };
+          appMatchStage['apps.categories'] = { $in: categoriesArray };
         }
       } catch (e) {
         console.error('Error parsing categories parameter:', e);
-        // If parsing fails, just don't apply the category filter
       }
     }
 
     // Text search for app name and task prompts
     if (query && typeof query === 'string') {
-      // We need to use $or to search across multiple fields
       const searchRegex = new RegExp(query, 'i');
-
-      appQuery.$or = [{ name: searchRegex }, { 'tasks.prompt': searchRegex }];
+      appMatchStage.$or = [
+        { 'apps.name': searchRegex }, 
+        { 'apps.tasks.prompt': searchRegex }
+      ];
     }
 
-    // Execute the query with appropriate population
-    let apps;
-    if (pool_id || poolIds.length > 0) {
-      // If we're already filtering by specific pools, just get those apps
-      apps = await ForgeAppModel.find(appQuery).populate(
-        'pool_id',
-        'name status pricePerDemo uploadLimit token'
-      );
-    } else {
-      // Otherwise, get all apps and filter by live pools
-      apps = await ForgeAppModel.find(appQuery)
-        .populate('pool_id', 'name status pricePerDemo uploadLimit token')
-        .then((apps) =>
-          apps.filter((app) => {
-            const pool = app.pool_id as unknown as DBTrainingPool;
-            return pool && pool.status === TrainingPoolStatus.live;
-          })
-        );
+    if (Object.keys(appMatchStage).length > 0) {
+      pipeline.push({ $match: appMatchStage });
     }
 
-    // Mark tasks that have reached their upload limits instead of filtering them out
+    // Project the required fields for apps
+    pipeline.push({
+      $project: {
+        _id: '$apps.id',
+        name: '$apps.name',
+        domain: '$apps.domain',
+        description: '$apps.description',
+        categories: '$apps.categories',
+        tasks: '$apps.tasks',
+        factoryId: '$_id',
+        pricePerDemo: '$pricePerDemo',
+        uploadLimit: '$uploadLimit',
+        pool_id: '$_id'
+      }
+    });
+
+    const appsFromDB = await FactoryModel.aggregate(pipeline);
+
+    // Process apps and calculate limits
     const appsWithLimitInfo = await Promise.all(
-      apps.map(async (app) => {
-        const pool = app.pool_id as unknown as DBTrainingPool;
-        // Create a new object with the required properties
+      appsFromDB.map(async (app) => {
+        // Create app object with limit info
         const appObj: AppWithLimitInfo = {
-          ...app.toObject(),
+          _id: app._id,
+          name: app.name,
+          domain: app.domain,
+          description: app.description,
+          categories: app.categories,
+          tasks: app.tasks,
+          pool_id: app.pool_id,
           gymLimitReached: false,
           gymSubmissions: 0,
           gymLimitType: undefined,
           gymLimitValue: undefined
         };
 
-        // Check gym-wide upload limit
+        // Check factory-wide upload limit
         let gymLimitReached = false;
         let gymSubmissions = 0;
 
-        if (pool.uploadLimit?.type) {
-          const poolId = (pool as any)._id.toString();
-
-          switch (pool.uploadLimit.limitType) {
+        if (app.uploadLimit?.value) {
+          switch (app.uploadLimit.type) {
             case UploadLimitType.perDay:
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               gymSubmissions = await ForgeRaceSubmission.countDocuments({
-                'meta.quest.pool_id': poolId,
+                'meta.quest.pool_id': app.factoryId,
                 createdAt: { $gte: today },
                 status: ForgeSubmissionProcessingStatus.COMPLETED,
-                reward: { $gt: 0 } // Only count submissions that received a reward
+                reward: { $gt: 0 }
               });
-
-              // Check if gym has reached daily limit
-              gymLimitReached = gymSubmissions >= pool.uploadLimit.type;
+              gymLimitReached = gymSubmissions >= app.uploadLimit.value;
               break;
 
             case UploadLimitType.total:
               gymSubmissions = await ForgeRaceSubmission.countDocuments({
-                'meta.quest.pool_id': poolId,
+                'meta.quest.pool_id': app.factoryId,
                 status: ForgeSubmissionProcessingStatus.COMPLETED,
-                reward: { $gt: 0 } // Only count submissions that received a reward
+                reward: { $gt: 0 }
               });
-
-              // Check if gym has reached total limit
-              gymLimitReached = gymSubmissions >= pool.uploadLimit.type;
+              gymLimitReached = gymSubmissions >= app.uploadLimit.value;
               break;
           }
         }
 
-        // Add gym limit info to app object
+        // Add factory limit info to app object
         appObj.gymLimitReached = gymLimitReached;
         appObj.gymSubmissions = gymSubmissions;
-        appObj.gymLimitType = pool.uploadLimit?.limitType;
-        appObj.gymLimitValue = pool.uploadLimit?.type;
+        appObj.gymLimitType = app.uploadLimit?.type;
+        appObj.gymLimitValue = app.uploadLimit?.value;
 
         // Process tasks and add limit information
         const tasksWithLimitInfo = await Promise.all(
-          app.tasks.map(async (task) => {
-            //@ts-ignore - not sure how to type the task correectly, but its  a mongoose object until we call this
-            task = task.toObject();
+          app.tasks.map(async (task: any) => {
             let taskLimitReached = false;
             let taskSubmissions = 0;
             let limitReason: string | null = null;
@@ -455,12 +531,12 @@ router.get(
             // Count submissions for this specific task
             if (
               task.uploadLimit ||
-              (pool.uploadLimit?.limitType === UploadLimitType.perTask && pool.uploadLimit?.type)
+              (app.uploadLimit?.type === UploadLimitType.perTask && app.uploadLimit?.value)
             ) {
               taskSubmissions = await ForgeRaceSubmission.countDocuments({
-                'meta.quest.task_id': task._id.toString(),
+                'meta.quest.task_id': task.id,
                 status: ForgeSubmissionProcessingStatus.COMPLETED,
-                reward: { $gt: 0 } // Only count submissions that received a reward
+                reward: { $gt: 0 }
               });
 
               // Check if task has reached its limit
@@ -469,23 +545,23 @@ router.get(
                 limitReason = 'Task limit reached';
               }
 
-              // Check gym-wide per-task limit if applicable
+              // Check factory-wide per-task limit if applicable
               if (
                 !taskLimitReached &&
-                pool.uploadLimit?.limitType === UploadLimitType.perTask &&
-                pool.uploadLimit?.type &&
-                taskSubmissions >= pool.uploadLimit.type
+                app.uploadLimit?.type === UploadLimitType.perTask &&
+                app.uploadLimit?.value &&
+                taskSubmissions >= app.uploadLimit.value
               ) {
                 taskLimitReached = true;
                 limitReason = 'Per-task gym limit reached';
               }
             }
 
-            // If gym limit is reached, mark all tasks as limited
+            // If factory limit is reached, mark all tasks as limited
             if (gymLimitReached) {
               taskLimitReached = true;
               limitReason =
-                pool.uploadLimit?.limitType === UploadLimitType.perDay
+                app.uploadLimit?.type === UploadLimitType.perDay
                   ? 'Daily gym limit reached'
                   : 'Total gym limit reached';
             }
@@ -513,4 +589,4 @@ router.get(
   })
 );
 
-export { router as forgeAppsApi };
+export { router as forgeFactoryAppsApi };

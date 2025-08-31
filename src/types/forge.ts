@@ -15,10 +15,14 @@ export interface AppWithLimitInfo {
   gymLimitValue?: number;
 }
 
-export enum TrainingPoolStatus {
-  live = 'live',
+
+
+export enum FactoryPoolStatus {
+  active = 'active',
   paused = 'paused',
-  noFunds = 'no-funds'
+  error = 'error',
+  noFunds = 'no-funds',
+  migrating = 'migrating'
 }
 
 export enum UploadLimitType {
@@ -75,7 +79,7 @@ export interface CreatePoolBody {
 export interface UpdatePoolBody {
   id: string;
   name?: string;
-  status?: TrainingPoolStatus.live | TrainingPoolStatus.paused;
+  status?: FactoryPoolStatus.active | FactoryPoolStatus.paused;
   skills?: string;
   pricePerDemo?: number;
   uploadLimit?: {
@@ -149,10 +153,11 @@ export interface ForgeSubmissionGradeResult {
 export interface OnChainReward {
   tokenAddress: string;
   poolAddress: string;
-  amount: number;
-  taskId: string;
+  amount: number; // Individual reward for this submission
+  submissionId: string; // Submission ID (previously incorrectly named taskId)
   txHash: string;
   timestamp: number;
+  cumulativeAmount?: number; // Total cumulative amount user can claim
 }
 
 export interface UploadChunk {
