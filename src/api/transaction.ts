@@ -823,7 +823,7 @@ router.get(
  */
 router.get(
   '/health',
-  errorHandlerAsync(async (req: Request, res: Response) => {
+  errorHandlerAsync(async (_req: Request, res: Response) => {
     const circuitBreakerStatus = CircuitBreakerManager.getAllStatus();
     
     const overallHealth = Object.values(circuitBreakerStatus).every(

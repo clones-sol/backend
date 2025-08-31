@@ -239,6 +239,9 @@ router.get(
       pipeline.push({ $match: appTaskMatchStage });
     }
 
+    // Add pagination to prevent DoS - limit to 1000 tasks max
+    pipeline.push({ $limit: 1000 });
+
     // Project the required fields
     pipeline.push({
       $project: {
@@ -449,6 +452,9 @@ router.get(
     if (Object.keys(appMatchStage).length > 0) {
       pipeline.push({ $match: appMatchStage });
     }
+
+    // Add pagination to prevent DoS - limit to 500 apps max
+    pipeline.push({ $limit: 500 });
 
     // Project the required fields for apps
     pipeline.push({
