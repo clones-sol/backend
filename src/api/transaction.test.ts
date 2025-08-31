@@ -209,6 +209,6 @@ describe('Transaction API - createAndFundFactory', () => {
             });
 
         expect(response.status).toBe(400);
-        expect(response.body.error.message).toBe('Invalid amount format');
+        expect(response.body.error.message).toBe('Invalid amount: -1. Must be a positive number.');
     });
 });

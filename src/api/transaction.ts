@@ -1,4 +1,5 @@
 import express, { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { errorHandlerAsync } from '../middleware/errorHandler.ts';
 import { ApiError, successResponse } from '../middleware/types/errors.ts';
 import { validateBody, validateQuery } from '../middleware/validator.ts';
@@ -8,11 +9,25 @@ import { getTokenContractAddress } from '../services/blockchain/tokens.ts';
 import { createFactoryService } from '../services/blockchain/factoryTransactionService.ts';
 import { TransactionSessionService } from '../services/transactionSession.ts';
 import { v4 as uuidv4 } from 'uuid';
+import { AmountValidator } from '../utils/amountValidation.ts';
+import mongoose from 'mongoose';
 import { validateTransactionSchema, estimateGasSchema, prepareTransactionSchema, transactionStatusSchema, completeTransactionSchema } from './schemas/transaction.ts';
 import ClaimRouterABI from '../contracts/abis/ClaimRouter.json' with { type: 'json' };
 import { createFactoryWithApps } from '../services/factory/factoryDatabaseService.ts';
 
 const router: Router = express.Router();
+
+// Rate limiting for transaction endpoints
+const transactionRateLimit = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10, // 10 transactions per minute per IP
+  message: {
+    error: 'Too many transaction requests. Please wait before trying again.',
+    code: 'RATE_LIMIT_EXCEEDED'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const CLAIM_ROUTER_ABI = ClaimRouterABI;
 
@@ -77,6 +92,7 @@ const CONTRACT_ADDRESSES = {
  */
 router.post(
   '/validate-tx',
+  transactionRateLimit,
   validateBody(validateTransactionSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { sessionToken, userAddress, type, creator, token, amount, poolAddress, timestamp } = req.body;
@@ -124,14 +140,11 @@ router.post(
         if (!tokenAddressForFund) {
           throw ApiError.badRequest(`Unsupported token: ${token}`);
         }
-        // Validate amount is positive number
+        // Validate amount format (basic validation only - proper decimals handled in service)
         try {
-          const amountBN = ethers.parseEther(amount);
-          if (amountBN <= 0) {
-            throw ApiError.badRequest('Amount must be greater than 0');
-          }
-        } catch {
-          throw ApiError.badRequest('Invalid amount format');
+          AmountValidator.validateBasicAmount(amount);
+        } catch (error) {
+          throw ApiError.badRequest(error instanceof Error ? error.message : 'Invalid amount format');
         }
         break;
 
@@ -142,14 +155,11 @@ router.post(
         if (!poolAddress || !ethers.isAddress(poolAddress)) {
           throw ApiError.badRequest('Valid pool address required for fundPool');
         }
-        // Validate amount is positive number
+        // Validate amount format (basic validation only - proper decimals handled in service)
         try {
-          const amountBN = ethers.parseEther(amount);
-          if (amountBN <= 0) {
-            throw ApiError.badRequest('Amount must be greater than 0');
-          }
-        } catch {
-          throw ApiError.badRequest('Invalid amount format');
+          AmountValidator.validateBasicAmount(amount);
+        } catch (error) {
+          throw ApiError.badRequest(error instanceof Error ? error.message : 'Invalid amount format');
         }
         break;
 
@@ -309,6 +319,7 @@ router.post(
  */
 router.post(
   '/prepare-tx',
+  transactionRateLimit,
   validateBody(prepareTransactionSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { type, sessionToken, creator, token, amount, poolAddress } = req.body;
@@ -349,10 +360,7 @@ router.post(
           throw ApiError.badRequest(`Unsupported token: ${token}`);
         }
 
-        const amountNumberForCreateFund = parseFloat(amount);
-        if (isNaN(amountNumberForCreateFund) || amountNumberForCreateFund <= 0) {
-          throw ApiError.badRequest('Invalid amount format');
-        }
+        const amountNumberForCreateFund = AmountValidator.validateBasicAmount(amount);
 
         transactionData = await factoryService.prepareCreateAndFundTransaction(tokenAddressForFund, creator, amountNumberForCreateFund);
         break;
@@ -362,10 +370,7 @@ router.post(
           throw ApiError.badRequest('Amount and pool address required for fundPool');
         }
 
-        const amountNumber = parseFloat(amount);
-        if (isNaN(amountNumber) || amountNumber <= 0) {
-          throw ApiError.badRequest('Invalid amount format');
-        }
+        const amountNumber = AmountValidator.validateBasicAmount(amount);
 
         transactionData = await factoryService.prepareFundPoolTransaction(poolAddress, amountNumber, userAddress);
         break;
@@ -406,7 +411,7 @@ router.post(
       transactionType: type,
       status: 'pending',
       transactionParams,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+      expiresAt: new Date(Date.now() + 3 * 60 * 1000) // 3 minutes for security
     });
 
     await transactionSession.save();
@@ -572,6 +577,7 @@ router.post(
  */
 router.post(
   '/finalize-factory',
+  transactionRateLimit,
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { txHash, sessionId, metadata } = req.body;
 
@@ -641,20 +647,35 @@ router.post(
       if (nbTasks === 0) {
         throw ApiError.badRequest('No tasks found in apps');
       }
-      const pricePerDemo = metadata.fundingAmount ? parseFloat(metadata.fundingAmount) / nbTasks : 1.0;
-      const factory = await createFactoryWithApps(
-        poolAddress,
-        creatorAddress,
-        metadata.name,
-        skills,
-        {
-          type: 'ERC20',
-          symbol: tokenSymbol,
-          address: tokenAddress.toLowerCase(),
-          decimals: 18
-        },
-        pricePerDemo
-      );
+      const pricePerDemo = metadata.fundingAmount ? AmountValidator.validateBasicAmount(metadata.fundingAmount) / nbTasks : 1.0;
+      
+      // Use MongoDB transaction for atomicity
+      const dbSession = await mongoose.startSession();
+      dbSession.startTransaction();
+      
+      let factory;
+      try {
+        factory = await createFactoryWithApps(
+          poolAddress,
+          creatorAddress,
+          metadata.name,
+          skills,
+          {
+            type: 'ERC20',
+            symbol: tokenSymbol,
+            address: tokenAddress.toLowerCase(),
+            decimals: 18
+          },
+          pricePerDemo
+        );
+        
+        await dbSession.commitTransaction();
+      } catch (error) {
+        await dbSession.abortTransaction();
+        throw error;
+      } finally {
+        dbSession.endSession();
+      }
 
       res.status(200).json(successResponse({
         poolAddress,

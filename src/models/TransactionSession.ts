@@ -10,7 +10,7 @@ export interface ITransactionSession extends Document {
   transactionParams?: any;   // Transaction parameters for debugging
   createdAt: Date;
   updatedAt: Date;
-  expiresAt: Date;           // Expires after 10 minutes
+  expiresAt: Date;           // Expires after 3 minutes
 }
 
 const TransactionSessionSchema = new Schema<ITransactionSession>({
