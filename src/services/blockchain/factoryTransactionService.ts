@@ -1,4 +1,6 @@
 import { ethers } from 'ethers';
+import { AmountValidator } from '../../utils/amountValidation.ts';
+import { ApiError } from '../../middleware/types/errors.ts';
 import RewardPoolFactoryABI from '../../contracts/abis/RewardPoolFactory.json' with { type: 'json' };
 import ClaimRouterABI from '../../contracts/abis/ClaimRouter.json' with { type: 'json' };
 import RewardPoolImplementationABI from '../../contracts/abis/RewardPoolImplementation.json' with { type: 'json' };
@@ -85,7 +87,7 @@ class FactoryService {
         // Check if token is allowed
         const isAllowed = await factory.allowedTokens(token);
         if (!isAllowed) {
-            throw new Error(`Token ${token} is not in the factory allowlist`);
+            throw ApiError.badRequest(`Token ${token} is not in the factory allowlist`);
         }
 
         // Get current nonce for this creator/token pair (multiple pools allowed)
@@ -134,7 +136,7 @@ class FactoryService {
         // Check if token is allowed
         const isAllowed = await factory.allowedTokens(token);
         if (!isAllowed) {
-            throw new Error(`Token ${token} is not in the factory allowlist`);
+            throw ApiError.badRequest(`Token ${token} is not in the factory allowlist`);
         }
 
         // Get current nonce for this creator/token pair
@@ -142,36 +144,13 @@ class FactoryService {
 
         // Get token details and validate amounts
         const tokenContract = new ethers.Contract(token, ERC20_ABI, this.provider);
-        const decimals = await tokenContract.decimals();
+        const [decimals, tokenSymbol] = await Promise.all([
+            tokenContract.decimals(),
+            tokenContract.symbol()
+        ]);
         
-        // Strict amount validation
-        const numAmount = Number(amount);
-        if (isNaN(numAmount) || numAmount <= 0) {
-            throw new Error(`Invalid amount: ${amount}. Must be a positive number.`);
-        }
-
-        // Check for scientific notation and very small numbers
-        const amountStr = amount.toString();
-        if (amountStr.includes('e') || amountStr.includes('E')) {
-            throw new Error(`Scientific notation not supported: ${amount}. Please use decimal format.`);
-        }
-
-        const tokenDecimals = Number(decimals);
-
-        // Validate minimum amount based on token decimals
-        const minAmount = 1 / Math.pow(10, tokenDecimals);
-        if (numAmount < minAmount) {
-            throw new Error(`Amount too small. Minimum amount is ${minAmount} ${await tokenContract.symbol()}`);
-        }
-
-        // Validate decimal places don't exceed token precision
-        const decimalPlaces = (amountStr.split('.')[1] || '').length;
-        if (decimalPlaces > tokenDecimals) {
-            throw new Error(`Too many decimal places. Maximum ${tokenDecimals} decimals allowed for this token.`);
-        }
-
-        // Use exact string to avoid floating point precision issues
-        const amountWei = ethers.parseUnits(amountStr, decimals);
+        // Use centralized amount validation with proper token decimals
+        const amountWei = AmountValidator.validateAndParseAmount(amount.toString(), Number(decimals), tokenSymbol);
 
         // Check balance and allowance
         const [balance, allowance] = await Promise.all([
@@ -231,36 +210,13 @@ class FactoryService {
         // Get token details
         const tokenAddress = await vault.token();
         const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
-        const decimals = await tokenContract.decimals();
+        const [decimals, tokenSymbol] = await Promise.all([
+            tokenContract.decimals(),
+            tokenContract.symbol()
+        ]);
 
-        // Strict amount validation
-        const numAmount = Number(amount);
-        if (isNaN(numAmount) || numAmount <= 0) {
-            throw new Error(`Invalid amount: ${amount}. Must be a positive number.`);
-        }
-
-        // Check for scientific notation and very small numbers
-        const amountStr = amount.toString();
-        if (amountStr.includes('e') || amountStr.includes('E')) {
-            throw new Error(`Scientific notation not supported: ${amount}. Please use decimal format.`);
-        }
-
-        const tokenDecimals = Number(decimals);
-
-        // Validate minimum amount based on token decimals
-        const minAmount = 1 / Math.pow(10, tokenDecimals);
-        if (numAmount < minAmount) {
-            throw new Error(`Amount too small. Minimum amount is ${minAmount} ${await tokenContract.symbol()}`);
-        }
-
-        // Validate decimal places don't exceed token precision
-        const decimalPlaces = (amountStr.split('.')[1] || '').length;
-        if (decimalPlaces > tokenDecimals) {
-            throw new Error(`Too many decimal places. Maximum ${tokenDecimals} decimals allowed for this token.`);
-        }
-
-        // Use exact string to avoid floating point precision issues
-        const amountWei = ethers.parseUnits(amountStr, decimals);
+        // Use centralized amount validation with proper token decimals
+        const amountWei = AmountValidator.validateAndParseAmount(amount.toString(), Number(decimals), tokenSymbol);
 
         // Check current allowance
         const allowance = await tokenContract.allowance(funderAddress, poolAddress);
@@ -464,7 +420,7 @@ export function createFactoryService(): FactoryService {
     };
 
     if (!config.factoryAddress || !config.claimRouterAddress || !config.publisherAddress) {
-        throw new Error(`Missing blockchain configuration environment variables (REWARD_POOL_FACTORY_ADDRESS, CLAIM_ROUTER_ADDRESS, PUBLISHER_ADDRESS)`);
+        throw ApiError.internalError(`Missing blockchain configuration environment variables (REWARD_POOL_FACTORY_ADDRESS, CLAIM_ROUTER_ADDRESS, PUBLISHER_ADDRESS)`);
     }
 
     return new FactoryService(config);

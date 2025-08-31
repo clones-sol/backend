@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { ApiError } from '../../middleware/types/errors.ts';
 
 /**
  * Service for generating EIP-712 claim authorization signatures
@@ -15,7 +16,7 @@ class ClaimAuthService {
 
   constructor(rpcUrl: string, publisherPrivateKey: string, factoryAddress: string, oldPublisherPrivateKey?: string) {
     if (!publisherPrivateKey) {
-      throw new Error('PUBLISHER_PRIVATE_KEY is required for claim authorization signatures');
+      throw ApiError.internalError('PUBLISHER_PRIVATE_KEY is required for claim authorization signatures');
     }
 
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -143,7 +144,7 @@ class ClaimAuthService {
     console.log('Signer wallet:', signerWallet);
     console.log('Publisher used:', publisherUsed);
     if (signerWallet.address.toLowerCase() !== publisherUsed.toLowerCase()) {
-      throw new Error(`Publisher key mismatch. Expected ${publisherUsed}, got ${signerWallet.address}`);
+      throw ApiError.internalError(`Publisher key mismatch. Expected ${publisherUsed}, got ${signerWallet.address}`);
     }
 
     console.log(`Using publisher ${publisherUsed} for signing (grace period: ${publisherInfo.isInGracePeriod})`);
@@ -153,11 +154,11 @@ class ClaimAuthService {
     
     // Validate amount progression
     if (newCumulativeAmount <= 0) {
-      throw new Error(`Invalid cumulative amount: ${newCumulativeAmount}. Must be positive.`);
+      throw ApiError.badRequest(`Invalid cumulative amount: ${newCumulativeAmount}. Must be positive.`);
     }
     
     if (newCumulativeAmount <= alreadyClaimed) {
-      throw new Error(`New cumulative amount (${newCumulativeAmount}) must be greater than already claimed (${alreadyClaimed})`);
+      throw ApiError.badRequest(`New cumulative amount (${newCumulativeAmount}) must be greater than already claimed (${alreadyClaimed})`);
     }
     
     const newClaimableAmount = newCumulativeAmount - alreadyClaimed;
@@ -245,11 +246,11 @@ export function createClaimAuthService(): ClaimAuthService {
   const oldPublisherPrivateKey = process.env.OLD_PUBLISHER_PRIVATE_KEY; // Optional during rotation
 
   if (!publisherPrivateKey) {
-    throw new Error('PUBLISHER_PRIVATE_KEY environment variable is required');
+    throw ApiError.internalError('PUBLISHER_PRIVATE_KEY environment variable is required');
   }
 
   if (!factoryAddress) {
-    throw new Error('REWARD_POOL_FACTORY_ADDRESS environment variable is required');
+    throw ApiError.internalError('REWARD_POOL_FACTORY_ADDRESS environment variable is required');
   }
 
   return new ClaimAuthService(rpcUrl, publisherPrivateKey, factoryAddress, oldPublisherPrivateKey);
