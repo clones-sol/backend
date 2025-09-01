@@ -104,7 +104,8 @@ vi.mock('../../utils/addressValidation.ts', () => ({
     if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
       throw new Error('Must be a valid Ethereum address')
     }
-  })
+  }),
+  mongooseAddressValidator: vi.fn(() => true)
 }))
 
 // Mock ethers to prevent any real provider instantiation

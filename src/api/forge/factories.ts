@@ -13,6 +13,7 @@ import { createFactoryService } from '../../services/blockchain/factoryTransacti
 import BlockchainService from '../../services/blockchain/index.ts'
 import { getTokenContractAddress, supportedTokens } from '../../services/blockchain/tokens.ts'
 import { generateAppsForFactory } from '../../services/factory/factoryDatabaseService.ts'
+import { getFactoryDemonstrationCount } from '../../utils/factoryStats.ts'
 import {
   type Factory,
   type FactorySearchCriteria,
@@ -326,19 +327,16 @@ router.get(
       throw ApiError.notFound('Factory not found')
     }
 
-    const balance = await blockchainService.getTokenBalance(
-      factory.token.address,
-      factory.poolAddress
-    )
-    console.log('balance', balance)
-    console.log('factory', factory)
-    console.log('factory.token.address', factory.token.address)
-    console.log('factory.ownerAddress', factory.ownerAddress)
+    const [balance, demonstrations] = await Promise.all([
+      blockchainService.getTokenBalance(factory.token.address, factory.poolAddress),
+      getFactoryDemonstrationCount(id)
+    ])
 
     res.json(
       successResponse({
         ...factory,
-        balance
+        balance,
+        demonstrations
       })
     )
   })

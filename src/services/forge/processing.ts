@@ -203,7 +203,7 @@ export async function processNextInQueue() {
             // Find the task within the factory's apps
             let task = factory.apps
               .flatMap((app) => app.tasks)
-              .find((t: any) => t.id === submission?.meta?.quest.task_id)
+              .find((t) => t.id === submission?.meta?.quest.task_id)
 
             if (!task) {
               reward = 0
