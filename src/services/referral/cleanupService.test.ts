@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { MongoMemoryServer } from 'mongodb-memory-server'
 import mongoose from 'mongoose'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -386,8 +387,7 @@ describe('ReferralCleanupService', () => {
 
     it('should return null if unable to generate unique code', async () => {
       // Mock crypto.randomBytes to always return the same value
-      const originalRandomBytes = require('node:crypto').randomBytes
-      require('node:crypto').randomBytes = vi.fn().mockReturnValue(Buffer.from([0, 0, 0, 0, 0, 0]))
+      vi.spyOn(crypto, 'randomBytes').mockImplementation((() => Buffer.from([0, 0, 0, 0, 0, 0])) as any)
 
       // Create expired code
       await ReferralCodeModel.create({
@@ -410,7 +410,7 @@ describe('ReferralCleanupService', () => {
       expect(newCode).toBeNull()
 
       // Restore original function
-      require('node:crypto').randomBytes = originalRandomBytes
+      vi.restoreAllMocks()
     })
   })
 })
