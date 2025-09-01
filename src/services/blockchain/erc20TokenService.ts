@@ -1,4 +1,5 @@
 import { ethers } from "ethers";
+import { tokenCache } from '../../utils/tokenCache.js';
 
 export type Erc20Artifact = {
     abi: any[];
@@ -123,8 +124,8 @@ export async function createMintTransaction(
     artifactAbi: any[]
 ): Promise<ethers.TransactionRequest> {
     const erc20 = new ethers.Contract(tokenAddress, artifactAbi, provider);
-    const decimals: number = await erc20.decimals();
-    const rawAmount = ethers.parseUnits(amount.toString(), decimals);
+    const metadata = await tokenCache.getTokenMetadata(tokenAddress, provider);
+    const rawAmount = ethers.parseUnits(amount.toString(), metadata.decimals);
 
     // Populate calldata for mint(recipient, rawAmount)
     const data: string = await erc20.interface.encodeFunctionData("mint", [

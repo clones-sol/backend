@@ -372,54 +372,6 @@ export async function processNextInQueue() {
             reward = Math.max(0, Math.min(maxReward, (maxReward * clampedScore) / 100));
             console.log('Calculated reward:', reward);
 
-            // Generate claim authorization signature if reward > 0 and claimAuthService is available
-            const tokenAddress = getTokenContractAddress(factory.token.symbol);
-
-            if (reward && reward > 0 && claimAuthService && factory.poolAddress) {
-              console.log(
-                `Generating claim authorization for submission ${submissionId} to user ${submission.address}`
-              );
-
-              try {
-                // Calculate user's total cumulative earned rewards for this pool
-                const userCumulativeEarned = await calculateUserCumulativeRewards(
-                  submission.address,
-                  factory._id.toString()
-                );
-
-                console.log(`User ${submission.address} cumulative earned: ${userCumulativeEarned} (including current: ${reward})`);
-
-                // Generate claim authorization signature with proper cumulative amount
-                claimAuthorization = await claimAuthService.generateClaimAuthorization(
-                  factory.poolAddress,
-                  submission.address,
-                  userCumulativeEarned + reward // Total earned including current reward
-                );
-
-                console.log(`Claim authorization generated for submission ${submissionId}, cumulative amount: ${userCumulativeEarned + reward}, claimable: ${claimAuthorization.newClaimableAmount}, publisher: ${claimAuthorization.publisherUsed}`);
-
-                onChainReward = {
-                  tokenAddress: tokenAddress,
-                  poolAddress: factory.poolAddress,
-                  amount: reward, // Individual reward for this submission
-                  submissionId: submissionId,
-                  txHash: '', // No immediate tx, farmer will claim later
-                  timestamp: Date.now(),
-                  cumulativeAmount: userCumulativeEarned + reward // Total cumulative earned
-                };
-
-                gradeResult.reasoning = `( system: claim authorization generated - farmer can claim ${claimAuthorization.newClaimableAmount.toFixed(2)} ${factory.token.symbol} [total earned: ${(userCumulativeEarned + reward).toFixed(2)}, already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}] ) ${gradeResult.reasoning}`;
-              } catch (error) {
-                console.error('Claim authorization generation failed:', error);
-                reward = 0;
-                gradeResult.reasoning = `( system: no reward given - claim authorization failed ) ${gradeResult.reasoning}`;
-              }
-            } else if (reward > 0 && (!claimAuthService || !factory.poolAddress)) {
-              console.log('ClaimAuthService or poolAddress not available - reward set to 0');
-              reward = 0;
-              gradeResult.reasoning = `( system: no reward given - claim authorization service unavailable ) ${gradeResult.reasoning}`;
-            }
-
             break; // Exit retry loop if successful
           } catch (error) {
             retries--;
@@ -443,6 +395,63 @@ export async function processNextInQueue() {
       submission.onChainReward = onChainReward;
       submission.status = ForgeSubmissionProcessingStatus.COMPLETED;
       await submission.save();
+
+      // Generate claim authorization signature AFTER submission is saved as COMPLETED
+      // This ensures calculateUserCumulativeRewards() includes the current submission
+      if (factory && reward !== undefined && reward > 0 && claimAuthService && factory.poolAddress) {
+        console.log(
+          `Generating claim authorization for submission ${submissionId} to user ${submission.address}`
+        );
+
+        try {
+          const tokenAddress = getTokenContractAddress(factory.token.symbol);
+
+          // Calculate user's total cumulative earned rewards for this pool (now includes current submission)
+          const userCumulativeEarned = await calculateUserCumulativeRewards(
+            submission.address,
+            factory._id.toString()
+          );
+
+          console.log(`User ${submission.address} cumulative earned: ${userCumulativeEarned} (includes current submission)`);
+
+          // Generate claim authorization signature with proper cumulative amount
+          claimAuthorization = await claimAuthService.generateClaimAuthorization(
+            factory.poolAddress,
+            submission.address,
+            userCumulativeEarned // Total earned including current reward (already saved)
+          );
+
+          console.log(`Claim authorization generated for submission ${submissionId}, cumulative amount: ${userCumulativeEarned}, claimable: ${claimAuthorization.newClaimableAmount}, publisher: ${claimAuthorization.publisherUsed}`);
+
+          onChainReward = {
+            tokenAddress: tokenAddress,
+            poolAddress: factory.poolAddress,
+            amount: reward, // Individual reward for this submission
+            submissionId: submissionId,
+            txHash: '', // No immediate tx, farmer will claim later
+            timestamp: Date.now(),
+            cumulativeAmount: userCumulativeEarned // Total cumulative earned (includes current)
+          };
+
+          // Update the grade result reasoning and on-chain reward
+          submission.grade_result.reasoning = `( system: claim authorization generated - farmer can claim ${claimAuthorization.newClaimableAmount.toFixed(2)} ${factory.token.symbol} [total earned: ${userCumulativeEarned.toFixed(2)}, already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}] ) ${submission.grade_result.reasoning}`;
+          submission.onChainReward = onChainReward;
+          
+          // Save updated claim authorization data
+          await submission.save();
+        } catch (error) {
+          console.error('Claim authorization generation failed:', error);
+          // Update submission to reflect the claim authorization failure
+          submission.reward = 0;
+          submission.grade_result.reasoning = `( system: no reward given - claim authorization failed ) ${submission.grade_result.reasoning}`;
+          await submission.save();
+        }
+      } else if (factory && reward !== undefined && reward > 0 && (!claimAuthService || !factory.poolAddress)) {
+        console.log('ClaimAuthService or poolAddress not available - updating reward to 0');
+        submission.reward = 0;
+        submission.grade_result.reasoning = `( system: no reward given - claim authorization service unavailable ) ${submission.grade_result.reasoning}`;
+        await submission.save();
+      }
 
     } catch (error) {
       throw new Error(`Failed to process submission: ${(error as Error).message}`);

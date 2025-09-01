@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { createFactoryService, ClaimData } from './factoryTransactionService.ts';
+import { tokenCache } from '../../utils/tokenCache.js';
 import BlockchainService from './index.ts';
 
 /**
@@ -179,13 +180,24 @@ class GasEstimationService {
     ): Promise<ClaimGasAnalysis> {
         const gasEstimate = await this.estimateBatchClaimGas(claims, fromAddress);
 
-        // Calculate total net reward (approximate - doesn't account for already claimed)
-        const totalGrossReward = claims.reduce((sum, claim) =>
-            sum + parseFloat(ethers.formatUnits(claim.cumulativeAmount, DEFAULT_TOKEN_DECIMALS)), 0);
-
+        // Calculate total net reward by fetching actual token decimals
+        let totalGrossReward = 0;
+        
+        for (const claim of claims) {
+            // Get token contract from vault to fetch decimals
+            const vault = new ethers.Contract(claim.vault, [
+                'function token() external view returns (address)'
+            ], this.provider);
+            const tokenAddress = await vault.token();
+            
+            const metadata = await tokenCache.getTokenMetadata(tokenAddress, this.provider);
+            const claimAmount = parseFloat(ethers.formatUnits(claim.cumulativeAmount, metadata.decimals));
+            totalGrossReward += claimAmount;
+        }
         // Approximate fee
         const totalNetReward = totalGrossReward * NET_REWARD_FEE_PERCENTAGE;
-        const netRewardStr = totalNetReward.toFixed(DEFAULT_TOKEN_DECIMALS);
+        // Display with up to 6 decimals for readability
+        const netRewardStr = totalNetReward.toFixed(6);
         const netRewardUsd = totalNetReward * tokenPriceUsd;
 
         // Calculate gas cost as percentage of net reward

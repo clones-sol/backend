@@ -72,6 +72,48 @@ vi.mock('../../services/blockchain/factoryTransactionService.ts', () => ({
     createFactoryService: () => mockFactoryService,
 }));
 
+// Mock tokenCache to prevent network calls
+vi.mock('../../utils/tokenCache.js', () => ({
+    tokenCache: {
+        getTokenMetadata: vi.fn(),
+        validateAndParseAmountWithMetadata: vi.fn(),
+        cleanup: vi.fn(),
+        clear: vi.fn(),
+        getStats: vi.fn(),
+    }
+}));
+
+// Mock blockchain service to prevent network calls
+vi.mock('../../services/blockchain/index.ts', () => ({
+    default: vi.fn().mockImplementation(() => ({
+        getTokenBalance: vi.fn(),
+        getFeeData: vi.fn(),
+        getEthPriceInUSD: vi.fn(),
+    }))
+}));
+
+// Mock address validation to prevent network calls
+vi.mock('../../utils/addressValidation.ts', () => ({
+    isValidAddress: vi.fn((address: string) => {
+        return typeof address === 'string' && /^0x[a-fA-F0-9]{40}$/.test(address);
+    }),
+    validateAddress: vi.fn((address: string) => {
+        if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+            throw new Error('Must be a valid Ethereum address');
+        }
+    }),
+}));
+
+// Mock ethers to prevent any real provider instantiation
+vi.mock('ethers', () => ({
+    ethers: {
+        JsonRpcProvider: vi.fn(),
+        Contract: vi.fn(),
+        parseUnits: vi.fn(),
+        formatUnits: vi.fn(),
+    }
+}));
+
 let app: express.Express;
 let mongoServer: MongoMemoryServer;
 

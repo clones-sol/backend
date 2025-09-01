@@ -71,8 +71,11 @@ export class GraphQLService {
   private config: SubgraphConfig;
 
   constructor() {
+    if (!process.env.GRAPH_ENDPOINT) {
+      throw new Error('GRAPH_ENDPOINT environment variable must be set');
+    }
     this.config = {
-      endpoint: process.env.GRAPH_ENDPOINT || 'https://api.studio.thegraph.com/query/119491/clones-factory-base-sepolia/version/latest',
+      endpoint: process.env.GRAPH_ENDPOINT,
       timeout: 30000,
       retries: 3
     };
@@ -425,7 +428,7 @@ export class GraphQLService {
 
     const whereClause = whereConditions.length > 0 ? `where: { ${whereConditions.join(', ')} }` : '';
     const variableClause = variableDefinitions.length > 0 ? `(${variableDefinitions.join(', ')})` : '';
-    
+
     const orderBy = criteria.orderBy || 'createdAt';
     const orderDirection = criteria.orderDirection || 'desc';
     const first = criteria.limit || 20;

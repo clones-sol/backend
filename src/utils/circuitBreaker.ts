@@ -28,14 +28,19 @@ export class CircuitBreaker {
       }
     }
 
+    let timeoutId: NodeJS.Timeout | undefined;
+    
     try {
-      // Add timeout to operation
+      // Add timeout to operation with proper cleanup
       const result = await Promise.race([
         operation(),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Operation timeout')), this.timeoutMs)
-        )
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('Operation timeout')), this.timeoutMs);
+        })
       ]);
+
+      // Clear timeout if operation completed first
+      if (timeoutId) clearTimeout(timeoutId);
 
       // Success - reset if we were in HALF_OPEN
       if (this.state === 'HALF_OPEN') {
@@ -45,6 +50,9 @@ export class CircuitBreaker {
 
       return result;
     } catch (error) {
+      // Clear timeout on error as well
+      if (timeoutId) clearTimeout(timeoutId);
+      
       this.failures++;
       this.lastFailTime = Date.now();
 

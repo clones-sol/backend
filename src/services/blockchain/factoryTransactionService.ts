@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { AmountValidator } from '../../utils/amountValidation.ts';
+import { tokenCache } from '../../utils/tokenCache.js';
 import { ApiError } from '../../middleware/types/errors.ts';
 import { CircuitBreakerManager } from '../../utils/circuitBreaker.ts';
 import RewardPoolFactoryABI from '../../contracts/abis/RewardPoolFactory.json' with { type: 'json' };
@@ -124,6 +125,7 @@ class FactoryService {
         tokenInfo: {
             address: string;
             decimals: number;
+            symbol: string;
             amountWei: string;
         };
         validations: {
@@ -147,15 +149,13 @@ class FactoryService {
         // Get current nonce for this creator/token pair
         const currentNonce = await factory.poolNonce(creator, token);
 
-        // Get token details and validate amounts
+        // Get token metadata with caching and validate amount
         const tokenContract = new ethers.Contract(token, ERC20_ABI, this.provider);
-        const [decimals, tokenSymbol] = await Promise.all([
-            tokenContract.decimals(),
-            tokenContract.symbol()
-        ]);
-
-        // Use centralized amount validation with proper token decimals
-        const amountWei = AmountValidator.validateAndParseAmount(amount.toString(), Number(decimals), tokenSymbol);
+        const { amountWei, metadata } = await tokenCache.validateAndParseAmountWithMetadata(
+            amount.toString(),
+            token,
+            this.provider
+        );
 
         // Check balance and allowance
         const [balance, allowance] = await Promise.all([
@@ -173,7 +173,8 @@ class FactoryService {
             args: [token, amountWei.toString()],
             tokenInfo: {
                 address: token,
-                decimals: Number(decimals),
+                decimals: metadata.decimals,
+                symbol: metadata.symbol,
                 amountWei: amountWei.toString(),
             },
             validations: {
@@ -202,6 +203,7 @@ class FactoryService {
         tokenInfo: {
             address: string;
             decimals: number;
+            symbol: string;
             amountWei: string;
         };
         validations: {
@@ -214,16 +216,14 @@ class FactoryService {
 
         // Get token details
         const tokenAddress = await vault.token();
-        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
-        const [decimals, tokenSymbol] = await Promise.all([
-            tokenContract.decimals(),
-            tokenContract.symbol()
-        ]);
-
-        // Use centralized amount validation with proper token decimals
-        const amountWei = AmountValidator.validateAndParseAmount(amount.toString(), Number(decimals), tokenSymbol);
+        const { amountWei, metadata } = await tokenCache.validateAndParseAmountWithMetadata(
+            amount.toString(),
+            tokenAddress,
+            this.provider
+        );
 
         // Check current allowance
+        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
         const allowance = await tokenContract.allowance(funderAddress, poolAddress);
         const sufficientAllowance = allowance >= amountWei;
 
@@ -234,7 +234,8 @@ class FactoryService {
             args: [amountWei.toString()],
             tokenInfo: {
                 address: tokenAddress,
-                decimals: Number(decimals),
+                decimals: metadata.decimals,
+                symbol: metadata.symbol,
                 amountWei: amountWei.toString(),
             },
             validations: {
@@ -278,10 +279,8 @@ class FactoryService {
         // Get token decimals for proper amount formatting
         const vault = new ethers.Contract(vaultAddress, VAULT_ABI, this.provider);
         const tokenAddress = await vault.token();
-        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
-        const decimals = await tokenContract.decimals();
-
-        const cumulativeAmountWei = ethers.parseUnits(cumulativeAmount.toString(), decimals);
+        const metadata = await tokenCache.getTokenMetadata(tokenAddress, this.provider);
+        const cumulativeAmountWei = ethers.parseUnits(cumulativeAmount.toString(), metadata.decimals);
 
         const message = {
             account,
@@ -335,10 +334,8 @@ class FactoryService {
             // Get token decimals for proper amount formatting
             const vault = new ethers.Contract(claim.vaultAddress, VAULT_ABI, this.provider);
             const tokenAddress = await vault.token();
-            const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
-            const decimals = await tokenContract.decimals();
-
-            const cumulativeAmountWei = ethers.parseUnits(claim.cumulativeAmount.toString(), decimals);
+            const metadata = await tokenCache.getTokenMetadata(tokenAddress, this.provider);
+            const cumulativeAmountWei = ethers.parseUnits(claim.cumulativeAmount.toString(), metadata.decimals);
 
             claimDataForSigning.push({
                 ...signatureData,
@@ -368,20 +365,21 @@ class FactoryService {
         const factory = await vault.getFactory();
 
         const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
-        const [balance, decimals] = await Promise.all([
+        const [balance, metadata] = await Promise.all([
             tokenContract.balanceOf(poolAddress),
-            tokenContract.decimals()
+            tokenCache.getTokenMetadata(tokenAddress, this.provider)
         ]);
 
         const result: any = {
             tokenAddress,
-            tokenBalance: ethers.formatUnits(balance, decimals),
+            tokenSymbol: metadata.symbol,
+            tokenBalance: ethers.formatUnits(balance, metadata.decimals),
             factory
         };
 
         if (account) {
             const claimed = await vault.alreadyClaimed(account);
-            result.alreadyClaimed = ethers.formatUnits(claimed, decimals);
+            result.alreadyClaimed = ethers.formatUnits(claimed, metadata.decimals);
         }
 
         return result;
