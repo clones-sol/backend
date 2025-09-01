@@ -1,6 +1,6 @@
-import { ValidationRules, ValidationSchema } from '../../middleware/validator.ts';
-import { getSupportedTokenSymbols } from '../../services/blockchain/tokens.ts';
-import { ContentFilterService } from '../../services/validation/contentFilter.ts';
+import { ValidationRules, type ValidationSchema } from '../../middleware/validator.ts'
+import { getSupportedTokenSymbols } from '../../services/blockchain/tokens.ts'
+import { ContentFilterService } from '../../services/validation/contentFilter.ts'
 
 /**
  * Schema for wallet connection request
@@ -13,15 +13,15 @@ export const connectWalletSchema: ValidationSchema = {
       ValidationRules.sanitizeString(),
       ValidationRules.minLength(8),
       ValidationRules.maxLength(256),
-      ValidationRules.matches(/^[a-zA-Z0-9_-]+$/, 'Token must contain only alphanumeric characters, underscores and hyphens')
+      ValidationRules.matches(
+        /^[a-zA-Z0-9_-]+$/,
+        'Token must contain only alphanumeric characters, underscores and hyphens'
+      )
     ]
   },
   address: {
     required: true,
-    rules: [
-      ValidationRules.isString(),
-      ValidationRules.isEVMAddress()
-    ]
+    rules: [ValidationRules.isString(), ValidationRules.isEVMAddress()]
   },
   signature: {
     required: false,
@@ -36,15 +36,12 @@ export const connectWalletSchema: ValidationSchema = {
     rules: [
       ValidationRules.isNumber(),
       ValidationRules.min(0),
-      ValidationRules.customValidator(
-        (value: number) => {
-          const now = Date.now();
-          const fiveMinutesAgo = now - (5 * 60 * 1000);
-          const oneHourFromNow = now + (60 * 60 * 1000);
-          return value >= fiveMinutesAgo && value <= oneHourFromNow;
-        },
-        'Timestamp must be within valid time range'
-      )
+      ValidationRules.customValidator((value: number) => {
+        const now = Date.now()
+        const fiveMinutesAgo = now - 5 * 60 * 1000
+        const oneHourFromNow = now + 60 * 60 * 1000
+        return value >= fiveMinutesAgo && value <= oneHourFromNow
+      }, 'Timestamp must be within valid time range')
     ]
   },
   referralCode: {
@@ -59,7 +56,7 @@ export const connectWalletSchema: ValidationSchema = {
       )
     ]
   }
-};
+}
 
 /**
  * Schema for checking wallet connection
@@ -74,7 +71,7 @@ export const checkConnectionSchema: ValidationSchema = {
       ValidationRules.maxLength(256)
     ]
   }
-};
+}
 
 export const getBalanceSchema: ValidationSchema = {
   symbol: {
@@ -86,21 +83,21 @@ export const getBalanceSchema: ValidationSchema = {
       ValidationRules.isIn(getSupportedTokenSymbols(), 'Unsupported token symbol')
     ]
   }
-};
+}
 
 export const addressParamSchema: ValidationSchema = {
   address: {
     required: true,
     rules: [ValidationRules.isEVMAddress()]
   }
-};
+}
 
 export const getNicknameSchema: ValidationSchema = {
   address: {
     required: true,
     rules: [ValidationRules.isEVMAddress()]
   }
-};
+}
 
 export const setNicknameSchema: ValidationSchema = {
   address: {
@@ -111,4 +108,4 @@ export const setNicknameSchema: ValidationSchema = {
     required: true,
     rules: [ValidationRules.isString(), ValidationRules.maxLength(25)]
   }
-};
+}

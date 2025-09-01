@@ -2,26 +2,47 @@
  * Content filtering service to prevent offensive or inappropriate referral codes.
  */
 
-import { REFERRAL_CODE_CHARS, REFERRAL_CODE_LENGTH } from '../../constants/referral.ts';
+import { REFERRAL_CODE_CHARS, REFERRAL_CODE_LENGTH } from '../../constants/referral.ts'
 
 // A list of forbidden codes. This should be expanded based on your needs.
 // Note: All codes must be possible with the character set: 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 const BLACKLISTED_CODES = new Set([
   // Common offensive words (examples using allowed chars)
-  'FVCK23', 'SHGT23', 'DAMN23', 'HECK23',
-  'NAZG23', 'HATE23', 'KYLL23', 'DEAD23',
+  'FVCK23',
+  'SHGT23',
+  'DAMN23',
+  'HECK23',
+  'NAZG23',
+  'HATE23',
+  'KYLL23',
+  'DEAD23',
 
   // Words that could be confused with brands
-  'GGOGLE', 'APPJLE', 'MYCRSF', 'AMZNWS',
+  'GGOGLE',
+  'APPJLE',
+  'MYCRSF',
+  'AMZNWS',
 
   // Reserved system-related codes
-  'ADMYN2', 'SYSTEM', 'RROOT2', 'NUJJ23',
-  'TEST23', 'DEBUG2', 'ERRR23', 'HACK23',
+  'ADMYN2',
+  'SYSTEM',
+  'RROOT2',
+  'NUJJ23',
+  'TEST23',
+  'DEBUG2',
+  'ERRR23',
+  'HACK23',
 
   // Potentially misleading codes
-  'FREE23', 'WYN234', 'BNUS23', 'GYFT23',
-  'MNEY23', 'CASH23', 'PRZE23', 'LUCKY2'
-]);
+  'FREE23',
+  'WYN234',
+  'BNUS23',
+  'GYFT23',
+  'MNEY23',
+  'CASH23',
+  'PRZE23',
+  'LUCKY2'
+])
 
 // Suspicious patterns (regex)
 const SUSPICIOUS_PATTERNS = [
@@ -29,14 +50,24 @@ const SUSPICIOUS_PATTERNS = [
   /^(.)\1{5}$/, // Same character repeated 6 times (e.g., AAAAAA)
   /^(..)\1{2}$/, // Pattern repeated 3 times (e.g., ABABAB)
   /^234567|765432$/, // Obvious sequences
-  /^[A-Z]{2}[2-9]{4}$/, // Format resembling official codes (e.g., AB1234)
-];
+  /^[A-Z]{2}[2-9]{4}$/ // Format resembling official codes (e.g., AB1234)
+]
 
 // Substrings to avoid
 const AVOID_SUBSTRINGS = [
-  'SEX', 'XXX', 'ASS', 'DYE', 'WAR', 'GVN',
-  'BAD', 'MAD', 'SAD', 'CRY', 'JYE', 'SYN'
-];
+  'SEX',
+  'XXX',
+  'ASS',
+  'DYE',
+  'WAR',
+  'GVN',
+  'BAD',
+  'MAD',
+  'SAD',
+  'CRY',
+  'JYE',
+  'SYN'
+]
 
 export class ContentFilterService {
   /**
@@ -46,36 +77,36 @@ export class ContentFilterService {
    */
   static async isReferralCodeAcceptable(code: string): Promise<boolean> {
     if (!code || typeof code !== 'string') {
-      return false;
+      return false
     }
 
-    const upperCode = code.toUpperCase();
+    const upperCode = code.toUpperCase()
 
     // Direct blacklist check
     if (BLACKLISTED_CODES.has(upperCode)) {
-      return false;
+      return false
     }
 
     // Check for suspicious patterns
     for (const pattern of SUSPICIOUS_PATTERNS) {
       if (pattern.test(upperCode)) {
-        return false;
+        return false
       }
     }
 
     // Check for substrings to avoid
     for (const substring of AVOID_SUBSTRINGS) {
       if (upperCode.includes(substring)) {
-        return false;
+        return false
       }
     }
 
     // Check for phonetic similarity to offensive words
-    if (this.containsPhoneticOffense(upperCode)) {
-      return false;
+    if (ContentFilterService.containsPhoneticOffense(upperCode)) {
+      return false
     }
 
-    return true;
+    return true
   }
 
   /**
@@ -90,14 +121,12 @@ export class ContentFilterService {
       .replace(/5/g, 'S')
       .replace(/7/g, 'T')
       .replace(/4/g, 'A')
-      .replace(/8/g, 'B');
+      .replace(/8/g, 'B')
 
     // List of phonetic offensive words
-    const phoneticOffenses = [
-      'FECK', 'SHTE', 'HEYL', 'KYLL', 'DETH'
-    ];
+    const phoneticOffenses = ['FECK', 'SHTE', 'HEYL', 'KYLL', 'DETH']
 
-    return phoneticOffenses.some(offense => phoneticCode.includes(offense));
+    return phoneticOffenses.some((offense) => phoneticCode.includes(offense))
   }
 
   /**
@@ -106,23 +135,28 @@ export class ContentFilterService {
    * @param count The number of alternatives to generate.
    * @returns An array of acceptable alternative codes.
    */
-  static async generateAlternativeCodes(originalCode: string, count: number = 3): Promise<string[]> {
-    const alternatives: string[] = [];
+  static async generateAlternativeCodes(
+    _originalCode: string,
+    count: number = 3
+  ): Promise<string[]> {
+    const alternatives: string[] = []
 
     for (let i = 0; i < count; i++) {
-      let newCode = '';
+      let newCode = ''
       for (let j = 0; j < REFERRAL_CODE_LENGTH; j++) {
-        newCode += REFERRAL_CODE_CHARS.charAt(Math.floor(Math.random() * REFERRAL_CODE_CHARS.length));
+        newCode += REFERRAL_CODE_CHARS.charAt(
+          Math.floor(Math.random() * REFERRAL_CODE_CHARS.length)
+        )
       }
 
-      if (await this.isReferralCodeAcceptable(newCode)) {
-        alternatives.push(newCode);
+      if (await ContentFilterService.isReferralCodeAcceptable(newCode)) {
+        alternatives.push(newCode)
       } else {
-        i--; // Retry if generated code is not acceptable
+        i-- // Retry if generated code is not acceptable
       }
     }
 
-    return alternatives;
+    return alternatives
   }
 
   /**
@@ -132,20 +166,22 @@ export class ContentFilterService {
    */
   static sanitizeInput(input: string): string {
     if (typeof input !== 'string') {
-      return '';
+      return ''
     }
 
-    return input
-      // Remove control characters
-      .replace(/[\x00-\x1F\x7F]/g, '')
-      // Remove dangerous HTML/XML characters
-      .replace(/[<>\"'&]/g, '')
-      // Remove suspicious Unicode characters (e.g., zero-width spaces)
-      .replace(/[\u200B-\u200D\uFEFF]/g, '')
-      // Limit length to prevent payload attacks
-      .substring(0, 1000)
-      // Trim whitespace
-      .trim();
+    return (
+      input
+        // Remove control characters
+        .replace(/[\x00-\x1F\x7F]/g, '')
+        // Remove dangerous HTML/XML characters
+        .replace(/[<>"'&]/g, '')
+        // Remove suspicious Unicode characters (e.g., zero-width spaces)
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        // Limit length to prevent payload attacks
+        .substring(0, 1000)
+        // Trim whitespace
+        .trim()
+    )
   }
 
   /**
@@ -155,25 +191,25 @@ export class ContentFilterService {
    */
   static isValidIdentifier(identifier: string): boolean {
     if (!identifier || typeof identifier !== 'string') {
-      return false;
+      return false
     }
 
     // Check for acceptable length
     if (identifier.length < 2 || identifier.length > 50) {
-      return false;
+      return false
     }
 
     // Check for acceptable format (letters, numbers, underscore, hyphen)
     if (!/^[a-zA-Z0-9_-]+$/.test(identifier)) {
-      return false;
+      return false
     }
 
     // Must not start with a number or special character
     if (!/^[a-zA-Z]/.test(identifier)) {
-      return false;
+      return false
     }
 
-    return true;
+    return true
   }
 
   /**
@@ -182,7 +218,7 @@ export class ContentFilterService {
    */
   static addToBlacklist(code: string): void {
     if (code && typeof code === 'string') {
-      BLACKLISTED_CODES.add(code.toUpperCase());
+      BLACKLISTED_CODES.add(code.toUpperCase())
     }
   }
 
@@ -192,7 +228,7 @@ export class ContentFilterService {
    */
   static removeFromBlacklist(code: string): void {
     if (code && typeof code === 'string') {
-      BLACKLISTED_CODES.delete(code.toUpperCase());
+      BLACKLISTED_CODES.delete(code.toUpperCase())
     }
   }
 
@@ -201,6 +237,6 @@ export class ContentFilterService {
    * @returns The number of items in the blacklist.
    */
   static getBlacklistSize(): number {
-    return BLACKLISTED_CODES.size;
+    return BLACKLISTED_CODES.size
   }
 }

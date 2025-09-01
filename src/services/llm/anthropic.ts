@@ -1,15 +1,20 @@
-import { Anthropic } from '@anthropic-ai/sdk';
-import { ILLMService, LLMConfig, StreamResponse, GenericModelMessage } from '../../types/index.ts';
+import { Anthropic } from '@anthropic-ai/sdk'
+import type {
+  GenericModelMessage,
+  ILLMService,
+  LLMConfig,
+  StreamResponse
+} from '../../types/index.ts'
 
 export class AnthropicService implements ILLMService {
-  private anthropic: Anthropic;
-  private config: LLMConfig;
+  private anthropic: Anthropic
+  private config: LLMConfig
 
   constructor(config: LLMConfig) {
-    this.config = config;
+    this.config = config
     this.anthropic = new Anthropic({
       apiKey: config.apiKey
-    });
+    })
   }
 
   async createChatCompletion(
@@ -19,8 +24,8 @@ export class AnthropicService implements ILLMService {
   ): Promise<StreamResponse> {
     try {
       // Extract system message if present
-      const systemMessage = messages.find((m) => m.role === 'system')?.content;
-      const filteredMessages = messages.filter((m) => m.role !== 'system');
+      const systemMessage = messages.find((m) => m.role === 'system')?.content
+      const filteredMessages = messages.filter((m) => m.role !== 'system')
 
       const apiParams: Anthropic.Beta.Messages.MessageCreateParams = {
         model: this.config.model,
@@ -38,24 +43,24 @@ export class AnthropicService implements ILLMService {
             display_number: 1
           }
         ]
-      };
+      }
 
-      const stream = await this.anthropic.beta.messages.create(apiParams);
-      if (!stream) throw new Error('Failed to create message stream');
+      const stream = await this.anthropic.beta.messages.create(apiParams)
+      if (!stream) throw new Error('Failed to create message stream')
 
       let currentToolCall: {
-        id: string;
-        name: string;
-        arguments: string;
-      } | null = null;
+        id: string
+        name: string
+        arguments: string
+      } | null = null
 
       return {
         async *[Symbol.asyncIterator]() {
           try {
             for await (const chunk of stream) {
               if (!chunk || typeof chunk !== 'object') {
-                console.warn('Received invalid chunk:', chunk);
-                continue;
+                console.warn('Received invalid chunk:', chunk)
+                continue
               }
 
               if (
@@ -68,17 +73,17 @@ export class AnthropicService implements ILLMService {
                   id: chunk.content_block.id,
                   name: chunk.content_block.name,
                   arguments: ''
-                };
+                }
               } else if (
                 chunk.type === 'content_block_delta' &&
                 chunk.delta?.type === 'input_json_delta' &&
                 currentToolCall &&
                 chunk.delta?.partial_json
               ) {
-                currentToolCall.arguments += chunk.delta.partial_json;
+                currentToolCall.arguments += chunk.delta.partial_json
               } else if (chunk.type === 'content_block_stop' && currentToolCall?.arguments) {
                 try {
-                  JSON.parse(currentToolCall.arguments); // Validate JSON
+                  JSON.parse(currentToolCall.arguments) // Validate JSON
                   yield {
                     type: 'tool_call',
                     function: {
@@ -86,14 +91,14 @@ export class AnthropicService implements ILLMService {
                       name: currentToolCall.name,
                       arguments: currentToolCall.arguments
                     }
-                  };
-                } catch (e) {
+                  }
+                } catch (_e) {
                   yield {
                     type: 'error',
                     message: 'Invalid tool call arguments'
-                  };
+                  }
                 }
-                currentToolCall = null;
+                currentToolCall = null
               } else if (
                 chunk.type === 'content_block_delta' &&
                 chunk.delta?.type === 'text_delta'
@@ -101,27 +106,27 @@ export class AnthropicService implements ILLMService {
                 yield {
                   type: 'text_delta',
                   delta: chunk.delta.text
-                };
+                }
               }
 
               const finishReason = (chunk as Anthropic.Beta.Messages.BetaRawMessageDeltaEvent).delta
-                ?.stop_reason;
+                ?.stop_reason
               if (finishReason && finishReason !== 'tool_use') {
-                yield { type: 'stop' };
+                yield { type: 'stop' }
               }
             }
           } catch (error) {
-            console.error('Error in Anthropic stream:', error);
+            console.error('Error in Anthropic stream:', error)
             yield {
               type: 'error',
               message: error instanceof Error ? error.message : 'Unknown error occurred'
-            };
+            }
           }
         }
-      };
+      }
     } catch (error) {
-      console.error('Anthropic Service Error:', error);
-      throw error;
+      console.error('Anthropic Service Error:', error)
+      throw error
     }
   }
 }

@@ -1,46 +1,46 @@
 export interface TokenInfo {
-    name: string;
-    decimals: number;
-    contractAddress: {
-        development: string;
-        test: string;
-        production: string;
-    };
+  name: string
+  decimals: number
+  contractAddress: {
+    development: string
+    test: string
+    production: string
+  }
 }
 
 export interface TokenConfig {
-    [symbol: string]: TokenInfo;
+  [symbol: string]: TokenInfo
 }
 
 export const supportedTokens: TokenConfig = {
-    USDC: {
-        name: 'USDC',
-        decimals: 6,
-        contractAddress: {
-            development: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-            test: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-            production: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
-        }
-    },
-    CLONES: {
-        name: 'CLONES',
-        decimals: 18,
-        contractAddress: {
-            development: '0x15eB86c7E54B350bf936d916Df33AEF697202E29',
-            test: '0x15eB86c7E54B350bf936d916Df33AEF697202E29',
-            production: '0xToBeAdded'
-        }
-    },
-    WETH: {
-        name: 'WETH (Base)',
-        decimals: 18,
-        contractAddress: {
-            development: '0x4200000000000000000000000000000000000006',
-            test: '0x4200000000000000000000000000000000000006',
-            production: '0x4200000000000000000000000000000000000006'
-        }
+  USDC: {
+    name: 'USDC',
+    decimals: 6,
+    contractAddress: {
+      development: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+      test: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+      production: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
     }
-};
+  },
+  CLONES: {
+    name: 'CLONES',
+    decimals: 18,
+    contractAddress: {
+      development: '0x15eB86c7E54B350bf936d916Df33AEF697202E29',
+      test: '0x15eB86c7E54B350bf936d916Df33AEF697202E29',
+      production: '0xToBeAdded'
+    }
+  },
+  WETH: {
+    name: 'WETH (Base)',
+    decimals: 18,
+    contractAddress: {
+      development: '0x4200000000000000000000000000000000000006',
+      test: '0x4200000000000000000000000000000000000006',
+      production: '0x4200000000000000000000000000000000000006'
+    }
+  }
+}
 
 /**
  * Retrieves the mint address for a given token symbol based on the current environment.
@@ -49,20 +49,22 @@ export const supportedTokens: TokenConfig = {
  * @throws If the token is not supported or not configured for the current environment.
  */
 export function getTokenContractAddress(symbol: string): string {
-    const env = process.env.NODE_ENV || 'development';
-    const token = supportedTokens[symbol];
+  const env = process.env.NODE_ENV || 'development'
+  const token = supportedTokens[symbol]
 
-    if (!token) {
-        throw new Error(`Token with symbol ${symbol} is not supported.`);
-    }
+  if (!token) {
+    throw new Error(`Token with symbol ${symbol} is not supported.`)
+  }
 
-    const address = token.contractAddress[env as keyof typeof token.contractAddress];
+  const address = token.contractAddress[env as keyof typeof token.contractAddress]
 
-    if (!address) {
-        throw new Error(`Contract address for token ${symbol} is not configured for environment ${env}.`);
-    }
+  if (!address) {
+    throw new Error(
+      `Contract address for token ${symbol} is not configured for environment ${env}.`
+    )
+  }
 
-    return address;
+  return address
 }
 
 /**
@@ -72,11 +74,11 @@ export function getTokenContractAddress(symbol: string): string {
  * @throws If the token is not supported.
  */
 export function getTokenInfo(symbol: string): TokenInfo {
-    const token = supportedTokens[symbol];
-    if (!token) {
-        throw new Error(`Token with symbol ${symbol} is not supported.`);
-    }
-    return token;
+  const token = supportedTokens[symbol]
+  if (!token) {
+    throw new Error(`Token with symbol ${symbol} is not supported.`)
+  }
+  return token
 }
 
 /**
@@ -84,5 +86,5 @@ export function getTokenInfo(symbol: string): TokenInfo {
  * @returns An array of strings representing the supported token symbols.
  */
 export function getSupportedTokenSymbols(): string[] {
-    return Object.keys(supportedTokens);
-} 
+  return Object.keys(supportedTokens)
+}

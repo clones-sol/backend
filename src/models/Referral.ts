@@ -1,16 +1,16 @@
-import mongoose from 'mongoose';
-import { mongooseAddressValidator } from '../utils/addressValidation.js';
+import mongoose from 'mongoose'
+import { mongooseAddressValidator } from '../utils/addressValidation.js'
 
-const TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/;
+const TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/
 
 export interface IReferral {
-  _id?: mongoose.Types.ObjectId;
-  referrerAddress: string;        // EVM wallet (0x...)
-  referreeAddress: string;        // EVM wallet (0x...)
-  onChainTxHash?: string;         // 0x-prefixed tx hash
-  onChainBlockNumber?: number;    // EVM block number
-  createdAt: Date;
-  updatedAt?: Date;
+  _id?: mongoose.Types.ObjectId
+  referrerAddress: string // EVM wallet (0x...)
+  referreeAddress: string // EVM wallet (0x...)
+  onChainTxHash?: string // 0x-prefixed tx hash
+  onChainBlockNumber?: number // EVM block number
+  createdAt: Date
+  updatedAt?: Date
 }
 
 const ReferralSchema = new mongoose.Schema<IReferral>(
@@ -50,6 +50,6 @@ const ReferralSchema = new mongoose.Schema<IReferral>(
   {
     collection: 'referrals'
   }
-);
+)
 
-export const ReferralModel = mongoose.model<IReferral>('Referral', ReferralSchema);
+export const ReferralModel = mongoose.model<IReferral>('Referral', ReferralSchema)

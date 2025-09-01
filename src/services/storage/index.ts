@@ -1,9 +1,9 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { promises as fs } from 'fs';
+import { promises as fs } from 'node:fs'
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 
 export class ObjectStorageService {
-  private client: S3Client;
-  private bucket: string;
+  private client: S3Client
+  private bucket: string
   constructor(
     accessKeyId: string,
     secretAccessKey: string,
@@ -12,36 +12,36 @@ export class ObjectStorageService {
     bucket: string
   ) {
     if (!accessKeyId)
-      throw Error('Cannot initialize object storage client. Access key not provided.');
+      throw Error('Cannot initialize object storage client. Access key not provided.')
     if (!secretAccessKey)
-      throw Error('Cannot initialize object storage client. Secret key not provided.');
-    if (!endpoint) throw Error('Cannot initialize object storage client. Endpoint not provided.');
-    if (!region) throw Error('Cannot initialize object storage client. Region not provided.');
-    if (!bucket) throw Error('Cannot initialize object storage client. Bucket not provided.');
+      throw Error('Cannot initialize object storage client. Secret key not provided.')
+    if (!endpoint) throw Error('Cannot initialize object storage client. Endpoint not provided.')
+    if (!region) throw Error('Cannot initialize object storage client. Region not provided.')
+    if (!bucket) throw Error('Cannot initialize object storage client. Bucket not provided.')
 
     this.client = new S3Client({
       endpoint,
       forcePathStyle: true,
       credentials: { accessKeyId, secretAccessKey },
       region
-    });
-    this.bucket = bucket;
+    })
+    this.bucket = bucket
   }
 
   async saveItem(options: { name: string; file: Buffer | string; bucket?: string }) {
-    let data: Buffer;
+    let data: Buffer
     // data is a file path
     if (typeof options.file === 'string') {
-      data = await fs.readFile(options.file);
+      data = await fs.readFile(options.file)
     } else {
       // data is a buffer
-      data = options.file;
+      data = options.file
     }
     const command = new PutObjectCommand({
       Bucket: options.bucket || this.bucket,
       Body: data,
       Key: options.name
-    });
-    await this.client.send(command);
+    })
+    await this.client.send(command)
   }
 }

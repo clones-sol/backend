@@ -1,10 +1,10 @@
-type EventListener = (...args: any[]) => void;
+type EventListener = (...args: any[]) => void
 
 export class EventEmitter {
-  private events: Record<string, EventListener[]>;
+  private events: Record<string, EventListener[]>
 
   constructor() {
-    this.events = {};
+    this.events = {}
   }
 
   /**
@@ -15,9 +15,9 @@ export class EventEmitter {
    */
   on(event: string, listener: EventListener): void {
     if (!this.events[event]) {
-      this.events[event] = [];
+      this.events[event] = []
     }
-    this.events[event].push(listener);
+    this.events[event].push(listener)
   }
 
   /**
@@ -27,8 +27,8 @@ export class EventEmitter {
    * @returns void
    */
   off(event: string, listener: EventListener): void {
-    if (!this.events[event]) return;
-    this.events[event] = this.events[event].filter((l) => l !== listener);
+    if (!this.events[event]) return
+    this.events[event] = this.events[event].filter((l) => l !== listener)
   }
 
   /**
@@ -38,7 +38,7 @@ export class EventEmitter {
    * @returns void
    */
   emit(event: string, ...args: any[]): void {
-    if (!this.events[event]) return;
-    this.events[event].forEach((listener) => listener(...args));
+    if (!this.events[event]) return
+    this.events[event].forEach((listener) => listener(...args))
   }
 }

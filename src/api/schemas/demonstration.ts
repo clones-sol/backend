@@ -1,4 +1,4 @@
-import { ValidationSchema, ValidationRules } from '../../middleware/validator.ts';
+import { ValidationRules, type ValidationSchema } from '../../middleware/validator.ts'
 
 /**
  * Schema for progress check request
@@ -12,4 +12,4 @@ export const progressCheckSchema: ValidationSchema = {
     required: true,
     rules: [ValidationRules.isArray(), ValidationRules.isNonEmptyArray()]
   }
-};
+}

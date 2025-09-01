@@ -1,11 +1,12 @@
-const router: Router = express.Router();
-import express, { Request, Response, Router } from 'express';
-import { requireWalletAddress } from '../../middleware/auth.ts';
-import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
-import { ApiError, successResponse } from '../../middleware/types/errors.ts';
-import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts';
-import { validateParams, ValidationRules } from '../../middleware/validator.ts';
-export { router as forgeSubmissionsApi };
+const router: Router = express.Router()
+
+import express, { type Request, type Response, type Router } from 'express'
+import { requireWalletAddress } from '../../middleware/auth.ts'
+import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
+import { ApiError, successResponse } from '../../middleware/types/errors.ts'
+import { ValidationRules, validateParams } from '../../middleware/validator.ts'
+import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
+export { router as forgeSubmissionsApi }
 
 /**
  * @swagger
@@ -33,16 +34,16 @@ router.get(
   '/user',
   requireWalletAddress,
   errorHandlerAsync(async (req: Request, res: Response) => {
-    // @ts-ignore - Get walletAddress from the request object
-    const address = req.walletAddress;
+    // @ts-expect-error - Get walletAddress from the request object
+    const address = req.walletAddress
 
     const submissions = await DemonstrationSubmission.find({ address })
       .sort({ createdAt: -1 })
-      .select('-__v');
+      .select('-__v')
 
-    res.status(200).json(successResponse(submissions));
+    res.status(200).json(successResponse(submissions))
   })
-);
+)
 
 /**
  * @swagger
@@ -69,31 +70,35 @@ router.get(
 router.get(
   '/pool/:factoryId',
   requireWalletAddress,
-  validateParams({ factoryId: { required: true, rules: [ValidationRules.isString()] } }),
+  validateParams({
+    factoryId: { required: true, rules: [ValidationRules.isString()] }
+  }),
   requireWalletAddress,
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { factoryId } = req.params;
+    const { factoryId } = req.params
 
-    // @ts-ignore - Get walletAddress from the request object
-    const address = req.walletAddress;
+    // @ts-expect-error - Get walletAddress from the request object
+    const address = req.walletAddress
 
     // Verify that the pool belongs to the user
-    const factory = await FactoryModel.findById(factoryId);
+    const factory = await FactoryModel.findById(factoryId)
     if (!factory) {
-      throw ApiError.notFound('Factory not found');
+      throw ApiError.notFound('Factory not found')
     }
 
     if (factory.ownerAddress.toLowerCase() !== address.toLowerCase()) {
-      throw ApiError.unauthorized('Not authorized to view submissions for this factory');
+      throw ApiError.unauthorized('Not authorized to view submissions for this factory')
     }
 
-    const submissions = await DemonstrationSubmission.find({ 'meta.quest.pool_id': factoryId })
+    const submissions = await DemonstrationSubmission.find({
+      'meta.quest.pool_id': factoryId
+    })
       .sort({ createdAt: -1 })
-      .select('-__v');
+      .select('-__v')
 
-    res.status(200).json(successResponse(submissions));
+    res.status(200).json(successResponse(submissions))
   })
-);
+)
 
 /**
  * @swagger
@@ -121,14 +126,16 @@ router.get(
  */
 router.get(
   '/:id',
-  validateParams({ id: { required: true, rules: [ValidationRules.isString()] } }),
+  validateParams({
+    id: { required: true, rules: [ValidationRules.isString()] }
+  }),
   requireWalletAddress,
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const submission = await DemonstrationSubmission.findById(id);
+    const { id } = req.params
+    const submission = await DemonstrationSubmission.findById(id)
 
     if (!submission) {
-      throw ApiError.notFound('Submission not found');
+      throw ApiError.notFound('Submission not found')
     }
 
     res.status(200).json(
@@ -144,6 +151,6 @@ router.get(
         createdAt: submission.createdAt,
         updatedAt: submission.updatedAt
       })
-    );
+    )
   })
-);
+)

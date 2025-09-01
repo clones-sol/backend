@@ -14,7 +14,20 @@
     "test:ui": "vitest --ui",
     "test:json": "vitest run --reporter json",
     "typecheck": "tsc --noEmit",
-    "typecov": "type-coverage --detail --ignoreCatch"
+    "typecov": "type-coverage --detail --ignoreCatch",
+    "lint": "biome check src/",
+    "lint:fix": "biome check --write src/",
+    "lint:unsafe-fix": "biome check --write --unsafe src/",
+    "format": "biome format --write src/",
+    "format:check": "biome format src/",
+    "quality": "npm run typecheck && npm run lint && npm run test",
+    "quality:fix": "npm run typecheck && npm run lint:fix",
+    "prepare": "husky install"
+  },
+  "lint-staged": {
+    "src/**/*.{js,ts,json}": [
+      "biome check --write --no-errors-on-unmatched"
+    ]
   },
   "keywords": [],
   "author": "",
@@ -49,6 +62,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.2.2",
     "@types/bn.js": "^5.2.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.0",
@@ -62,8 +76,17 @@
     "@types/unzipper": "^0.10.10",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.41.0",
+    "@typescript-eslint/parser": "^8.41.0",
     "@vitest/ui": "^3.2.4",
+    "eslint": "^9.34.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-security": "^3.0.1",
+    "eslint-plugin-sonarjs": "^3.0.5",
+    "husky": "^9.1.7",
     "ioredis-mock": "^8.9.0",
+    "lint-staged": "^16.1.5",
     "mongodb-memory-server": "^10.1.4",
     "nodemon": "^3.1.9",
     "supertest": "^7.1.3",

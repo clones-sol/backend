@@ -1,5 +1,5 @@
-import mongoose from 'mongoose';
-import { DBDemonstrationSubmission, ForgeSubmissionProcessingStatus } from '../types/index.ts';
+import mongoose from 'mongoose'
+import { type DBDemonstrationSubmission, ForgeSubmissionProcessingStatus } from '../types/index.ts'
 
 export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstrationSubmission>(
   {
@@ -52,9 +52,12 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
     collection: 'demonstration_submissions',
     timestamps: true
   }
-);
+)
 
 // Index to help with querying pending submissions
-demonstrationSubmissionSchema.index({ status: 1, createdAt: 1 });
+demonstrationSubmissionSchema.index({ status: 1, createdAt: 1 })
 
-export const DemonstrationSubmission = mongoose.model('DemonstrationSubmission', demonstrationSubmissionSchema);
+export const DemonstrationSubmission = mongoose.model(
+  'DemonstrationSubmission',
+  demonstrationSubmissionSchema
+)

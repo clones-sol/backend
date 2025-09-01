@@ -1,27 +1,32 @@
-import { OpenAIService } from './openai.ts';
-import { AnthropicService } from './anthropic.ts';
-import { ILLMService, LLMConfig, StreamResponse, GenericModelMessage } from '../../types/index.ts';
-import dotenv from 'dotenv';
+import dotenv from 'dotenv'
+import type {
+  GenericModelMessage,
+  ILLMService,
+  LLMConfig,
+  StreamResponse
+} from '../../types/index.ts'
+import { AnthropicService } from './anthropic.ts'
+import { OpenAIService } from './openai.ts'
 
-dotenv.config();
+dotenv.config()
 
 export class LLMService implements ILLMService {
-  private service: ILLMService;
+  private service: ILLMService
 
   constructor(model: string) {
     if (!model) {
-      throw new Error('Model name is required');
+      throw new Error('Model name is required')
     }
 
-    let apiKey: string;
+    let apiKey: string
     if (model.startsWith('gpt-')) {
-      apiKey = process.env.OPENAI_API_KEY || '';
-      if (!apiKey) throw new Error('OpenAI API key is required');
+      apiKey = process.env.OPENAI_API_KEY || ''
+      if (!apiKey) throw new Error('OpenAI API key is required')
     } else if (model.startsWith('claude-')) {
-      apiKey = process.env.ANTHROPIC_API_KEY || '';
-      if (!apiKey) throw new Error('Anthropic API key is required');
+      apiKey = process.env.ANTHROPIC_API_KEY || ''
+      if (!apiKey) throw new Error('Anthropic API key is required')
     } else {
-      throw new Error(`Unsupported model: ${model}`);
+      throw new Error(`Unsupported model: ${model}`)
     }
 
     const config: LLMConfig = {
@@ -29,12 +34,12 @@ export class LLMService implements ILLMService {
       apiKey,
       maxTokens: 1024,
       temperature: 0.9
-    };
+    }
 
     if (model.startsWith('gpt-')) {
-      this.service = new OpenAIService(config);
+      this.service = new OpenAIService(config)
     } else {
-      this.service = new AnthropicService(config);
+      this.service = new AnthropicService(config)
     }
   }
 
@@ -43,10 +48,10 @@ export class LLMService implements ILLMService {
     tools?: any,
     toolChoice?: any
   ): Promise<StreamResponse> {
-    return this.service.createChatCompletion(messages, tools, toolChoice);
+    return this.service.createChatCompletion(messages, tools, toolChoice)
   }
 }
 
-export { OpenAIService } from './openai.ts';
-export { AnthropicService } from './anthropic.ts';
-export * from '../../types/llm.ts';
+export * from '../../types/llm.ts'
+export { AnthropicService } from './anthropic.ts'
+export { OpenAIService } from './openai.ts'

@@ -17,6 +17,49 @@ For complete setup instructions, architectural deep-dives, and contribution guid
 
 Backend-specific details are available in the **[Backend Setup Guide](https://docs.page/clones-ai/desktop/projects/backend)**.
 
+## Development
+
+### Code Quality
+
+The project uses [Biome](https://biomejs.dev/) for linting, formatting, and code quality enforcement.
+
+#### Available Scripts
+
+```bash
+# Check code quality (lint + format)
+npm run lint
+
+# Auto-fix issues
+npm run lint:fix
+
+# Apply unsafe fixes (use with caution)
+npm run lint:unsafe-fix
+
+# Format code only
+npm run format
+
+# Check formatting without fixing
+npm run format:check
+
+# Run full quality check (typecheck + lint + tests)
+npm run quality
+
+# Auto-fix quality issues
+npm run quality:fix
+```
+
+#### Pre-commit Hooks
+
+Code quality checks run automatically on every commit via `lint-staged` and `husky`. This ensures consistent code quality across the project.
+
+#### Configuration
+
+Biome configuration is in `biome.json` with strict rules for:
+- TypeScript type safety (no `any` allowed)
+- Import organization
+- Cognitive complexity limits
+- Security best practices
+
 ## Quick Start
 
 This guide covers the essential steps to get the backend running locally for development.
@@ -24,6 +67,7 @@ This guide covers the essential steps to get the backend running locally for dev
 ### Prerequisites
 
 - [Docker](https://www.docker.com/get-started) installed on your system.
+- [Node.js](https://nodejs.org/) for development (if running outside Docker)
 
 ### 1. Clone the Repository
 

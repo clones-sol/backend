@@ -1,5 +1,5 @@
-import { ValidationSchema, ValidationRules } from '../../middleware/validator.ts';
-import { ContentFilterService } from '../../services/validation/contentFilter.ts';
+import { ValidationRules, type ValidationSchema } from '../../middleware/validator.ts'
+import { ContentFilterService } from '../../services/validation/contentFilter.ts'
 
 /**
  * Schema for generating referral code
@@ -13,7 +13,7 @@ export const generateCodeSchema: ValidationSchema = {
       ValidationRules.isEVMAddress()
     ]
   }
-};
+}
 
 /**
  * Schema for validating referral code
@@ -31,7 +31,7 @@ export const validateCodeSchema: ValidationSchema = {
       )
     ]
   }
-};
+}
 
 /**
  * Schema for applying a referrer code
@@ -56,7 +56,7 @@ export const applyReferrerCodeSchema: ValidationSchema = {
       )
     ]
   }
-};
+}
 
 /**
  * Schema for extending expiration
@@ -79,7 +79,7 @@ export const extendExpirationSchema: ValidationSchema = {
       ValidationRules.isInteger()
     ]
   }
-};
+}
 
 /**
  * Schema for regenerating code
@@ -93,7 +93,7 @@ export const regenerateCodeSchema: ValidationSchema = {
       ValidationRules.isEVMAddress()
     ]
   }
-};
+}
 
 /**
  * Schema for wallet address URL parameter
@@ -107,4 +107,4 @@ export const walletAddressParamSchema: ValidationSchema = {
       ValidationRules.isEVMAddress()
     ]
   }
-}; 
+}
