@@ -22,7 +22,6 @@ export enum FactoryPoolStatus {
   paused = 'paused',
   error = 'error',
   noFunds = 'no-funds',
-  migrating = 'migrating'
 }
 
 export enum UploadLimitType {

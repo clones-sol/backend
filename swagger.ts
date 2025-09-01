@@ -92,6 +92,7 @@ const options: swaggerJsdoc.Options = {
         path.join(__dirname, './src/api/forge/submissions.ts'),
         path.join(__dirname, './src/api/forge/upload.ts'),
         path.join(__dirname, './src/api/transaction.ts'),
+        path.join(__dirname, './src/api/demonstration.ts'),
     ],
 };
 

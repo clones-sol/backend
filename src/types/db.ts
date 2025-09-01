@@ -3,7 +3,7 @@ import {
   ForgeSubmissionProcessingStatus
 } from './index.ts';
 
-export interface DBForgeRaceSubmission {
+export interface DBDemonstrationSubmission {
   _id?: string;
   address: string;
   meta: any;
@@ -39,16 +39,6 @@ export interface DBForgeRaceSubmission {
   createdAt?: Date;
   updatedAt?: Date;
 }
-
-export interface DBGymSession {
-  _id?: Types.ObjectId;
-  address: string;
-  status: 'active' | 'completed' | 'expired';
-  preview?: string;
-  created_at: Date;
-  updated_at: Date;
-}
-
 
 export interface DBWalletConnection {
   _id?: Types.ObjectId;

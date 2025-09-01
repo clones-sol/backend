@@ -6,7 +6,7 @@ import { createServer } from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { connectToDatabase } from './services/database.ts';
-import { gymApi } from './api/gym.ts';
+import { gymApi } from './api/demonstration.ts';
 import { forgeApi } from './api/forge/index.ts';
 import { walletApi } from './api/wallet.ts';
 import { referralApi } from './api/referral.ts';

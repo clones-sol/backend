@@ -11,9 +11,20 @@ import {
   FactorySearchCriteria,
   FactorySearchResult
 } from '../../types/factory.ts';
-import { body, query, param } from 'express-validator';
 import { supportedTokens, getTokenContractAddress } from '../../services/blockchain/tokens.ts';
 import { createFactoryService } from '../../services/blockchain/factoryTransactionService.ts';
+import { validateBody, validateQuery, validateParams, ValidationRules } from '../../middleware/validator.ts';
+import {
+  createPoolSchema,
+  predictPoolSchema,
+  fundPoolSchema,
+  generateClaimSchema,
+  batchClaimSchema,
+  poolAddressParamSchema,
+  poolInfoQuerySchema,
+  searchFactoriesSchema,
+  getUserFactoriesSchema,
+} from '../schemas/forgeFactory.ts';
 
 const router: Router = express.Router();
 const blockchainService = new BlockchainService(process.env.RPC_URL || '');
@@ -113,17 +124,7 @@ router.get(
  *         description: Invalid search criteria
  */
 router.post('/search',
-  [
-    body('skills').optional().isArray({ max: 10 }),
-    body('searchTerm').optional().isLength({ min: 2, max: 100 }),
-    body('ownerAddress').optional().isEthereumAddress(),
-    body('token').optional().isEthereumAddress(),
-    body('status').optional().isIn(Object.values(FactoryStatus)),
-    body('limit').optional().isInt({ min: 1, max: 100 }),
-    body('offset').optional().isInt({ min: 0 }),
-    body('sortBy').optional().isIn(['createdAt', 'demonstrations', 'totalEarned']),
-    body('sortOrder').optional().isIn(['asc', 'desc'])
-  ],
+  validateBody(searchFactoriesSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const criteria: FactorySearchCriteria = {
       skills: req.body.skills,
@@ -228,11 +229,7 @@ router.post('/search',
  */
 router.get('/',
   requireWalletAddress,
-  [
-    query('limit').optional().isInt({ min: 1, max: 100 }),
-    query('offset').optional().isInt({ min: 0 }),
-    query('status').optional().isIn(Object.values(FactoryStatus))
-  ],
+  validateQuery(getUserFactoriesSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     // @ts-ignore
     const ownerAddress = req.walletAddress.toLowerCase();
@@ -285,7 +282,7 @@ router.get('/',
  *         description: Factory not found
  */
 router.get('/:id',
-  [param('id').isString().notEmpty()],
+  validateParams({ id: { required: true, rules: [ValidationRules.isString()] } }),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
 
@@ -354,14 +351,14 @@ router.get('/:id',
  */
 router.put('/:id',
   requireWalletAddress,
-  [
-    param('id').isString().notEmpty(),
-    body('name').optional().isString().isLength({ min: 1, max: 100 }),
-    body('description').optional().isString().isLength({ max: 1000 }),
-    body('skills').optional().isArray({ max: 20 }),
-    body('status').optional().isIn([FactoryStatus.active, FactoryStatus.paused]),
-    body('pricePerDemo').optional().isNumeric(),
-  ],
+  validateParams({ id: { required: true, rules: [ValidationRules.isString()] } }),
+  validateBody({
+    name: { required: false, rules: [ValidationRules.isString(), ValidationRules.minLength(1), ValidationRules.maxLength(100)] },
+    description: { required: false, rules: [ValidationRules.isString(), ValidationRules.maxLength(1000)] },
+    skills: { required: false, rules: [ValidationRules.isArray()] },
+    status: { required: false, rules: [ValidationRules.isIn([FactoryStatus.active, FactoryStatus.paused])] },
+    pricePerDemo: { required: false, rules: [ValidationRules.isNumber()] }
+  }),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
     // @ts-ignore
@@ -402,10 +399,6 @@ router.put('/:id',
   })
 );
 
-// =============================================================================
-// BLOCKCHAIN OPERATIONS
-// =============================================================================
-
 /**
  * @swagger
  * /forge/factories/pools:
@@ -438,10 +431,7 @@ router.put('/:id',
 router.post(
   '/pools',
   requireWalletAddress,
-  [
-    body('token').notEmpty().withMessage('Token is required'),
-    body('creator').notEmpty().withMessage('Creator address is required')
-  ],
+  validateBody(createPoolSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { token, creator } = req.body;
     // @ts-ignore
@@ -498,10 +488,7 @@ router.post(
  */
 router.get(
   '/pools/predict',
-  [
-    query('creator').notEmpty().withMessage('Creator address is required'),
-    query('token').notEmpty().withMessage('Token is required')
-  ],
+  validateQuery(predictPoolSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { creator, token } = req.query as any;
 
@@ -551,9 +538,8 @@ router.get(
  */
 router.get(
   '/pools/:poolAddress',
-  [
-    param('poolAddress').notEmpty().withMessage('Pool address is required')
-  ],
+  validateParams(poolAddressParamSchema),
+  validateQuery(poolInfoQuerySchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { poolAddress } = req.params;
     const { account } = req.query as any;
@@ -604,13 +590,7 @@ router.get(
 router.post(
   '/pools/fund',
   requireWalletAddress,
-  [
-    body('poolAddress').notEmpty().withMessage('Pool address is required'),
-    body('amount').isNumeric().withMessage('Amount must be a number').custom(value => {
-      if (value <= 0) throw new Error('Amount must be greater than 0');
-      return true;
-    })
-  ],
+  validateBody(fundPoolSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { poolAddress, amount } = req.body;
 
@@ -670,11 +650,7 @@ router.post(
 router.post(
   '/claims',
   requireWalletAddress,
-  [
-    body('vaultAddress').notEmpty().withMessage('Vault address is required'),
-    body('account').notEmpty().withMessage('Account address is required'),
-    body('cumulativeAmount').isNumeric().withMessage('Cumulative amount must be a number')
-  ],
+  validateBody(generateClaimSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { vaultAddress, account, cumulativeAmount, deadline } = req.body;
 
@@ -744,9 +720,7 @@ router.post(
 router.post(
   '/claims/batch',
   requireWalletAddress,
-  [
-    body('claims').isArray().withMessage('Claims must be an array')
-  ],
+  validateBody(batchClaimSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { claims } = req.body;
 

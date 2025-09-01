@@ -6,10 +6,10 @@ import * as path from 'path';
 import { Extract } from 'unzipper';
 import { createHash } from 'crypto';
 import { ObjectStorageService } from '../../services/storage/index.ts';
-import { ForgeRaceSubmission, FactoryModel } from '../../models/Models.ts';
+import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts';
 import BlockchainService from '../../services/blockchain/index.ts';
 import {
-    DBForgeRaceSubmission,
+    DBDemonstrationSubmission,
     ForgeSubmissionProcessingStatus,
     FactoryPoolStatus,
     UploadLimitType,
@@ -24,7 +24,7 @@ import {
     initUploadSchema,
     uploadChunkSchema,
     uploadIdParamSchema
-} from '../schemas/forge-upload.ts';
+} from '../schemas/forgeUpload.ts';
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
 import { ApiError, successResponse } from '../../middleware/types/errors.ts';
 import { requireWalletAddress } from '../../middleware/auth.ts';
@@ -494,7 +494,7 @@ router.post(
         console.log(`[UPLOAD] Meta JSON path: ${metaJsonPath}`);
         const metaJson = await readFile(metaJsonPath, 'utf8');
         console.log(`[UPLOAD] Meta JSON content length: ${metaJson.length}`);
-        const meta: DBForgeRaceSubmission['meta'] = JSON.parse(metaJson);
+        const meta: DBDemonstrationSubmission['meta'] = JSON.parse(metaJson);
         console.log(`[UPLOAD] Parsed meta data, id: ${meta.id}`);
 
         // Create UUID from meta.id + address
@@ -609,7 +609,7 @@ router.post(
                     case UploadLimitType.perDay:
                         const today = new Date();
                         today.setHours(0, 0, 0, 0);
-                        gymSubmissions = await ForgeRaceSubmission.countDocuments({
+                        gymSubmissions = await DemonstrationSubmission.countDocuments({
                             'meta.quest.pool_id': factoryId,
                             createdAt: { $gte: today },
                             status: ForgeSubmissionProcessingStatus.COMPLETED, // Only count completed submissions
@@ -623,7 +623,7 @@ router.post(
                         break;
 
                     case UploadLimitType.total:
-                        gymSubmissions = await ForgeRaceSubmission.countDocuments({
+                        gymSubmissions = await DemonstrationSubmission.countDocuments({
                             'meta.quest.pool_id': factoryId,
                             status: ForgeSubmissionProcessingStatus.COMPLETED, // Only count completed submissions
                             reward: { $gt: 0 } // Only count submissions that received a reward
@@ -651,7 +651,7 @@ router.post(
                         task = app.tasks.find((t: any) => t.id === meta.quest.task_id);
                         if (task) break;
                     }
-                    const taskSubmissions = await ForgeRaceSubmission.countDocuments({
+                    const taskSubmissions = await DemonstrationSubmission.countDocuments({
                         'meta.quest.task_id': meta.quest.task_id,
                         status: ForgeSubmissionProcessingStatus.COMPLETED, // Only count completed submissions
                         reward: { $gt: 0 } // Only count submissions that received a reward
@@ -693,7 +693,7 @@ router.post(
 
         // Check for existing submission
         console.log(`[UPLOAD] Checking for existing submission with ID: ${uuid}`);
-        const tempSub = await ForgeRaceSubmission.findById(uuid);
+        const tempSub = await DemonstrationSubmission.findById(uuid);
         if (tempSub) {
             console.log(`[UPLOAD] Submission already exists with ID: ${uuid}`);
 
@@ -702,7 +702,7 @@ router.post(
 
         // Create submission record
         console.log(`[UPLOAD] Creating new submission record in database`);
-        const submission = await ForgeRaceSubmission.create({
+        const submission = await DemonstrationSubmission.create({
             _id: uuid,
             address,
             meta,

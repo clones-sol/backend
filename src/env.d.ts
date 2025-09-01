@@ -14,17 +14,5 @@ declare namespace NodeJS {
 
     // Blockchain Configuration
     RPC_URL: string;
-    REWARD_POOL_CONTRACT_ADDRESS: string;
-    BLOCK_EXPLORER_URL: string;
-    IPC_SECRET: string;
-
-
-    // Authentication & Security
-    AX_PARSER_SECRET: string;
-
-    // AWS Configuration
-    AWS_ACCESS_KEY: string;
-    AWS_SECRET_KEY: string;
-    AWS_REGION: string;
   }
 }

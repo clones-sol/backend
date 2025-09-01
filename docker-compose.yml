@@ -27,8 +27,6 @@ services:
       - SERVICES=s3
       - TRIES=30
       - BUCKET_NAMES=training-gym
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
     volumes:
       - ./localstack/init:/etc/localstack/init/ready.d
       - ./localstack:/var/lib/localstack
@@ -65,10 +63,6 @@ services:
     environment:
       - DB_URI=${DB_URI}
       - RPC_URL=https://sepolia.base.org
-      - BLOCK_EXPLORER_URL=https://sepolia.basescan.org/
-      - IPC_SECRET=
-      - GYM_SECRET=
-      - AX_PARSER_SECRET=
       - STORAGE_ACCESS_KEY=test
       - STORAGE_SECRET_KEY=test
       - STORAGE_ENDPOINT=http://localstack:4566
@@ -78,7 +72,6 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - REDIS_URL=redis://redis:6379
-      - REWARD_POOL_CONTRACT_ADDRESS=0x70ca2a056Ff9f460138ed161cc1C343e31A9e061
     depends_on:
       - mongodb
       - localstack

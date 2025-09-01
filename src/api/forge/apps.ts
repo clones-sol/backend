@@ -1,6 +1,6 @@
 import express, { Request, Response, Router } from 'express';
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
-import { ForgeRaceSubmission, FactoryModel } from '../../models/Models.ts';
+import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts';
 import { ApiError, ErrorCode, successResponse } from '../../middleware/types/errors.ts';
 import { validateBody, validateQuery } from '../../middleware/validator.ts';
 import { generateContentSchema, getTasksSchema } from '../schemas/forgeFactory.ts';
@@ -103,7 +103,7 @@ router.post(
     // Parse JSON content and optionally save to factory
     try {
       const parsedContent = JSON.parse(content);
-      
+
       // If factoryId is provided, add apps to the factory
       if (factoryId) {
         await FactoryModel.findByIdAndUpdate(
@@ -168,7 +168,7 @@ router.get(
 
     // Match stage - filter factories
     const matchStage: any = {};
-    
+
     // Filter by pool_id (factory _id) if specified
     if (pool_id) {
       matchStage._id = pool_id.toString();
@@ -183,9 +183,9 @@ router.get(
         matchStage.pricePerDemo = { $gte: Number(min_reward) };
       }
       if (max_reward !== undefined) {
-        matchStage.pricePerDemo = { 
-          ...matchStage.pricePerDemo, 
-          $lte: Number(max_reward) 
+        matchStage.pricePerDemo = {
+          ...matchStage.pricePerDemo,
+          $lte: Number(max_reward)
         };
       }
     }
@@ -215,7 +215,7 @@ router.get(
     if (query && typeof query === 'string') {
       const searchRegex = new RegExp(query, 'i');
       appTaskMatchStage.$or = [
-        { 'apps.name': searchRegex }, 
+        { 'apps.name': searchRegex },
         { 'apps.tasks.prompt': searchRegex }
       ];
     }
@@ -295,7 +295,7 @@ router.get(
           case UploadLimitType.perDay:
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            gymSubmissions = await ForgeRaceSubmission.countDocuments({
+            gymSubmissions = await DemonstrationSubmission.countDocuments({
               'meta.quest.pool_id': taskData.factoryId,
               createdAt: { $gte: today },
               status: ForgeSubmissionProcessingStatus.COMPLETED,
@@ -305,7 +305,7 @@ router.get(
             break;
 
           case UploadLimitType.total:
-            gymSubmissions = await ForgeRaceSubmission.countDocuments({
+            gymSubmissions = await DemonstrationSubmission.countDocuments({
               'meta.quest.pool_id': taskData.factoryId,
               status: ForgeSubmissionProcessingStatus.COMPLETED,
               reward: { $gt: 0 }
@@ -325,7 +325,7 @@ router.get(
         taskData.uploadLimit ||
         (taskData.uploadLimitType === UploadLimitType.perTask && taskData.uploadLimitValue)
       ) {
-        taskSubmissions = await ForgeRaceSubmission.countDocuments({
+        taskSubmissions = await DemonstrationSubmission.countDocuments({
           'meta.quest.task_id': taskData._id,
           status: ForgeSubmissionProcessingStatus.COMPLETED,
           reward: { $gt: 0 }
@@ -398,7 +398,7 @@ router.get(
 
     // Match stage - filter factories
     const matchStage: any = {};
-    
+
     // Filter by pool_id (factory _id) if specified
     if (pool_id) {
       matchStage._id = pool_id.toString();
@@ -413,9 +413,9 @@ router.get(
         matchStage.pricePerDemo = { $gte: Number(min_reward) };
       }
       if (max_reward !== undefined) {
-        matchStage.pricePerDemo = { 
-          ...matchStage.pricePerDemo, 
-          $lte: Number(max_reward) 
+        matchStage.pricePerDemo = {
+          ...matchStage.pricePerDemo,
+          $lte: Number(max_reward)
         };
       }
     }
@@ -444,7 +444,7 @@ router.get(
     if (query && typeof query === 'string') {
       const searchRegex = new RegExp(query, 'i');
       appMatchStage.$or = [
-        { 'apps.name': searchRegex }, 
+        { 'apps.name': searchRegex },
         { 'apps.tasks.prompt': searchRegex }
       ];
     }
@@ -501,7 +501,7 @@ router.get(
             case UploadLimitType.perDay:
               const today = new Date();
               today.setHours(0, 0, 0, 0);
-              gymSubmissions = await ForgeRaceSubmission.countDocuments({
+              gymSubmissions = await DemonstrationSubmission.countDocuments({
                 'meta.quest.pool_id': app.factoryId,
                 createdAt: { $gte: today },
                 status: ForgeSubmissionProcessingStatus.COMPLETED,
@@ -511,7 +511,7 @@ router.get(
               break;
 
             case UploadLimitType.total:
-              gymSubmissions = await ForgeRaceSubmission.countDocuments({
+              gymSubmissions = await DemonstrationSubmission.countDocuments({
                 'meta.quest.pool_id': app.factoryId,
                 status: ForgeSubmissionProcessingStatus.COMPLETED,
                 reward: { $gt: 0 }
@@ -539,7 +539,7 @@ router.get(
               task.uploadLimit ||
               (app.uploadLimit?.type === UploadLimitType.perTask && app.uploadLimit?.value)
             ) {
-              taskSubmissions = await ForgeRaceSubmission.countDocuments({
+              taskSubmissions = await DemonstrationSubmission.countDocuments({
                 'meta.quest.task_id': task.id,
                 status: ForgeSubmissionProcessingStatus.COMPLETED,
                 reward: { $gt: 0 }

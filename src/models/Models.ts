@@ -1,5 +1,4 @@
-export * from './ForgeRaceSubmission.ts';
-export * from './GymSession.ts';
+export * from './DemonstrationSubmission.ts';
 export * from './WalletConnection.ts';
 export * from './Referral.ts';
 export * from './ReferralCode.ts';

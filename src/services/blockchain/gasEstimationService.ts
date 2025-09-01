@@ -3,6 +3,47 @@ import { createFactoryService, ClaimData } from './factoryTransactionService.ts'
 import BlockchainService from './index.ts';
 
 /**
+ * Constants for gas estimation and analysis.
+ */
+// Safety buffer for gas limit estimation to prevent out-of-gas errors.
+const GAS_LIMIT_BUFFER_PERCENTAGE = 120n;
+const GAS_LIMIT_BUFFER_DIVISOR = 100n;
+
+// Fallback gas estimation parameters when direct estimation fails.
+const BASE_GAS_ESTIMATE = 50000n;
+const ESTIMATED_GAS_PER_CLAIM = 150000n;
+
+// Default token information, assuming USDC-like tokens.
+const DEFAULT_TOKEN_DECIMALS = 6;
+const DEFAULT_TOKEN_PRICE_USD = 1;
+
+// Fee percentage applied to calculate net rewards.
+const NET_REWARD_FEE_PERCENTAGE = 0.9;
+
+// Thresholds for gas cost warnings as a percentage of the net reward.
+const GAS_WARNING_THRESHOLD_PERCENTAGE = 10;
+const VERY_HIGH_GAS_COST_THRESHOLD = 50;
+const HIGH_GAS_COST_THRESHOLD = 25;
+const MODERATE_GAS_COST_THRESHOLD = 10;
+
+// Default maximum gas cost in USD for batch optimization.
+const DEFAULT_MAX_GAS_COST_USD = 50;
+const OPTIMIZATION_BATCH_SIZE = 10;
+
+// Default and fallback gas price settings.
+const DEFAULT_GAS_PRICE = ethers.parseUnits("2", "gwei");
+const DEFAULT_PRIORITY_FEE_RATIO = 10n;
+const FALLBACK_GAS_PRICE = ethers.parseUnits("2", "gwei");
+const FALLBACK_PRIORITY_FEE = ethers.parseUnits("0.5", "gwei");
+
+// Gas price levels in Gwei for providing user advice.
+const GAS_PRICE_LEVELS = {
+    LOW: 0.5,
+    MEDIUM: 1.0,
+    HIGH: 2.0,
+};
+
+/**
  * @title GasEstimationService
  * @notice Service for estimating gas costs and implementing smart gas alerts
  * @dev Provides gas estimation with warnings when gas costs exceed net reward
@@ -63,17 +104,17 @@ class GasEstimationService {
             }
 
             // Fallback for networks without EIP-1559
-            const gasPrice = feeData.gasPrice || ethers.parseUnits("2", "gwei");
+            const gasPrice = feeData.gasPrice || DEFAULT_GAS_PRICE;
             return {
                 maxFeePerGas: gasPrice,
-                maxPriorityFeePerGas: gasPrice / 10n
+                maxPriorityFeePerGas: gasPrice / DEFAULT_PRIORITY_FEE_RATIO
             };
         } catch (error) {
             console.error('Failed to get gas price:', error);
             // Conservative fallback
             return {
-                maxFeePerGas: ethers.parseUnits("2", "gwei"),
-                maxPriorityFeePerGas: ethers.parseUnits("0.5", "gwei")
+                maxFeePerGas: FALLBACK_GAS_PRICE,
+                maxPriorityFeePerGas: FALLBACK_PRIORITY_FEE
             };
         }
     }
@@ -89,8 +130,8 @@ class GasEstimationService {
             // Estimate gas for the batch claim
             const gasLimit = await claimRouter.claimAll.estimateGas(claims, { from: fromAddress });
 
-            // Add 20% buffer for safety
-            const safeGasLimit = (gasLimit * 120n) / 100n;
+            // Add buffer for safety
+            const safeGasLimit = (gasLimit * GAS_LIMIT_BUFFER_PERCENTAGE) / GAS_LIMIT_BUFFER_DIVISOR;
 
             const totalGasCost = safeGasLimit * gasPrice.maxFeePerGas;
             const totalGasCostEth = ethers.formatEther(totalGasCost);
@@ -111,8 +152,8 @@ class GasEstimationService {
             console.error('Gas estimation failed:', error);
 
             // Fallback estimation based on claim count
-            // Conservative estimate: 150k gas per claim + 50k base
-            const estimatedGas = BigInt(150000 * claims.length + 50000);
+            // Conservative estimate
+            const estimatedGas = (ESTIMATED_GAS_PER_CLAIM * BigInt(claims.length)) + BASE_GAS_ESTIMATE;
             const totalGasCost = estimatedGas * gasPrice.maxFeePerGas;
             const totalGasCostEth = ethers.formatEther(totalGasCost);
             const ethPriceUsd = await BlockchainService.getEthPriceInUSD();
@@ -135,31 +176,31 @@ class GasEstimationService {
     async analyzeClaimGasCost(
         claims: ClaimData[],
         fromAddress: string,
-        tokenPriceUsd: number = 1 // Default to $1 (for USDC)
+        tokenPriceUsd: number = DEFAULT_TOKEN_PRICE_USD
     ): Promise<ClaimGasAnalysis> {
         const gasEstimate = await this.estimateBatchClaimGas(claims, fromAddress);
 
         // Calculate total net reward (approximate - doesn't account for already claimed)
         const totalGrossReward = claims.reduce((sum, claim) =>
-            sum + parseFloat(ethers.formatUnits(claim.cumulativeAmount, 6)), 0); // Assuming 6 decimals (USDC)
+            sum + parseFloat(ethers.formatUnits(claim.cumulativeAmount, DEFAULT_TOKEN_DECIMALS)), 0);
 
-        // Approximate 10% fee
-        const totalNetReward = totalGrossReward * 0.9;
-        const netRewardStr = totalNetReward.toFixed(6);
+        // Approximate fee
+        const totalNetReward = totalGrossReward * NET_REWARD_FEE_PERCENTAGE;
+        const netRewardStr = totalNetReward.toFixed(DEFAULT_TOKEN_DECIMALS);
         const netRewardUsd = totalNetReward * tokenPriceUsd;
 
         // Calculate gas cost as percentage of net reward
-        const gasCostVsReward = (gasEstimate.totalGasCostUsd / netRewardUsd) * 100;
+        const gasCostVsReward = netRewardUsd > 0 ? (gasEstimate.totalGasCostUsd / netRewardUsd) * 100 : Infinity;
 
         // Determine if we should warn (gas cost > 10% of net reward)
-        const shouldWarn = gasCostVsReward > 10;
+        const shouldWarn = gasCostVsReward > GAS_WARNING_THRESHOLD_PERCENTAGE;
 
         let recommendation: string;
-        if (gasCostVsReward > 50) {
+        if (gasCostVsReward > VERY_HIGH_GAS_COST_THRESHOLD) {
             recommendation = "Gas cost is very high compared to reward. Consider waiting for lower gas prices or accumulating more rewards.";
-        } else if (gasCostVsReward > 25) {
+        } else if (gasCostVsReward > HIGH_GAS_COST_THRESHOLD) {
             recommendation = "Gas cost is significant. You might want to wait for better gas conditions.";
-        } else if (gasCostVsReward > 10) {
+        } else if (gasCostVsReward > MODERATE_GAS_COST_THRESHOLD) {
             recommendation = "Gas cost is moderate. Consider if you want to wait for lower fees.";
         } else {
             recommendation = "Gas cost is reasonable relative to your reward.";
@@ -181,7 +222,7 @@ class GasEstimationService {
     async optimizeBatchSize(
         claims: ClaimData[],
         fromAddress: string,
-        maxGasCostUsd: number = 50 // Maximum willing to spend on gas
+        maxGasCostUsd: number = DEFAULT_MAX_GAS_COST_USD
     ): Promise<BatchOptimization> {
         const claimRouter = new ethers.Contract(this.claimRouterAddress, CLAIM_ROUTER_ABI, this.provider);
         const maxBatchSize = Number(await claimRouter.maxBatchSize());
@@ -203,7 +244,7 @@ class GasEstimationService {
 
         // Need to split into multiple batches
         const optimizedBatches: ClaimData[][] = [];
-        const batchSize = Math.min(maxBatchSize, 10); // Start with smaller batches for gas efficiency
+        const batchSize = Math.min(maxBatchSize, OPTIMIZATION_BATCH_SIZE);
 
         for (let i = 0; i < claims.length; i += batchSize) {
             const batch = claims.slice(i, i + batchSize);
@@ -253,13 +294,13 @@ class GasEstimationService {
         let recommendation: string;
         let suggestedWaitTime: string | undefined;
 
-        if (gasPriceGwei < 0.5) {
+        if (gasPriceGwei < GAS_PRICE_LEVELS.LOW) {
             gasPriceLevel = 'low';
             recommendation = "Gas prices are very low! Excellent time to claim rewards.";
-        } else if (gasPriceGwei < 1.0) {
+        } else if (gasPriceGwei < GAS_PRICE_LEVELS.MEDIUM) {
             gasPriceLevel = 'medium';
             recommendation = "Gas prices are reasonable. Good time to claim if you have significant rewards.";
-        } else if (gasPriceGwei < 2.0) {
+        } else if (gasPriceGwei < GAS_PRICE_LEVELS.HIGH) {
             gasPriceLevel = 'high';
             recommendation = "Gas prices are elevated. Consider waiting unless rewards are substantial.";
             suggestedWaitTime = "Consider checking again in a few hours.";
