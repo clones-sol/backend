@@ -14,6 +14,37 @@ import { getTokenContractAddress } from '../blockchain/tokens.ts';
 import { createClaimAuthService } from '../blockchain/claimAuthService.ts';
 
 
+// --- Distributed Lock for Reward Calculation ---
+// This should be moved to its own file in /models
+const processingLockSchema = new mongoose.Schema({
+  _id: String, // Lock ID, e.g., `${userAddress}-${factoryId}`
+  createdAt: { type: Date, expires: '5m', default: Date.now } // TTL to prevent stale locks
+});
+const ProcessingLockModel = mongoose.model('ProcessingLock', processingLockSchema);
+
+async function acquireLock(lockId: string): Promise<void> {
+  let lockAcquired = false;
+  while (!lockAcquired) {
+    try {
+      await ProcessingLockModel.create({ _id: lockId });
+      lockAcquired = true;
+    } catch (error: any) {
+      if (error.code === 11000) { // Duplicate key error
+        // Lock is held, wait and retry
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } else {
+        throw error;
+      }
+    }
+  }
+}
+
+async function releaseLock(lockId: string): Promise<void> {
+  await ProcessingLockModel.deleteOne({ _id: lockId });
+}
+// --- End Distributed Lock ---
+
+
 // Initialize claim authorization service
 let claimAuthService: ReturnType<typeof createClaimAuthService> | null = null;
 try {
@@ -32,18 +63,26 @@ const processingQueue: string[] = [];
  */
 async function calculateUserCumulativeRewards(userAddress: string, factoryId: string): Promise<number> {
   try {
-    // Find all completed submissions for this user and factory with rewards > 0
-    const submissions = await DemonstrationSubmission.find({
-      address: userAddress,
-      'meta.factory_id': factoryId,
-      status: ForgeSubmissionProcessingStatus.COMPLETED,
-      reward: { $gt: 0 }
-    }).select('reward').lean();
+    // Use aggregation pipeline for efficient summation in the DB
+    const result = await DemonstrationSubmission.aggregate([
+      {
+        $match: {
+          address: userAddress,
+          'meta.quest.factory_id': factoryId,
+          status: ForgeSubmissionProcessingStatus.COMPLETED,
+          reward: { $gt: 0 }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalEarned: { $sum: '$reward' }
+        }
+      }
+    ]);
 
-    // Sum all rewards (excluding current submission which hasn't been saved yet)
-    const totalEarned = submissions.reduce((sum, submission) => sum + (submission.reward || 0), 0);
-
-    console.log(`User ${userAddress} has ${submissions.length} completed submissions with total earned: ${totalEarned}`);
+    const totalEarned = result.length > 0 ? result[0].totalEarned : 0;
+    console.log(`User ${userAddress} has cumulative earned of ${totalEarned} from factory ${factoryId}`);
     return totalEarned;
   } catch (error) {
     console.error('Error calculating cumulative rewards:', error);
@@ -64,6 +103,7 @@ export async function processNextInQueue() {
   let submission:
     | (mongoose.Document<unknown, {}, DBDemonstrationSubmission> & DBDemonstrationSubmission)
     | null = null;
+  let lockId: string | null = null;
 
   try {
     // Retry findById 3 times with 100ms delay between attempts
@@ -90,6 +130,15 @@ export async function processNextInQueue() {
     if (!submission) {
       throw new Error(`Submission ${submissionId} not found after retries`);
     }
+
+    // --- Acquire Lock ---
+    const userAddress = submission.address;
+    const factoryId = submission?.meta?.quest.factory_id || submission?.meta?.quest.pool_id;
+    if (userAddress && factoryId) {
+      lockId = `${userAddress}-${factoryId}`;
+      await acquireLock(lockId);
+    }
+    // --- End Acquire Lock ---
 
     // Update status to processing
     submission.status =
@@ -407,6 +456,12 @@ export async function processNextInQueue() {
     });
 
   } finally {
+    // --- Release Lock ---
+    if (lockId) {
+      await releaseLock(lockId);
+    }
+    // --- End Release Lock ---
+
     // Remove from queue and reset processing flag
     processingQueue.shift();
     isProcessing = false;

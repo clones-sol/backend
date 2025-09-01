@@ -44,7 +44,9 @@ router.get(
     const categoriesResult = await FactoryModel.aggregate([
       { $unwind: '$apps' },
       { $unwind: '$apps.categories' },
-      { $group: { _id: '$apps.categories' } },
+      { $match: { 'apps.categories': { $type: 'string' } } },
+      { $group: { _id: { $trim: { input: '$apps.categories' } } } },
+      { $match: { '_id': { $ne: '' } } },
       { $sort: { _id: 1 } }
     ]);
 
@@ -266,6 +268,40 @@ router.get(
 
     const tasksFromDB = await FactoryModel.aggregate(pipeline);
 
+    if (tasksFromDB.length === 0) {
+      return res.status(200).json(successResponse([]));
+    }
+
+    // --- Optimization: Pre-fetch all submission counts to avoid N+1 queries ---
+    const factoryIds = [...new Set(tasksFromDB.map((t) => t.factoryId.toString()))];
+    const taskIds = tasksFromDB.map((t) => t._id.toString());
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [dailySubmissions, totalSubmissions, taskSubmissionsList] = await Promise.all([
+      // Daily submissions per factory
+      DemonstrationSubmission.aggregate([
+        { $match: { 'meta.quest.pool_id': { $in: factoryIds }, createdAt: { $gte: today }, status: ForgeSubmissionProcessingStatus.COMPLETED, reward: { $gt: 0 } } },
+        { $group: { _id: '$meta.quest.pool_id', count: { $sum: 1 } } }
+      ]),
+      // Total submissions per factory
+      DemonstrationSubmission.aggregate([
+        { $match: { 'meta.quest.pool_id': { $in: factoryIds }, status: ForgeSubmissionProcessingStatus.COMPLETED, reward: { $gt: 0 } } },
+        { $group: { _id: '$meta.quest.pool_id', count: { $sum: 1 } } }
+      ]),
+      // Submissions per task
+      DemonstrationSubmission.aggregate([
+        { $match: { 'meta.quest.task_id': { $in: taskIds }, status: ForgeSubmissionProcessingStatus.COMPLETED, reward: { $gt: 0 } } },
+        { $group: { _id: '$meta.quest.task_id', count: { $sum: 1 } } }
+      ])
+    ]);
+
+    const dailySubmissionsMap = new Map(dailySubmissions.map((item) => [item._id.toString(), item.count]));
+    const totalSubmissionsMap = new Map(totalSubmissions.map((item) => [item._id.toString(), item.count]));
+    const taskSubmissionsMap = new Map(taskSubmissionsList.map((item) => [item._id.toString(), item.count]));
+    // --- End Optimization ---
+
     // Process tasks and calculate limits
     const tasks = [];
 
@@ -293,23 +329,12 @@ router.get(
       if (taskData.uploadLimitValue) {
         switch (taskData.uploadLimitType) {
           case UploadLimitType.perDay:
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            gymSubmissions = await DemonstrationSubmission.countDocuments({
-              'meta.quest.pool_id': taskData.factoryId,
-              createdAt: { $gte: today },
-              status: ForgeSubmissionProcessingStatus.COMPLETED,
-              reward: { $gt: 0 }
-            });
+            gymSubmissions = dailySubmissionsMap.get(taskData.factoryId.toString()) || 0;
             gymLimitReached = gymSubmissions >= taskData.uploadLimitValue;
             break;
 
           case UploadLimitType.total:
-            gymSubmissions = await DemonstrationSubmission.countDocuments({
-              'meta.quest.pool_id': taskData.factoryId,
-              status: ForgeSubmissionProcessingStatus.COMPLETED,
-              reward: { $gt: 0 }
-            });
+            gymSubmissions = totalSubmissionsMap.get(taskData.factoryId.toString()) || 0;
             gymLimitReached = gymSubmissions >= taskData.uploadLimitValue;
             break;
         }
@@ -325,11 +350,7 @@ router.get(
         taskData.uploadLimit ||
         (taskData.uploadLimitType === UploadLimitType.perTask && taskData.uploadLimitValue)
       ) {
-        taskSubmissions = await DemonstrationSubmission.countDocuments({
-          'meta.quest.task_id': taskData._id,
-          status: ForgeSubmissionProcessingStatus.COMPLETED,
-          reward: { $gt: 0 }
-        });
+        taskSubmissions = taskSubmissionsMap.get(taskData._id.toString()) || 0;
 
         // Check if task has reached its limit
         if (taskData.uploadLimit && taskSubmissions >= taskData.uploadLimit) {
