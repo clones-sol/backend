@@ -201,11 +201,7 @@ export async function processNextInQueue() {
 
             // Check 2: Invalid task_id
             // Find the task within the factory's apps
-            let task = null
-            for (const app of factory.apps) {
-              task = app.tasks.find((t: any) => t.id === submission?.meta?.quest.task_id)
-              if (task) break
-            }
+            let task = factory.apps.flatMap(app => app.tasks).find((t: any) => t.id === submission?.meta?.quest.task_id)
 
             if (!task) {
               reward = 0
@@ -232,9 +228,8 @@ export async function processNextInQueue() {
 
             if (previousSubmission) {
               reward = 0
-              gradeResult.reasoning = `( system: no reward given - previous submission exists with score of ${
-                previousSubmission.grade_result?.score || 0
-              } ) ${gradeResult.reasoning}`
+              gradeResult.reasoning = `( system: no reward given - previous submission exists with score of ${previousSubmission.grade_result?.score || 0
+                } ) ${gradeResult.reasoning}`
               break
             }
 
@@ -363,7 +358,12 @@ export async function processNextInQueue() {
           }
 
           // Update the grade result reasoning and on-chain reward
-          submission.grade_result.reasoning = `( system: claim authorization generated - farmer can claim ${claimAuthorization.newClaimableAmount.toFixed(2)} ${factory.token.symbol} [already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}, new reward: ${reward.toFixed(2)}] ) ${submission.grade_result.reasoning}`
+          const reasoningMessage =
+            `( system: claim authorization generated - farmer can claim ` +
+            `${claimAuthorization.newClaimableAmount.toFixed(2)} ${factory.token.symbol} ` +
+            `[already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}, new reward: ${reward.toFixed(2)}] ) ` +
+            `${submission.grade_result.reasoning}`;
+          submission.grade_result.reasoning = reasoningMessage;
           submission.onChainReward = onChainReward
 
           // Save updated claim authorization data
