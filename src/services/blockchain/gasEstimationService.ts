@@ -7,9 +7,7 @@ import BlockchainService from './index.ts';
  * Constants for gas estimation and analysis.
  */
 // Safety buffer for gas limit estimation to prevent out-of-gas errors.
-const GAS_LIMIT_BUFFER_PERCENTAGE = 120n;
-const GAS_LIMIT_BUFFER_DIVISOR = 100n;
-
+const GAS_LIMIT_BUFFER = 1.2;
 
 // Default token information, assuming USDC-like tokens.
 const DEFAULT_TOKEN_DECIMALS = 6;
@@ -128,7 +126,7 @@ class GasEstimationService {
             const gasLimit = await claimRouter.claimAll.estimateGas(claims, { from: fromAddress });
 
             // Add buffer for safety
-            const safeGasLimit = (gasLimit * GAS_LIMIT_BUFFER_PERCENTAGE) / GAS_LIMIT_BUFFER_DIVISOR;
+            const safeGasLimit = BigInt(Math.floor(Number(gasLimit) * GAS_LIMIT_BUFFER));
 
             const totalGasCost = safeGasLimit * gasPrice.maxFeePerGas;
             const totalGasCostEth = ethers.formatEther(totalGasCost);
@@ -167,8 +165,8 @@ class GasEstimationService {
             }
 
             // Apply safety buffer (20%)
-            const safeGasLimit = (estimatedGas * GAS_LIMIT_BUFFER_PERCENTAGE) / GAS_LIMIT_BUFFER_DIVISOR;
-            
+            const safeGasLimit = BigInt(Math.floor(Number(estimatedGas) * GAS_LIMIT_BUFFER));
+
             const totalGasCost = safeGasLimit * gasPrice.maxFeePerGas;
             const totalGasCostEth = ethers.formatEther(totalGasCost);
             const ethPriceUsd = await BlockchainService.getEthPriceInUSD();
@@ -199,14 +197,14 @@ class GasEstimationService {
 
         // Calculate total net reward by fetching actual token decimals
         let totalGrossReward = 0;
-        
+
         for (const claim of claims) {
             // Get token contract from vault to fetch decimals
             const vault = new ethers.Contract(claim.vault, [
                 'function token() external view returns (address)'
             ], this.provider);
             const tokenAddress = await vault.token();
-            
+
             const metadata = await tokenCache.getTokenMetadata(tokenAddress, this.provider);
             const claimAmount = parseFloat(ethers.formatUnits(claim.cumulativeAmount, metadata.decimals));
             totalGrossReward += claimAmount;
