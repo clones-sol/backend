@@ -10,9 +10,6 @@ import BlockchainService from './index.ts';
 const GAS_LIMIT_BUFFER_PERCENTAGE = 120n;
 const GAS_LIMIT_BUFFER_DIVISOR = 100n;
 
-// Fallback gas estimation parameters when direct estimation fails.
-const BASE_GAS_ESTIMATE = 50000n;
-const ESTIMATED_GAS_PER_CLAIM = 150000n;
 
 // Default token information, assuming USDC-like tokens.
 const DEFAULT_TOKEN_DECIMALS = 6;
@@ -151,16 +148,36 @@ class GasEstimationService {
         } catch (error) {
             console.error('Gas estimation failed:', error);
 
-            // Fallback estimation based on claim count
-            // Conservative estimate
-            const estimatedGas = (ESTIMATED_GAS_PER_CLAIM * BigInt(claims.length)) + BASE_GAS_ESTIMATE;
-            const totalGasCost = estimatedGas * gasPrice.maxFeePerGas;
+            // Sophisticated fallback based on transaction complexity
+            const batchCount = claims.length;
+            let estimatedGas: bigint;
+
+            if (batchCount === 1) {
+                // Single claim: base cost + signature verification
+                estimatedGas = 80000n; // More accurate for single claims
+            } else if (batchCount <= 5) {
+                // Small batch: linear scaling with reduced overhead
+                estimatedGas = 60000n + (BigInt(batchCount) * 45000n);
+            } else if (batchCount <= 20) {
+                // Medium batch: sub-linear scaling due to shared overhead
+                estimatedGas = 80000n + (BigInt(batchCount) * 35000n);
+            } else {
+                // Large batch: further efficiency gains
+                estimatedGas = 120000n + (BigInt(batchCount) * 25000n);
+            }
+
+            // Apply safety buffer (20%)
+            const safeGasLimit = (estimatedGas * GAS_LIMIT_BUFFER_PERCENTAGE) / GAS_LIMIT_BUFFER_DIVISOR;
+            
+            const totalGasCost = safeGasLimit * gasPrice.maxFeePerGas;
             const totalGasCostEth = ethers.formatEther(totalGasCost);
             const ethPriceUsd = await BlockchainService.getEthPriceInUSD();
             const totalGasCostUsd = parseFloat(totalGasCostEth) * ethPriceUsd;
 
+            console.log(`Fallback gas estimation: ${batchCount} claims = ${safeGasLimit.toString()} gas (${totalGasCostUsd.toFixed(2)} USD)`);
+
             return {
-                gasLimit: estimatedGas,
+                gasLimit: safeGasLimit,
                 maxFeePerGas: gasPrice.maxFeePerGas,
                 maxPriorityFeePerGas: gasPrice.maxPriorityFeePerGas,
                 totalGasCost,

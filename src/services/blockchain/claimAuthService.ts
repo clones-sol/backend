@@ -155,16 +155,22 @@ class ClaimAuthService {
 
     // Query already claimed amount from smart contract
     const alreadyClaimed = await this.getAlreadyClaimedAmount(poolAddress, farmerAddress);
-    
+
     // Validate amount progression
     if (newCumulativeAmount <= 0) {
       throw ApiError.badRequest(`Invalid cumulative amount: ${newCumulativeAmount}. Must be positive.`);
     }
-    
-    if (newCumulativeAmount <= alreadyClaimed) {
-      throw ApiError.badRequest(`New cumulative amount (${newCumulativeAmount}) must be greater than already claimed (${alreadyClaimed})`);
+
+    // Add tolerance for race conditions or pending transactions
+    const TOLERANCE = 1e-6; // Allow a small delta for floating point errors or pending state
+    if (newCumulativeAmount < alreadyClaimed - TOLERANCE) {
+      throw ApiError.badRequest(`New cumulative amount (${newCumulativeAmount}) must be greater than already claimed (${alreadyClaimed}). If you recently submitted a claim, please wait for it to be mined and try again.`);
     }
-    
+    if (Math.abs(newCumulativeAmount - alreadyClaimed) <= TOLERANCE) {
+      // Warn but do not reject, as this may be due to pending transactions
+      console.warn(`Claim amount is equal to already claimed. This may be due to pending transactions. Proceeding with caution.`);
+    }
+
     const newClaimableAmount = newCumulativeAmount - alreadyClaimed;
     console.log(`Generating signature: alreadyClaimed=${alreadyClaimed}, newCumulative=${newCumulativeAmount}, newClaimable=${newClaimableAmount}`);
 

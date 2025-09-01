@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ethers } from 'ethers';
-import { tokenCache, TokenMetadata } from './tokenCache.js';
+import { tokenCache, TokenMetadata, startCleanupInterval, stopCleanupInterval } from './tokenCache.js';
 
 // Mock ethers contract
 const mockContract = {
@@ -46,6 +46,9 @@ describe('TokenCache', () => {
     // Clear cache before each test
     tokenCache.clear();
     
+    // Stop cleanup interval to prevent interference
+    stopCleanupInterval();
+    
     // Setup mock responses
     mockContract.decimals.mockResolvedValue(expectedMetadata.decimals);
     mockContract.symbol.mockResolvedValue(expectedMetadata.symbol);
@@ -56,6 +59,7 @@ describe('TokenCache', () => {
 
   afterEach(() => {
     tokenCache.clear();
+    stopCleanupInterval();
   });
 
   describe('getTokenMetadata', () => {
@@ -226,6 +230,32 @@ describe('TokenCache', () => {
       // But blockchain should only be called once (cache hit for concurrent calls)
       // Note: This test may be flaky depending on implementation
       expect(tokenCache.getStats().size).toBe(1);
+    });
+  });
+
+  describe('Cleanup interval management', () => {
+    it('should start and stop cleanup interval', () => {
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+      
+      const intervalId = startCleanupInterval();
+      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 1000 * 60 * 60);
+      expect(intervalId).toBeDefined();
+      
+      stopCleanupInterval();
+      expect(clearIntervalSpy).toHaveBeenCalledWith(intervalId);
+    });
+
+    it('should clear existing interval when starting new one', () => {
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+      
+      const intervalId1 = startCleanupInterval();
+      const intervalId2 = startCleanupInterval();
+      
+      expect(clearIntervalSpy).toHaveBeenCalledWith(intervalId1);
+      expect(intervalId2).toBeDefined();
+      
+      stopCleanupInterval();
     });
   });
 });

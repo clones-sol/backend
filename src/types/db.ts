@@ -1,7 +1,5 @@
 import { Types } from 'mongoose';
-import {
-  ForgeSubmissionProcessingStatus
-} from './index.ts';
+import { ForgeSubmissionProcessingStatus } from './index.ts';
 
 export interface DBDemonstrationSubmission {
   _id?: string;
