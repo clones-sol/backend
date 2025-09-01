@@ -743,7 +743,7 @@ router.post(
             tokenAddress = parsedLog.args.token
             break
           }
-        } catch (_e) {}
+        } catch (_e) { }
       }
 
       if (!poolAddress || !creatorAddress || !tokenAddress) {
