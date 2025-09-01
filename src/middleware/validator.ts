@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
-import { ApiError } from './types/errors.ts';
-import { isValidAddress } from '../utils/addressValidation.js';
+import type { NextFunction, Request, Response } from 'express'
+import { isValidAddress } from '../utils/addressValidation.js'
+import { ApiError } from './types/errors.ts'
 
 /**
  * Validates if a string is a valid URL.
@@ -9,42 +9,42 @@ import { isValidAddress } from '../utils/addressValidation.js';
  */
 export const isValidUrl = (v: string): boolean => {
   try {
-    new URL(v);
-    return true;
+    new URL(v)
+    return true
   } catch {
-    return false;
+    return false
   }
-};
+}
 
 /**
  * Type for validation rules
  */
 export type ValidationRule = {
-  validate: ((value: any) => boolean) | ((value: any) => Promise<boolean>);
-  message: string;
-  transform?: (value: any) => any; // Optional transform function
-};
+  validate: ((value: any) => boolean) | ((value: any) => Promise<boolean>)
+  message: string
+  transform?: (value: any) => any // Optional transform function
+}
 
 /**
  * Type for field validation schema
  */
 export type FieldValidation = {
-  required?: boolean;
-  rules?: ValidationRule[];
-};
+  required?: boolean
+  rules?: ValidationRule[]
+}
 
 /**
  * Type for validation schema
  */
-export type ValidationSchema = Record<string, FieldValidation>;
+export type ValidationSchema = Record<string, FieldValidation>
 
 /**
  * Validation result type
  */
 export type ValidationResult = {
-  valid: boolean;
-  errors: Record<string, string>;
-};
+  valid: boolean
+  errors: Record<string, string>
+}
 
 /**
  * Common validation rules
@@ -57,23 +57,23 @@ export const ValidationRules = {
 
   isNumber: (): ValidationRule => ({
     validate: (value) => {
-      console.log(value);
+      console.log(value)
       if (typeof value === 'string') {
         // Attempt to cast string to number
-        const num = Number(value);
-        return !isNaN(num);
+        const num = Number(value)
+        return !Number.isNaN(num)
       } else if (typeof value === 'number') {
-        return !isNaN(value);
+        return !Number.isNaN(value)
       }
       // Other types fail validation
-      return false;
+      return false
     },
     message: 'Must be a number',
     transform: (value) => {
       if (typeof value === 'string') {
-        return Number(value);
+        return Number(value)
       }
-      return value;
+      return value
     }
   }),
 
@@ -95,50 +95,50 @@ export const ValidationRules = {
   isDate: (): ValidationRule => ({
     validate: (value) => {
       if (typeof value === 'string') {
-        const date = new Date(value);
-        return !isNaN(date.getTime());
+        const date = new Date(value)
+        return !Number.isNaN(date.getTime())
       }
-      return value instanceof Date && !isNaN(value.getTime());
+      return value instanceof Date && !Number.isNaN(value.getTime())
     },
     message: 'Must be a valid date'
   }),
 
   minLength: (min: number): ValidationRule => ({
     validate: (value) => {
-      if (typeof value !== 'string') return false;
-      return value.length >= min;
+      if (typeof value !== 'string') return false
+      return value.length >= min
     },
     message: `Must be at least ${min} characters long`
   }),
 
   maxLength: (max: number): ValidationRule => ({
     validate: (value) => {
-      if (typeof value !== 'string') return false;
-      return value.length <= max;
+      if (typeof value !== 'string') return false
+      return value.length <= max
     },
     message: `Must be at most ${max} characters long`
   }),
 
   min: (min: number): ValidationRule => ({
     validate: (value) => {
-      if (typeof value !== 'number') return false;
-      return value >= min;
+      if (typeof value !== 'number') return false
+      return value >= min
     },
     message: `Must be at least ${min}`
   }),
 
   max: (max: number): ValidationRule => ({
     validate: (value) => {
-      if (typeof value !== 'number') return false;
-      return value <= max;
+      if (typeof value !== 'number') return false
+      return value <= max
     },
     message: `Must be at most ${max}`
   }),
 
   matches: (regex: RegExp, customMessage?: string): ValidationRule => ({
     validate: (value) => {
-      if (typeof value !== 'string') return false;
-      return regex.test(value);
+      if (typeof value !== 'string') return false
+      return regex.test(value)
     },
     message: customMessage || 'Invalid format'
   }),
@@ -148,7 +148,10 @@ export const ValidationRules = {
     message: customMessage || `Value not allowed`
   }),
 
-  customValidator: (validateFn: ((value: any) => boolean) | ((value: any) => Promise<boolean>), message: string): ValidationRule => ({
+  customValidator: (
+    validateFn: ((value: any) => boolean) | ((value: any) => Promise<boolean>),
+    message: string
+  ): ValidationRule => ({
     validate: validateFn,
     message
   }),
@@ -157,29 +160,29 @@ export const ValidationRules = {
     validate: () => true, // Always valid, just transforms
     message: 'String sanitization',
     transform: (value) => {
-      if (typeof value !== 'string') return value;
+      if (typeof value !== 'string') return value
       // Remove potentially dangerous characters
       return value
         .replace(/[<>"'&]/g, '') // Remove HTML/XML chars
         .replace(/[\x00-\x1F\x7F]/g, '') // Remove control chars
         .trim()
-        .substring(0, 1000); // Limit length
+        .substring(0, 1000) // Limit length
     }
   }),
 
   isReferralCode: (): ValidationRule => ({
     validate: (value) => {
-      if (typeof value !== 'string') return false;
+      if (typeof value !== 'string') return false
       // Exact format: 6 uppercase alphanumeric characters, excluding confusing ones (O, 0, I, L)
-      return /^[A-HJKMNP-Z2-9]{6}$/.test(value);
+      return /^[A-HJKMNP-Z2-9]{6}$/.test(value)
     },
     message: 'Must be a valid 6-character referral code (cannot contain O, 0, I, L)'
   }),
 
   isImageUrl: (): ValidationRule => ({
     validate: (value) => {
-      if (typeof value !== 'string' || !isValidUrl(value)) return false;
-      return /^https?:\/\/.+\.(jpg|jpeg|png|gif|svg)$/i.test(value);
+      if (typeof value !== 'string' || !isValidUrl(value)) return false
+      return /^https?:\/\/.+\.(jpg|jpeg|png|gif|svg)$/i.test(value)
     },
     message: 'Must be a valid image URL (jpg, jpeg, png, gif, svg).'
   }),
@@ -192,45 +195,45 @@ export const ValidationRules = {
   // Common validation patterns
   isEVMAddress: (): ValidationRule => ({
     validate: async (value) => {
-      return isValidAddress(value);
+      return isValidAddress(value)
     },
     message: 'Must be a valid EVM wallet address'
   }),
 
   isValidName: (): ValidationRule => ({
     validate: (value) => {
-      return /^[a-zA-Z0-9_]+$/.test(value);
+      return /^[a-zA-Z0-9_]+$/.test(value)
     },
     message: 'Must contain only letters, numbers, and underscores'
   }),
 
   isNonEmptyArray: (): ValidationRule => ({
     validate: (value) => {
-      return value.length > 0;
+      return value.length > 0
     },
     message: 'Must provide at least one element'
   }),
 
   isInteger: (): ValidationRule => ({
     validate: (value) => {
-      return Number.isInteger(value);
+      return Number.isInteger(value)
     },
     message: 'Must be an integer'
   }),
 
   isQueryNumber: (min?: number, max?: number): ValidationRule => ({
     validate: (value) => {
-      if (value === undefined) return true;
+      if (value === undefined) return true
 
       // Parse the string to a number
-      const num = parseInt(value as string);
-      if (isNaN(num)) return false;
+      const num = parseInt(value as string, 10)
+      if (Number.isNaN(num)) return false
 
       // Apply min/max constraints if provided
-      if (min !== undefined && num < min) return false;
-      if (max !== undefined && num > max) return false;
+      if (min !== undefined && num < min) return false
+      if (max !== undefined && num > max) return false
 
-      return true;
+      return true
     },
     message:
       min !== undefined && max !== undefined
@@ -241,8 +244,8 @@ export const ValidationRules = {
             ? `Must be a number less than or equal to ${max}`
             : 'Must be a valid number',
     transform: (value) => {
-      if (value === undefined) return value;
-      return parseInt(value as string);
+      if (value === undefined) return value
+      return parseInt(value as string, 10)
     }
   }),
 
@@ -250,7 +253,7 @@ export const ValidationRules = {
     validate: validateFn,
     message
   })
-};
+}
 
 /**
  * Validate an object against a schema
@@ -259,62 +262,62 @@ export async function validateObject(
   obj: Record<string, any>,
   schema: ValidationSchema
 ): Promise<ValidationResult & { transformedValues?: Record<string, any> }> {
-  const errors: Record<string, string> = {};
-  const transformedValues: Record<string, any> = {};
+  const errors: Record<string, string> = {}
+  const transformedValues: Record<string, any> = {}
 
   // Helper function to get nested properties
   const getValue = (path: string, source: Record<string, any>): any => {
-    let current: any = source;
+    let current: any = source
     for (const part of path.split('.')) {
-      if (current === null || current === undefined) return undefined;
-      current = current[part];
+      if (current === null || current === undefined) return undefined
+      current = current[part]
     }
-    return current;
-  };
+    return current
+  }
 
   // Helper function to set nested properties for transformations
   const setValue = (path: string, target: Record<string, any>, value: any) => {
-    const parts = path.split('.');
-    const last = parts.pop();
-    if (!last) return;
+    const parts = path.split('.')
+    const last = parts.pop()
+    if (!last) return
 
-    let current = target;
+    let current = target
     for (const part of parts) {
-      current = current[part] = current[part] || {};
+      current = current[part] = current[part] || {}
     }
-    current[last] = value;
-  };
+    current[last] = value
+  }
 
   // Check each field in the schema
   for (const [field, validation] of Object.entries(schema)) {
-    let value = getValue(field, obj);
+    let value = getValue(field, obj)
 
     // Check if required field is missing
     if (validation.required && (value === undefined || value === null || value === '')) {
-      errors[field] = 'This field is required';
-      continue;
+      errors[field] = 'This field is required'
+      continue
     }
 
     // Skip validation for undefined optional fields
     if (value === undefined) {
-      continue;
+      continue
     }
 
     // Apply validation rules
     if (validation.rules && value !== null) {
       for (const rule of validation.rules) {
         if (!(await rule.validate(value))) {
-          const receivedValue = JSON.stringify(value);
-          errors[field] = `${rule.message} (received: ${receivedValue})`;
-          break;
+          const receivedValue = JSON.stringify(value)
+          errors[field] = `${rule.message} (received: ${receivedValue})`
+          break
         }
 
         // Apply transformation if provided
         if (rule.transform) {
-          value = rule.transform(value);
+          value = rule.transform(value)
           // Use setValue to handle nested transformed values
-          setValue(field, transformedValues, value);
-          setValue(field, obj, value);
+          setValue(field, transformedValues, value)
+          setValue(field, obj, value)
         }
       }
     }
@@ -324,7 +327,7 @@ export async function validateObject(
     valid: Object.keys(errors).length === 0,
     errors,
     transformedValues: Object.keys(transformedValues).length > 0 ? transformedValues : undefined
-  };
+  }
 }
 
 /**
@@ -333,15 +336,15 @@ export async function validateObject(
 export function validateBody(schema: ValidationSchema) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     // validateObject will update req.body with transformed values
-    const { valid, errors } = await validateObject(req.body, schema);
+    const { valid, errors } = await validateObject(req.body, schema)
 
     if (!valid) {
-      next(ApiError.validationError('Validation failed', { fields: errors }));
-      return;
+      next(ApiError.validationError('Validation failed', { fields: errors }))
+      return
     }
 
-    next();
-  };
+    next()
+  }
 }
 
 /**
@@ -350,15 +353,15 @@ export function validateBody(schema: ValidationSchema) {
 export function validateQuery(schema: ValidationSchema) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     // validateObject will update req.query with transformed values
-    const { valid, errors } = await validateObject(req.query, schema);
+    const { valid, errors } = await validateObject(req.query, schema)
 
     if (!valid) {
-      next(ApiError.validationError('Query validation failed', { fields: errors }));
-      return;
+      next(ApiError.validationError('Query validation failed', { fields: errors }))
+      return
     }
 
-    next();
-  };
+    next()
+  }
 }
 
 /**
@@ -367,13 +370,17 @@ export function validateQuery(schema: ValidationSchema) {
 export function validateParams(schema: ValidationSchema) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     // validateObject will update req.params with transformed values
-    const { valid, errors } = await validateObject(req.params, schema);
+    const { valid, errors } = await validateObject(req.params, schema)
 
     if (!valid) {
-      next(ApiError.validationError('Parameter validation failed', { fields: errors }));
-      return;
+      next(
+        ApiError.validationError('Parameter validation failed', {
+          fields: errors
+        })
+      )
+      return
     }
 
-    next();
-  };
+    next()
+  }
 }

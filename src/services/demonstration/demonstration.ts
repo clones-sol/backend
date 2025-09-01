@@ -1,36 +1,39 @@
-import OpenAI from 'openai';
-import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts';
+import OpenAI from 'openai'
+import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
 
 // Cache to store generated instruction lists
-const CACHE_EXPIRY = 2 * 60 * 60 * 1000;
+const _CACHE_EXPIRY = 2 * 60 * 60 * 1000
 const instructionCache = new Map<
   string,
   {
-    instructions: string[];
-    timestamp: number;
-    expiryMs: number;
+    instructions: string[]
+    timestamp: number
+    expiryMs: number
   }
->();
+>()
 
-const openai = new OpenAI({
+const _openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
-});
+})
 
-let cleanupCache: NodeJS.Timeout;
+let cleanupCache: NodeJS.Timeout
 
 export function startCacheInterval() {
-  cleanupCache = setInterval(() => {
-    const now = Date.now();
-    for (const [key, value] of instructionCache.entries()) {
-      if (now - value.timestamp >= value.expiryMs) {
-        instructionCache.delete(key);
+  cleanupCache = setInterval(
+    () => {
+      const now = Date.now()
+      for (const [key, value] of instructionCache.entries()) {
+        if (now - value.timestamp >= value.expiryMs) {
+          instructionCache.delete(key)
+        }
       }
-    }
-  }, 60 * 60 * 1000);
+    },
+    60 * 60 * 1000
+  )
 }
 
 export function stopCacheInterval() {
-  clearInterval(cleanupCache);
+  clearInterval(cleanupCache)
 }
 
 /**
@@ -40,13 +43,19 @@ export function stopCacheInterval() {
 export async function getLeaderboardData() {
   // Get worker leaderboard
   const workerLeaderboardData: {
-    address: string;
-    tasks: number;
-    rewards: number;
-    avgScore: number;
-    nickname?: string;
+    address: string
+    tasks: number
+    rewards: number
+    avgScore: number
+    nickname?: string
   }[] = await DemonstrationSubmission.aggregate([
-    { $match: { status: 'completed', reward: { $exists: true, $gt: 0 }, clampedScore: { $gte: 50 } } },
+    {
+      $match: {
+        status: 'completed',
+        reward: { $exists: true, $gt: 0 },
+        clampedScore: { $gte: 50 }
+      }
+    },
     {
       $group: {
         _id: '$address',
@@ -75,7 +84,7 @@ export async function getLeaderboardData() {
         nickname: { $arrayElemAt: ['$walletConnection.nickname', 0] }
       }
     }
-  ]);
+  ])
 
   // Add rank and nickname to worker leaderboard
   const workerLeaderboard = workerLeaderboardData.map((worker, index) => ({
@@ -85,7 +94,7 @@ export async function getLeaderboardData() {
     tasks: worker.tasks,
     rewards: worker.rewards,
     avgScore: worker.avgScore
-  }));
+  }))
 
   // Get forge leaderboard - convert string pool_id to ObjectId
   const forgeLeaderboardData = await DemonstrationSubmission.aggregate([
@@ -122,7 +131,7 @@ export async function getLeaderboardData() {
         payout: 1
       }
     }
-  ]);
+  ])
 
   // Add rank to forge leaderboard
   const forgeLeaderboard = forgeLeaderboardData.map((forge, index) => ({
@@ -130,16 +139,16 @@ export async function getLeaderboardData() {
     name: forge.name,
     tasks: forge.tasks,
     payout: forge.payout
-  }));
+  }))
 
   // Get overall stats
 
   const totalWorkersResult = await DemonstrationSubmission.aggregate([
     { $group: { _id: '$address' } },
     { $count: 'total' }
-  ]);
+  ])
 
-  const totalWorkers = totalWorkersResult.length > 0 ? totalWorkersResult[0].total : 0;
+  const totalWorkers = totalWorkersResult.length > 0 ? totalWorkersResult[0].total : 0
 
   const tasksStats = await DemonstrationSubmission.aggregate([
     { $match: { status: 'completed' } },
@@ -150,14 +159,14 @@ export async function getLeaderboardData() {
         totalRewards: { $sum: '$reward' }
       }
     }
-  ]);
+  ])
 
-  const tasksCompleted = tasksStats.length > 0 ? tasksStats[0].tasksCompleted : 0;
-  const totalRewards = tasksStats.length > 0 ? tasksStats[0].totalRewards : 0;
+  const tasksCompleted = tasksStats.length > 0 ? tasksStats[0].tasksCompleted : 0
+  const totalRewards = tasksStats.length > 0 ? tasksStats[0].totalRewards : 0
 
   const activeForges = await FactoryModel.countDocuments({
     status: 'active'
-  });
+  })
 
   // Compile final result
   return {
@@ -169,5 +178,5 @@ export async function getLeaderboardData() {
       totalRewards,
       activeForges
     }
-  };
+  }
 }

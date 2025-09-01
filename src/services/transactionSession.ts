@@ -1,4 +1,4 @@
-import { TransactionSessionModel } from '../models/TransactionSession.ts';
+import { TransactionSessionModel } from '../models/TransactionSession.ts'
 
 /**
  * Service for managing transaction sessions
@@ -9,21 +9,21 @@ export class TransactionSessionService {
    * Get a transaction session by sessionId
    */
   static async getSession(sessionId: string) {
-    const session = await TransactionSessionModel.findOne({ sessionId });
+    const session = await TransactionSessionModel.findOne({ sessionId })
     if (!session) {
-      throw new Error('Transaction session not found');
+      throw new Error('Transaction session not found')
     }
 
     // Check if session has expired
     if (new Date() > session.expiresAt) {
       if (session.status === 'pending') {
-        session.status = 'failed';
-        session.error = 'Transaction session expired';
-        await session.save();
+        session.status = 'failed'
+        session.error = 'Transaction session expired'
+        await session.save()
       }
     }
 
-    return session;
+    return session
   }
 
   /**
@@ -35,28 +35,28 @@ export class TransactionSessionService {
     txHash?: string,
     error?: string
   ) {
-    const session = await TransactionSessionModel.findOne({ sessionId });
+    const session = await TransactionSessionModel.findOne({ sessionId })
     if (!session) {
-      throw new Error('Transaction session not found');
+      throw new Error('Transaction session not found')
     }
 
     // Update session
-    session.status = status;
-    if (txHash) session.txHash = txHash;
-    if (error) session.error = error;
-    
-    await session.save();
-    return session;
+    session.status = status
+    if (txHash) session.txHash = txHash
+    if (error) session.error = error
+
+    await session.save()
+    return session
   }
 
   /**
    * Check if session is valid and get transaction details for website
    */
   static async validateSessionForWebsite(sessionId: string) {
-    const session = await TransactionSessionService.getSession(sessionId);
-    
+    const session = await TransactionSessionService.getSession(sessionId)
+
     if (session.status !== 'pending') {
-      throw new Error('Transaction session is not pending');
+      throw new Error('Transaction session is not pending')
     }
 
     return {
@@ -65,7 +65,7 @@ export class TransactionSessionService {
       transactionParams: session.transactionParams,
       sessionToken: session.sessionToken,
       expiresAt: session.expiresAt
-    };
+    }
   }
 
   /**
@@ -73,15 +73,15 @@ export class TransactionSessionService {
    * Called by website after successful MetaMask transaction
    */
   static async markCompleted(sessionId: string, txHash: string) {
-    return await TransactionSessionService.updateSession(sessionId, 'completed', txHash);
+    return await TransactionSessionService.updateSession(sessionId, 'completed', txHash)
   }
 
   /**
-   * Mark session as failed with error message  
+   * Mark session as failed with error message
    * Called by website when transaction fails
    */
   static async markFailed(sessionId: string, error: string) {
-    return await TransactionSessionService.updateSession(sessionId, 'failed', undefined, error);
+    return await TransactionSessionService.updateSession(sessionId, 'failed', undefined, error)
   }
 
   /**
@@ -89,6 +89,6 @@ export class TransactionSessionService {
    * Called by website when user cancels transaction
    */
   static async markCancelled(sessionId: string) {
-    return await TransactionSessionService.updateSession(sessionId, 'cancelled');
+    return await TransactionSessionService.updateSession(sessionId, 'cancelled')
   }
 }

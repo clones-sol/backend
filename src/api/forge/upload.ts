@@ -1,75 +1,404 @@
-import express, { Request, Response, Router, NextFunction } from 'express';
-import multer from 'multer';
-import { createReadStream, createWriteStream } from 'fs';
-import { mkdir, unlink, copyFile, stat, writeFile, readFile } from 'fs/promises';
-import * as path from 'path';
-import { Extract } from 'unzipper';
-import { createHash } from 'crypto';
-import { ObjectStorageService } from '../../services/storage/index.ts';
-import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts';
-import BlockchainService from '../../services/blockchain/index.ts';
+import { createHash } from 'node:crypto'
+import { createReadStream, createWriteStream } from 'node:fs'
+import { copyFile, mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
+import * as path from 'node:path'
+import express, { type NextFunction, type Request, type Response, type Router } from 'express'
+import multer from 'multer'
+import { Extract } from 'unzipper'
+import { requireWalletAddress } from '../../middleware/auth.ts'
+import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
+import { ApiError, successResponse } from '../../middleware/types/errors.ts'
+import { validateBody, validateParams } from '../../middleware/validator.ts'
+import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
+import { type IUploadSessionDocument, UploadSessionModel } from '../../models/UploadSession.ts'
+import BlockchainService from '../../services/blockchain/index.ts'
+import { addToProcessingQueue, cleanupSession } from '../../services/forge/index.ts'
+import { ObjectStorageService } from '../../services/storage/index.ts'
 import {
-    DBDemonstrationSubmission,
-    ForgeSubmissionProcessingStatus,
-    FactoryPoolStatus,
-    UploadLimitType,
-    UploadSession
-} from '../../types/index.ts';
-import {
-    addToProcessingQueue,
-    cleanupSession
-} from '../../services/forge/index.ts';
-import { validateBody, validateParams } from '../../middleware/validator.ts';
-import {
-    initUploadSchema,
-    uploadChunkSchema,
-    uploadIdParamSchema
-} from '../schemas/forgeUpload.ts';
-import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
-import { ApiError, successResponse } from '../../middleware/types/errors.ts';
-import { requireWalletAddress } from '../../middleware/auth.ts';
-import { IUploadSessionDocument, UploadSessionModel } from '../../models/UploadSession.ts';
+  type DBDemonstrationSubmission,
+  ForgeSubmissionProcessingStatus,
+  UploadLimitType
+} from '../../types/index.ts'
+import { initUploadSchema, uploadChunkSchema, uploadIdParamSchema } from '../schemas/forgeUpload.ts'
 
 // Initialize blockchain service
-const blockchainService = new BlockchainService(process.env.RPC_URL || '');
+const blockchainService = new BlockchainService(process.env.RPC_URL || '')
+
+// Helper functions to reduce complexity
+async function validateUploadComplete(session: IUploadSessionDocument) {
+  if (session.receivedChunks.size !== session.totalChunks) {
+    console.log(
+      `[UPLOAD] Incomplete upload: ${session.receivedChunks.size}/${session.totalChunks} chunks received`
+    )
+    const missing = Array.from({ length: session.totalChunks }, (_, i) => i).filter(
+      (i) => !session.receivedChunks.has(i.toString())
+    )
+    console.log(`[UPLOAD] Missing chunks: ${missing.join(', ')}`)
+
+    throw ApiError.uploadIncomplete('Upload incomplete', {
+      received: session.receivedChunks.size,
+      total: session.totalChunks,
+      missing
+    })
+  }
+}
+
+async function combineChunks(session: IUploadSessionDocument, finalFilePath: string) {
+  console.log(`[UPLOAD] All chunks received, combining into final file`)
+  console.log(`[UPLOAD] Final file path: ${finalFilePath}`)
+
+  const sortedChunks = Array.from(session.receivedChunks.values()).sort(
+    (a, b) => a.chunkIndex - b.chunkIndex
+  )
+  console.log(`[UPLOAD] Sorted ${sortedChunks.length} chunks for combining`)
+
+  const writeStream = createWriteStream(finalFilePath)
+  console.log(`[UPLOAD] Created write stream for final file`)
+
+  // Write chunks sequentially
+  console.log(`[UPLOAD] Starting to write chunks sequentially`)
+  for (let i = 0; i < sortedChunks.length; i++) {
+    const chunk = sortedChunks[i]
+    console.log(
+      `[UPLOAD] Writing chunk ${i + 1}/${sortedChunks.length} (index: ${
+        chunk.chunkIndex
+      }, size: ${chunk.size} bytes)`
+    )
+    await new Promise<void>((resolve, reject) => {
+      const readStream = createReadStream(chunk.path)
+
+      // Handle backpressure
+      let draining = false
+
+      const handleDrain = () => {
+        draining = false
+        readStream.resume()
+      }
+
+      writeStream.on('drain', handleDrain)
+
+      readStream
+        .on('error', (err: Error) => {
+          console.error(`[UPLOAD] Error reading chunk ${chunk.chunkIndex}:`, err)
+          writeStream.removeListener('drain', handleDrain)
+          reject(err)
+        })
+        .on('data', (chunk) => {
+          // If writeStream returns false, it's experiencing backpressure
+          if (!writeStream.write(chunk) && !draining) {
+            draining = true
+            readStream.pause() // Pause reading until drain
+          }
+        })
+        .on('end', () => {
+          console.log(`[UPLOAD] Finished reading chunk ${chunk.chunkIndex}`)
+          writeStream.removeListener('drain', handleDrain)
+          resolve()
+        })
+    })
+  }
+
+  // Close the write stream
+  console.log(`[UPLOAD] All chunks written, closing write stream`)
+  await new Promise<void>((resolve, reject) => {
+    writeStream.end()
+    writeStream.on('finish', () => {
+      console.log(`[UPLOAD] Write stream closed successfully`)
+      resolve()
+    })
+    writeStream.on('error', (err: Error) => {
+      console.error(`[UPLOAD] Error closing write stream:`, err)
+      reject(err)
+    })
+  })
+}
+
+async function extractZipFile(finalFilePath: string, extractDir: string) {
+  console.log(`[UPLOAD] Creating extraction directory: ${extractDir}`)
+  await mkdir(extractDir, { recursive: true })
+
+  console.log(`[UPLOAD] Extracting ZIP file to ${extractDir}`)
+  await new Promise<void>((resolve, reject) => {
+    createReadStream(finalFilePath)
+      .pipe(Extract({ path: extractDir }))
+      .on('close', () => {
+        console.log(`[UPLOAD] ZIP extraction completed`)
+        resolve()
+      })
+      .on('error', (err: Error) => {
+        console.error(`[UPLOAD] Error extracting ZIP:`, err)
+        reject(err)
+      })
+  })
+}
+
+async function processMetadata(extractDir: string, address: string) {
+  console.log(`[UPLOAD] Reading meta.json from extracted files`)
+  const metaJsonPath = path.join(extractDir, 'meta.json')
+  console.log(`[UPLOAD] Meta JSON path: ${metaJsonPath}`)
+  const metaJson = await readFile(metaJsonPath, 'utf8')
+  console.log(`[UPLOAD] Meta JSON content length: ${metaJson.length}`)
+  const meta: DBDemonstrationSubmission['meta'] = JSON.parse(metaJson)
+  console.log(`[UPLOAD] Parsed meta data, id: ${meta.id}`)
+
+  // Create UUID from meta.id + address
+  const uuid = createHash('sha256').update(`${meta.id}${address}`).digest('hex')
+  console.log(`[UPLOAD] Generated submission UUID: ${uuid}`)
+
+  return { meta, uuid }
+}
+
+async function moveRequiredFiles(extractDir: string, finalDir: string) {
+  console.log(`[UPLOAD] Creating final directory: ${finalDir}`)
+  await mkdir(finalDir, { recursive: true })
+
+  const requiredFiles = ['input_log.jsonl', 'meta.json', 'recording.mp4', 'sft.json']
+  console.log(`[UPLOAD] Moving required files to final directory`)
+
+  for (const file of requiredFiles) {
+    const sourcePath = path.join(extractDir, file)
+    const destPath = path.join(finalDir, file)
+    console.log(`[UPLOAD] Copying ${file} from ${sourcePath} to ${destPath}`)
+    try {
+      await copyFile(sourcePath, destPath)
+      console.log(`[UPLOAD] Successfully copied ${file}`)
+    } catch (error) {
+      console.error(`[UPLOAD] Error copying file ${file}:`, error)
+      throw ApiError.badRequest(`Missing required file: ${file}`)
+    }
+  }
+
+  return requiredFiles
+}
+
+function validateStorageConfig() {
+  const {
+    STORAGE_ACCESS_KEY,
+    STORAGE_SECRET_KEY,
+    STORAGE_ENDPOINT,
+    STORAGE_REGION,
+    STORAGE_BUCKET
+  } = process.env
+
+  const missingVariables = []
+  if (!STORAGE_ACCESS_KEY) missingVariables.push('STORAGE_ACCESS_KEY')
+  if (!STORAGE_SECRET_KEY) missingVariables.push('STORAGE_SECRET_KEY')
+  if (!STORAGE_ENDPOINT) missingVariables.push('STORAGE_ENDPOINT')
+  if (!STORAGE_REGION) missingVariables.push('STORAGE_REGION')
+  if (!STORAGE_BUCKET) missingVariables.push('STORAGE_BUCKET')
+
+  if (missingVariables.length > 0) {
+    throw new Error(
+      `Storage service environment variables are not properly configured. Missing: ${missingVariables.join(', ')}`
+    )
+  }
+
+  return {
+    STORAGE_ACCESS_KEY: STORAGE_ACCESS_KEY as string,
+    STORAGE_SECRET_KEY: STORAGE_SECRET_KEY as string,
+    STORAGE_ENDPOINT: STORAGE_ENDPOINT as string,
+    STORAGE_REGION: STORAGE_REGION as string,
+    STORAGE_BUCKET: STORAGE_BUCKET as string
+  }
+}
 
 // Configure multer for handling chunk uploads
 const upload = multer({
-    dest: 'uploads/chunks/',
-    limits: {
-        fileSize: 100 * 1024 * 1024 // 100MB limit per chunk
-    }
-});
+  dest: 'uploads/chunks/',
+  limits: {
+    fileSize: 100 * 1024 * 1024 // 100MB limit per chunk
+  }
+})
 
 // Store active upload sessions - DEPRECATED in favor of MongoDB storage
 // const activeSessions = new Map<string, UploadSession>();
 
-const SESSION_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+const SESSION_EXPIRY = 24 * 60 * 60 * 1000 // 24 hours
 
 // startUploadInterval is no longer needed as MongoDB's TTL index handles session expiry
 // startUploadInterval(activeSessions, SESSION_EXPIRY);
 
 // Middleware to validate upload session
 export const requireUploadSession = errorHandlerAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-        const uploadId = req.params.uploadId || req.body.uploadId;
+  async (req: Request, _res: Response, next: NextFunction) => {
+    const uploadId = req.params.uploadId || req.body.uploadId
 
-        if (!uploadId) {
-            throw ApiError.badRequest('Upload ID is required');
-        }
-
-        const session = await UploadSessionModel.findById(uploadId);
-        if (!session) {
-            throw ApiError.notFound(`Upload session not found or expired: ${uploadId}`);
-        }
-
-        // @ts-ignore - Add session to the request object
-        req.uploadSession = session;
-        next();
+    if (!uploadId) {
+      throw ApiError.badRequest('Upload ID is required')
     }
-);
 
-const router: Router = express.Router();
+    const session = await UploadSessionModel.findById(uploadId)
+    if (!session) {
+      throw ApiError.notFound(`Upload session not found or expired: ${uploadId}`)
+    }
+
+    // @ts-expect-error - Add session to the request object
+    req.uploadSession = session
+    next()
+  }
+)
+
+const router: Router = express.Router()
+
+async function verifyFactoryAndBalance(meta: Record<string, any>): Promise<any> {
+  if (!meta.factoryId) {
+    throw ApiError.badRequest('Invalid data: missing pool id')
+  }
+
+  console.log(`[UPLOAD] Verifying pool balance and status for factoryId: ${meta.factoryId}`)
+  const factory = await FactoryModel.findById(meta.factoryId)
+  if (!factory) {
+    throw ApiError.notFound('Factory not found')
+  }
+
+  if (factory.status !== 'active') {
+    throw ApiError.badRequest(`Factory is not active (status: ${factory.status})`)
+  }
+
+  const tokenAddress = factory.token.address
+  const currentBalance = await blockchainService.getTokenBalance(tokenAddress, factory.poolAddress)
+
+  if (currentBalance < factory.pricePerDemo) {
+    console.log(`[UPLOAD] Insufficient funds: ${currentBalance} < ${factory.pricePerDemo}`)
+    throw ApiError.insufficientFunds('Factory has insufficient funds')
+  }
+
+  return factory
+}
+
+async function checkFactoryUploadLimits(factory: Record<string, any>): Promise<void> {
+  if (!factory.uploadLimit?.value) return
+
+  let gymSubmissions: number
+  const factoryId = factory._id.toString()
+
+  switch (factory.uploadLimit.type) {
+    case UploadLimitType.perDay: {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      gymSubmissions = await DemonstrationSubmission.countDocuments({
+        'meta.quest.pool_id': factoryId,
+        createdAt: { $gte: today },
+        status: ForgeSubmissionProcessingStatus.COMPLETED,
+        reward: { $gt: 0 }
+      })
+
+      if (gymSubmissions >= factory.uploadLimit.value) {
+        console.log(`[UPLOAD] Daily upload limit reached for pool.`)
+        throw ApiError.forbidden('Daily upload limit reached for this pool')
+      }
+      break
+    }
+    case UploadLimitType.total:
+      gymSubmissions = await DemonstrationSubmission.countDocuments({
+        'meta.quest.pool_id': factoryId,
+        status: ForgeSubmissionProcessingStatus.COMPLETED,
+        reward: { $gt: 0 }
+      })
+
+      if (gymSubmissions >= factory.uploadLimit.value) {
+        console.log(`[UPLOAD] Total upload limit reached for pool.`)
+        throw ApiError.forbidden('Total upload limit reached for this pool.')
+      }
+      break
+  }
+}
+
+async function checkTaskUploadLimits(
+  meta: Record<string, any>,
+  factory: Record<string, any>
+): Promise<void> {
+  if (!meta.quest?.task_id) {
+    throw ApiError.badRequest('Invalid data: missing task id')
+  }
+
+  const taskFactory = await FactoryModel.findOne({
+    _id: meta.factoryId,
+    'apps.tasks.id': meta.quest.task_id
+  })
+
+  if (!taskFactory) {
+    throw ApiError.badRequest('Submission Error: invalid task')
+  }
+
+  let task = null
+  for (const app of taskFactory.apps) {
+    task = app.tasks.find((t) => t.id === meta.quest.task_id)
+    if (task) break
+  }
+
+  const taskSubmissions = await DemonstrationSubmission.countDocuments({
+    'meta.quest.task_id': meta.quest.task_id,
+    status: ForgeSubmissionProcessingStatus.COMPLETED,
+    reward: { $gt: 0 }
+  })
+
+  if (task?.uploadLimit && taskSubmissions >= task.uploadLimit) {
+    console.log(`[UPLOAD] Total upload limit reached for task.`)
+    throw ApiError.forbidden('Upload limit reached for this task')
+  }
+
+  if (
+    factory.uploadLimit?.type === UploadLimitType.perTask &&
+    factory.uploadLimit?.value &&
+    taskSubmissions >= factory.uploadLimit.value
+  ) {
+    console.log(`[UPLOAD] Per-Task upload limit reached for pool.`)
+    throw ApiError.forbidden('Per-task upload limit reached for this pool')
+  }
+}
+
+async function uploadFilesToStorage(
+  requiredFiles: string[],
+  finalDir: string,
+  storageConfig: Record<string, any>
+): Promise<any[]> {
+  console.log(`[UPLOAD] Starting object storage upload for ${requiredFiles.length} files`)
+  const storageService = new ObjectStorageService(
+    storageConfig.STORAGE_ACCESS_KEY,
+    storageConfig.STORAGE_SECRET_KEY,
+    storageConfig.STORAGE_ENDPOINT,
+    storageConfig.STORAGE_REGION,
+    storageConfig.STORAGE_BUCKET
+  )
+
+  return await Promise.all(
+    requiredFiles.map(async (file) => {
+      const filePath = path.join(finalDir, file)
+      console.log(`[UPLOAD] Getting stats for file: ${filePath}`)
+      const fileStats = await stat(filePath)
+      const storageKey = `forge-races/${Date.now()}-${file}`
+      console.log(
+        `[UPLOAD] Uploading ${file} (${fileStats.size} bytes) to object storage with key: ${storageKey}`
+      )
+
+      await storageService.saveItem({
+        file: filePath,
+        name: storageKey
+      })
+      console.log(`[UPLOAD] Successfully uploaded ${file} to object storage with key ${storageKey}`)
+
+      return { file, storageKey, size: fileStats.size }
+    })
+  )
+}
+
+async function cleanupUploadFiles(
+  session: IUploadSessionDocument,
+  finalFilePath: string
+): Promise<void> {
+  console.log(`[UPLOAD] Cleaning up session files`)
+  await cleanupSession(session)
+  console.log(`[UPLOAD] Session files cleaned up`)
+
+  console.log(`[UPLOAD] Removing session from active sessions`)
+  await UploadSessionModel.findByIdAndDelete(session.id)
+
+  console.log(`[UPLOAD] Cleaning up temporary ZIP file: ${finalFilePath}`)
+  await unlink(finalFilePath).catch((err: Error) => {
+    console.error(`[UPLOAD] Error deleting temporary ZIP file:`, err)
+  })
+}
 
 /**
  * @swagger
@@ -77,7 +406,6 @@ const router: Router = express.Router();
  *   name: Upload
  *   description: Uploads of demonstrations
  */
-
 
 /**
  * @swagger
@@ -109,45 +437,45 @@ const router: Router = express.Router();
  *         description: Internal server error
  */
 router.post(
-    '/init',
-    requireWalletAddress,
-    validateBody(initUploadSchema),
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - Get walletAddress from the request object
-        const address = req.walletAddress;
-        const { totalChunks, metadata } = req.body;
+  '/init',
+  requireWalletAddress,
+  validateBody(initUploadSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    // @ts-expect-error - Get walletAddress from the request object
+    const address = req.walletAddress
+    const { totalChunks, metadata } = req.body
 
-        // Generate a unique upload ID
-        const uploadId = createHash('sha256')
-            .update(`${address}-${Date.now()}-${Math.random()}`)
-            .digest('hex');
+    // Generate a unique upload ID
+    const uploadId = createHash('sha256')
+      .update(`${address}-${Date.now()}-${Math.random()}`)
+      .digest('hex')
 
-        // Create temp directory for this upload
-        const tempDir = path.join('uploads', `temp_${uploadId}`);
-        await mkdir(tempDir, { recursive: true });
+    // Create temp directory for this upload
+    const tempDir = path.join('uploads', `temp_${uploadId}`)
+    await mkdir(tempDir, { recursive: true })
 
-        // Store metadata in the temp directory
-        await writeFile(path.join(tempDir, 'metadata.json'), JSON.stringify(metadata));
+    // Store metadata in the temp directory
+    await writeFile(path.join(tempDir, 'metadata.json'), JSON.stringify(metadata))
 
-        // Create and store the session in MongoDB
-        const session = new UploadSessionModel({
-            _id: uploadId,
-            address,
-            totalChunks: Number(totalChunks),
-            metadata,
-            tempDir
-        });
-        await session.save();
-
-        res.status(200).json(
-            successResponse({
-                uploadId,
-                expiresIn: SESSION_EXPIRY / 1000, // in seconds
-                chunkSize: 100 * 1024 * 1024 // 100MB
-            })
-        );
+    // Create and store the session in MongoDB
+    const session = new UploadSessionModel({
+      _id: uploadId,
+      address,
+      totalChunks: Number(totalChunks),
+      metadata,
+      tempDir
     })
-);
+    await session.save()
+
+    res.status(200).json(
+      successResponse({
+        uploadId,
+        expiresIn: SESSION_EXPIRY / 1000, // in seconds
+        chunkSize: 100 * 1024 * 1024 // 100MB
+      })
+    )
+  })
+)
 
 /**
  * @swagger
@@ -188,65 +516,65 @@ router.post(
  *         description: Internal server error
  */
 router.post(
-    '/chunk/:uploadId',
-    requireWalletAddress,
-    requireUploadSession,
-    upload.single('chunk'),
-    validateBody(uploadChunkSchema),
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        if (!req.file) {
-            throw ApiError.badRequest('No chunk uploaded');
-        }
+  '/chunk/:uploadId',
+  requireWalletAddress,
+  requireUploadSession,
+  upload.single('chunk'),
+  validateBody(uploadChunkSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    if (!req.file) {
+      throw ApiError.badRequest('No chunk uploaded')
+    }
 
-        // @ts-ignore - Get session from the request object
-        const session: IUploadSessionDocument = req.uploadSession;
-        const chunkIndex = Number(req.body.chunkIndex);
-        const checksum = req.body.checksum;
+    // @ts-expect-error - Get session from the request object
+    const session: IUploadSessionDocument = req.uploadSession
+    const chunkIndex = Number(req.body.chunkIndex)
+    const checksum = req.body.checksum
 
-        if (isNaN(chunkIndex) || chunkIndex < 0 || chunkIndex >= session.totalChunks) {
-            await unlink(req.file.path).catch(() => { });
-            throw ApiError.badRequest('Invalid chunk index');
-        }
+    if (Number.isNaN(chunkIndex) || chunkIndex < 0 || chunkIndex >= session.totalChunks) {
+      await unlink(req.file.path).catch(() => {})
+      throw ApiError.badRequest('Invalid chunk index')
+    }
 
-        if (!checksum) {
-            await unlink(req.file.path).catch(() => { });
-            throw ApiError.badRequest('Checksum is required');
-        }
+    if (!checksum) {
+      await unlink(req.file.path).catch(() => {})
+      throw ApiError.badRequest('Checksum is required')
+    }
 
-        // Verify checksum
-        const fileBuffer = await readFile(req.file.path);
-        const calculatedChecksum = createHash('sha256').update(fileBuffer).digest('hex');
+    // Verify checksum
+    const fileBuffer = await readFile(req.file.path)
+    const calculatedChecksum = createHash('sha256').update(fileBuffer).digest('hex')
 
-        if (calculatedChecksum !== checksum) {
-            await unlink(req.file.path).catch(() => { });
-            throw ApiError.badRequest('Checksum verification failed', {
-                expected: checksum,
-                calculated: calculatedChecksum
-            });
-        }
+    if (calculatedChecksum !== checksum) {
+      await unlink(req.file.path).catch(() => {})
+      throw ApiError.badRequest('Checksum verification failed', {
+        expected: checksum,
+        calculated: calculatedChecksum
+      })
+    }
 
-        // Store chunk info
-        session.receivedChunks.set(chunkIndex.toString(), {
-            chunkIndex,
-            path: req.file.path,
-            size: req.file.size,
-            checksum
-        });
-
-        // Update session timestamp and save to DB
-        await session.save();
-
-        res.status(200).json(
-            successResponse({
-                uploadId: session.id,
-                chunkIndex,
-                received: session.receivedChunks.size,
-                total: session.totalChunks,
-                progress: Math.round((session.receivedChunks.size / session.totalChunks) * 100)
-            })
-        );
+    // Store chunk info
+    session.receivedChunks.set(chunkIndex.toString(), {
+      chunkIndex,
+      path: req.file.path,
+      size: req.file.size,
+      checksum
     })
-);
+
+    // Update session timestamp and save to DB
+    await session.save()
+
+    res.status(200).json(
+      successResponse({
+        uploadId: session.id,
+        chunkIndex,
+        received: session.receivedChunks.size,
+        total: session.totalChunks,
+        progress: Math.round((session.receivedChunks.size / session.totalChunks) * 100)
+      })
+    )
+  })
+)
 
 /**
  * @swagger
@@ -273,26 +601,26 @@ router.post(
  *         description: Internal server error
  */
 router.get(
-    '/status/:uploadId',
-    requireWalletAddress,
-    requireUploadSession,
-    validateParams(uploadIdParamSchema),
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - Get session from the request object
-        const session: IUploadSessionDocument = req.uploadSession;
+  '/status/:uploadId',
+  requireWalletAddress,
+  requireUploadSession,
+  validateParams(uploadIdParamSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    // @ts-expect-error - Get session from the request object
+    const session: IUploadSessionDocument = req.uploadSession
 
-        res.json(
-            successResponse({
-                uploadId: session.id,
-                received: session.receivedChunks.size,
-                total: session.totalChunks,
-                progress: Math.round((session.receivedChunks.size / session.totalChunks) * 100),
-                createdAt: session.createdAt,
-                lastUpdated: session.lastUpdated
-            })
-        );
-    })
-);
+    res.json(
+      successResponse({
+        uploadId: session.id,
+        received: session.receivedChunks.size,
+        total: session.totalChunks,
+        progress: Math.round((session.receivedChunks.size / session.totalChunks) * 100),
+        createdAt: session.createdAt,
+        lastUpdated: session.lastUpdated
+      })
+    )
+  })
+)
 
 /**
  * @swagger
@@ -319,22 +647,22 @@ router.get(
  *         description: Internal server error
  */
 router.delete(
-    '/cancel/:uploadId',
-    requireWalletAddress,
-    requireUploadSession,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        // @ts-ignore - Get session from the request object
-        const session: IUploadSessionDocument = req.uploadSession;
+  '/cancel/:uploadId',
+  requireWalletAddress,
+  requireUploadSession,
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    // @ts-expect-error - Get session from the request object
+    const session: IUploadSessionDocument = req.uploadSession
 
-        // Clean up session files
-        await cleanupSession(session);
+    // Clean up session files
+    await cleanupSession(session)
 
-        // Remove session from DB
-        await UploadSessionModel.findByIdAndDelete(session.id);
+    // Remove session from DB
+    await UploadSessionModel.findByIdAndDelete(session.id)
 
-        res.status(200).json(successResponse('Upload cancelled successfully'));
-    })
-);
+    res.status(200).json(successResponse('Upload cancelled successfully'))
+  })
+)
 
 /**
  * @swagger
@@ -361,386 +689,82 @@ router.delete(
  *         description: Internal server error
  */
 router.post(
-    '/complete/:uploadId',
-    requireWalletAddress,
-    requireUploadSession,
-    errorHandlerAsync(async (req: Request, res: Response) => {
-        console.log(`[UPLOAD] Starting complete process for upload ${req.params.uploadId}`);
+  '/complete/:uploadId',
+  requireWalletAddress,
+  requireUploadSession,
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    console.log(`[UPLOAD] Starting complete process for upload ${req.params.uploadId}`)
 
-        // Ensure uploads directory exists
-        await mkdir('uploads', { recursive: true }).catch((err) => {
-            console.error('[UPLOAD] Error ensuring uploads directory exists:', err);
-            // Continue anyway, as the directory might already exist
-        });
-        // @ts-ignore - Get session from the request object
-        const session: IUploadSessionDocument = req.uploadSession;
-        // @ts-ignore - Get walletAddress from the request object
-        const address = req.walletAddress;
-        console.log(
-            `[UPLOAD] Processing upload for address: ${address}, chunks: ${session.receivedChunks.size}/${session.totalChunks}`
-        );
-
-        // Check if all chunks have been uploaded
-        if (session.receivedChunks.size !== session.totalChunks) {
-            console.log(
-                `[UPLOAD] Incomplete upload: ${session.receivedChunks.size}/${session.totalChunks} chunks received`
-            );
-            const missing = Array.from({ length: session.totalChunks }, (_, i) => i).filter(
-                (i) => !session.receivedChunks.has(i.toString())
-            );
-            console.log(`[UPLOAD] Missing chunks: ${missing.join(', ')}`);
-
-            throw ApiError.uploadIncomplete('Upload incomplete', {
-                received: session.receivedChunks.size,
-                total: session.totalChunks,
-                missing
-            });
-        }
-
-        console.log(`[UPLOAD] All chunks received, combining into final file`);
-        // Create final file path
-        const finalFilePath = path.join('uploads', `complete_${session.id}.zip`);
-        console.log(`[UPLOAD] Final file path: ${finalFilePath}`);
-
-        // Combine chunks into final file
-        const sortedChunks = Array.from(session.receivedChunks.values()).sort(
-            (a, b) => a.chunkIndex - b.chunkIndex
-        );
-        console.log(`[UPLOAD] Sorted ${sortedChunks.length} chunks for combining`);
-
-        // Create write stream for final file
-        const writeStream = createWriteStream(finalFilePath);
-        console.log(`[UPLOAD] Created write stream for final file`);
-
-        // Write chunks sequentially
-        console.log(`[UPLOAD] Starting to write chunks sequentially`);
-        for (let i = 0; i < sortedChunks.length; i++) {
-            const chunk = sortedChunks[i];
-            console.log(
-                `[UPLOAD] Writing chunk ${i + 1}/${sortedChunks.length} (index: ${chunk.chunkIndex
-                }, size: ${chunk.size} bytes)`
-            );
-            await new Promise<void>((resolve, reject) => {
-                const readStream = createReadStream(chunk.path);
-
-                // Handle backpressure
-                let draining = false;
-
-                const handleDrain = () => {
-                    draining = false;
-                    readStream.resume();
-                };
-
-                writeStream.on('drain', handleDrain);
-
-                readStream
-                    .on('error', (err: Error) => {
-                        console.error(`[UPLOAD] Error reading chunk ${chunk.chunkIndex}:`, err);
-                        writeStream.removeListener('drain', handleDrain);
-                        reject(err);
-                    })
-                    .on('data', (chunk) => {
-                        // If writeStream returns false, it's experiencing backpressure
-                        if (!writeStream.write(chunk) && !draining) {
-                            draining = true;
-                            readStream.pause(); // Pause reading until drain
-                        }
-                    })
-                    .on('end', () => {
-                        console.log(`[UPLOAD] Finished reading chunk ${chunk.chunkIndex}`);
-                        writeStream.removeListener('drain', handleDrain);
-                        resolve();
-                    });
-            });
-        }
-
-        // Close the write stream
-        console.log(`[UPLOAD] All chunks written, closing write stream`);
-        await new Promise<void>((resolve, reject) => {
-            writeStream.end();
-            writeStream.on('finish', () => {
-                console.log(`[UPLOAD] Write stream closed successfully`);
-                resolve();
-            });
-            writeStream.on('error', (err: Error) => {
-                console.error(`[UPLOAD] Error closing write stream:`, err);
-                reject(err);
-            });
-        });
-
-        // Create extraction directory
-        const extractDir = path.join('uploads', `extract_${session.id}`);
-        console.log(`[UPLOAD] Creating extraction directory: ${extractDir}`);
-        await mkdir(extractDir, { recursive: true });
-
-        // Extract the ZIP file
-        console.log(`[UPLOAD] Extracting ZIP file to ${extractDir}`);
-        await new Promise<void>((resolve, reject) => {
-            createReadStream(finalFilePath)
-                .pipe(Extract({ path: extractDir }))
-                .on('close', () => {
-                    console.log(`[UPLOAD] ZIP extraction completed`);
-                    resolve();
-                })
-                .on('error', (err: Error) => {
-                    console.error(`[UPLOAD] Error extracting ZIP:`, err);
-                    reject(err);
-                });
-        });
-
-        // Read and parse meta.json
-        console.log(`[UPLOAD] Reading meta.json from extracted files`);
-        const metaJsonPath = path.join(extractDir, 'meta.json');
-        console.log(`[UPLOAD] Meta JSON path: ${metaJsonPath}`);
-        const metaJson = await readFile(metaJsonPath, 'utf8');
-        console.log(`[UPLOAD] Meta JSON content length: ${metaJson.length}`);
-        const meta: DBDemonstrationSubmission['meta'] = JSON.parse(metaJson);
-        console.log(`[UPLOAD] Parsed meta data, id: ${meta.id}`);
-
-        // Create UUID from meta.id + address
-        const uuid = createHash('sha256').update(`${meta.id}${address}`).digest('hex');
-        console.log(`[UPLOAD] Generated submission UUID: ${uuid}`);
-
-        // Create final directory with UUID
-        const finalDir = path.join('uploads', `extract_${uuid}`);
-        console.log(`[UPLOAD] Creating final directory: ${finalDir}`);
-        await mkdir(finalDir, { recursive: true });
-
-        // Move files from extract to final directory
-        const requiredFiles = ['input_log.jsonl', 'meta.json', 'recording.mp4', 'sft.json'];
-        console.log(`[UPLOAD] Moving required files to final directory`);
-        for (const file of requiredFiles) {
-            const sourcePath = path.join(extractDir, file);
-            const destPath = path.join(finalDir, file);
-            console.log(`[UPLOAD] Copying ${file} from ${sourcePath} to ${destPath}`);
-            try {
-                await copyFile(sourcePath, destPath);
-                console.log(`[UPLOAD] Successfully copied ${file}`);
-            } catch (error) {
-                console.error(`[UPLOAD] Error copying file ${file}:`, error);
-                throw ApiError.badRequest(`Missing required file: ${file}`);
-            }
-        }
-
-        // Upload each file to Object Storage
-        console.log(`[UPLOAD] Starting object storage upload for ${requiredFiles.length} files`);
-        const {
-            STORAGE_ACCESS_KEY,
-            STORAGE_SECRET_KEY,
-            STORAGE_ENDPOINT,
-            STORAGE_REGION,
-            STORAGE_BUCKET
-        } = process.env;
-
-        const missingVariables = [];
-        if (!STORAGE_ACCESS_KEY) missingVariables.push('STORAGE_ACCESS_KEY');
-        if (!STORAGE_SECRET_KEY) missingVariables.push('STORAGE_SECRET_KEY');
-        if (!STORAGE_ENDPOINT) missingVariables.push('STORAGE_ENDPOINT');
-        if (!STORAGE_REGION) missingVariables.push('STORAGE_REGION');
-        if (!STORAGE_BUCKET) missingVariables.push('STORAGE_BUCKET');
-        if (missingVariables.length > 0) {
-            throw new Error(
-                `Storage service environment variables are not properly configured. Missing: ${missingVariables.join(', ')}`
-            );
-        }
-
-        const storageService = new ObjectStorageService(
-            STORAGE_ACCESS_KEY!,
-            STORAGE_SECRET_KEY!,
-            STORAGE_ENDPOINT!,
-            STORAGE_REGION!,
-            STORAGE_BUCKET!
-        );
-        const uploads = await Promise.all(
-            requiredFiles.map(async (file) => {
-                const filePath = path.join(finalDir, file);
-                console.log(`[UPLOAD] Getting stats for file: ${filePath}`);
-                const fileStats = await stat(filePath);
-                const storageKey = `forge-races/${Date.now()}-${file}`;
-                console.log(
-                    `[UPLOAD] Uploading ${file} (${fileStats.size} bytes) to object storage with key: ${storageKey}`
-                );
-
-                await storageService.saveItem({
-                    file: filePath,
-                    name: storageKey
-                });
-                console.log(`[UPLOAD] Successfully uploaded ${file} to object storage with key ${storageKey}`);
-
-                return { file, storageKey, size: fileStats.size };
-            })
-        );
-        console.log(`[UPLOAD] All files uploaded to object storage successfully`);
-
-        meta.factoryId = meta.quest.pool_id;
-
-        // Verify pool exists and check balance
-        if (meta.factoryId) {
-            console.log(`[UPLOAD] Verifying pool balance and status for factoryId: ${meta.factoryId}`);
-            const factory = await FactoryModel.findById(meta.factoryId);
-            if (!factory) {
-                throw ApiError.notFound('Factory not found');
-            }
-
-            // Check if factory is in active status  
-            if (factory.status !== 'active') {
-                throw ApiError.badRequest(`Factory is not active (status: ${factory.status})`);
-            }
-
-            // Get current token balance from blockchain to ensure it's up-to-date
-            const tokenAddress = factory.token.address;
-            const currentBalance = await blockchainService.getTokenBalance(
-                tokenAddress,
-                factory.poolAddress
-            );
-
-            // Check if factory has sufficient funds
-            if (currentBalance < factory.pricePerDemo) {
-                console.log(`[UPLOAD] Insufficient funds: ${currentBalance} < ${factory.pricePerDemo}`);
-                throw ApiError.insufficientFunds('Factory has insufficient funds');
-            }
-
-            // check if factory has upload limits
-            if (factory.uploadLimit?.value) {
-                let gymSubmissions;
-                const factoryId = factory._id.toString();
-
-                switch (factory.uploadLimit.type) {
-                    case UploadLimitType.perDay:
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        gymSubmissions = await DemonstrationSubmission.countDocuments({
-                            'meta.quest.pool_id': factoryId,
-                            createdAt: { $gte: today },
-                            status: ForgeSubmissionProcessingStatus.COMPLETED, // Only count completed submissions
-                            reward: { $gt: 0 } // Only count submissions that received a reward
-                        });
-
-                        if (gymSubmissions >= factory.uploadLimit.value) {
-                            console.log(`[UPLOAD] Daily upload limit reached for pool.`);
-                            throw ApiError.forbidden('Daily upload limit reached for this pool');
-                        }
-                        break;
-
-                    case UploadLimitType.total:
-                        gymSubmissions = await DemonstrationSubmission.countDocuments({
-                            'meta.quest.pool_id': factoryId,
-                            status: ForgeSubmissionProcessingStatus.COMPLETED, // Only count completed submissions
-                            reward: { $gt: 0 } // Only count submissions that received a reward
-                        });
-
-                        if (gymSubmissions >= factory.uploadLimit.value) {
-                            console.log(`[UPLOAD] Total upload limit reached for pool.`);
-                            throw ApiError.forbidden('Total upload limit reached for this pool.');
-                        }
-                        break;
-                }
-            }
-
-            // Check task-specific upload limit
-            if (meta.quest?.task_id) {
-                const factory = await FactoryModel.findOne({
-                    _id: meta.factoryId,
-                    'apps.tasks.id': meta.quest.task_id
-                });
-
-                if (factory) {
-                    // Find the task within the factory's apps
-                    let task = null;
-                    for (const app of factory.apps) {
-                        task = app.tasks.find((t: any) => t.id === meta.quest.task_id);
-                        if (task) break;
-                    }
-                    const taskSubmissions = await DemonstrationSubmission.countDocuments({
-                        'meta.quest.task_id': meta.quest.task_id,
-                        status: ForgeSubmissionProcessingStatus.COMPLETED, // Only count completed submissions
-                        reward: { $gt: 0 } // Only count submissions that received a reward
-                    });
-                    if (task?.uploadLimit) {
-                        if (taskSubmissions >= task.uploadLimit) {
-                            console.log(`[UPLOAD] Total upload limit reached for task.`);
-                            throw ApiError.forbidden('Upload limit reached for this task');
-                        }
-
-                        // Check gym-wide per-task limit if applicable
-                        if (
-                            factory.uploadLimit?.type === UploadLimitType.perTask &&
-                            factory.uploadLimit?.type &&
-                            taskSubmissions >= factory.uploadLimit.value
-                        ) {
-                            console.log(`[UPLOAD] Per-Task upload limit reached for pool.`);
-                            throw ApiError.forbidden('Per-task upload limit reached for this pool');
-                        }
-                    } else if (
-                        // also check gym-wide task limit even if there is no limit on the task itself
-                        factory.uploadLimit?.type === UploadLimitType.perTask &&
-                        factory.uploadLimit.value &&
-                        taskSubmissions >= factory.uploadLimit.value
-                    ) {
-                        console.log(`[UPLOAD] Per-Task upload limit reached for pool.`);
-                        throw ApiError.forbidden('Per-task upload limit reached for this pool');
-                    }
-                } else {
-                    throw ApiError.badRequest('Submission Error: invalid task');
-                }
-            } else {
-                throw ApiError.badRequest('Invalid data: missing task id');
-            }
-        } else {
-            console.log(meta);
-            throw ApiError.badRequest('Invalid data: missing pool id');
-        }
-
-        // Check for existing submission
-        console.log(`[UPLOAD] Checking for existing submission with ID: ${uuid}`);
-        const tempSub = await DemonstrationSubmission.findById(uuid);
-        if (tempSub) {
-            console.log(`[UPLOAD] Submission already exists with ID: ${uuid}`);
-
-            throw ApiError.conflict('Submission data already uploaded', { submissionId: uuid });
-        }
-
-        // Create submission record
-        console.log(`[UPLOAD] Creating new submission record in database`);
-        const submission = await DemonstrationSubmission.create({
-            _id: uuid,
-            address,
-            meta,
-            status: ForgeSubmissionProcessingStatus.PENDING,
-            files: uploads
-        });
-        console.log(`[UPLOAD] Submission created with ID: ${submission._id}`);
-
-        // Add to processing queue
-        console.log(`[UPLOAD] Adding submission to processing queue`);
-        addToProcessingQueue(uuid);
-        console.log(`[UPLOAD] Submission added to processing queue`);
-
-        // Clean up session files
-        console.log(`[UPLOAD] Cleaning up session files`);
-        await cleanupSession(session);
-        console.log(`[UPLOAD] Session files cleaned up`);
-
-        // Remove session from DB
-        console.log(`[UPLOAD] Removing session from active sessions`);
-        await UploadSessionModel.findByIdAndDelete(session.id);
-
-        // Clean up temporary files
-        console.log(`[UPLOAD] Cleaning up temporary ZIP file: ${finalFilePath}`);
-        await unlink(finalFilePath).catch((err: Error) => {
-            console.error(`[UPLOAD] Error deleting temporary ZIP file:`, err);
-        });
-
-        console.log(`[UPLOAD] Upload complete process finished successfully for ID: ${uuid}`);
-        res.json(
-            successResponse({
-                message: 'Upload completed successfully',
-                submissionId: submission._id,
-                files: uploads
-            })
-        );
+    await mkdir('uploads', { recursive: true }).catch((err) => {
+      console.error('[UPLOAD] Error ensuring uploads directory exists:', err)
     })
-);
+
+    // @ts-expect-error - Get session from the request object
+    const session: IUploadSessionDocument = req.uploadSession
+    // @ts-expect-error - Get walletAddress from the request object
+    const address = req.walletAddress
+    console.log(
+      `[UPLOAD] Processing upload for address: ${address}, chunks: ${session.receivedChunks.size}/${session.totalChunks}`
+    )
+
+    await validateUploadComplete(session)
+
+    const finalFilePath = path.join('uploads', `complete_${session.id}.zip`)
+    await combineChunks(session, finalFilePath)
+
+    const extractDir = path.join('uploads', `extract_${session.id}`)
+    await extractZipFile(finalFilePath, extractDir)
+
+    const { meta, uuid } = await processMetadata(extractDir, address)
+
+    const finalDir = path.join('uploads', `extract_${uuid}`)
+    const requiredFiles = await moveRequiredFiles(extractDir, finalDir)
+
+    const storageConfig = validateStorageConfig()
+    const uploads = await uploadFilesToStorage(requiredFiles, finalDir, storageConfig)
+    console.log(`[UPLOAD] All files uploaded to object storage successfully`)
+
+    meta.factoryId = meta.quest.pool_id
+
+    const factory = await verifyFactoryAndBalance(meta)
+    await checkFactoryUploadLimits(factory)
+    await checkTaskUploadLimits(meta, factory)
+
+    console.log(`[UPLOAD] Checking for existing submission with ID: ${uuid}`)
+    const tempSub = await DemonstrationSubmission.findById(uuid)
+    if (tempSub) {
+      console.log(`[UPLOAD] Submission already exists with ID: ${uuid}`)
+      throw ApiError.conflict('Submission data already uploaded', {
+        submissionId: uuid
+      })
+    }
+
+    console.log(`[UPLOAD] Creating new submission record in database`)
+    const submission = await DemonstrationSubmission.create({
+      _id: uuid,
+      address,
+      meta,
+      status: ForgeSubmissionProcessingStatus.PENDING,
+      files: uploads
+    })
+    console.log(`[UPLOAD] Submission created with ID: ${submission._id}`)
+
+    console.log(`[UPLOAD] Adding submission to processing queue`)
+    addToProcessingQueue(uuid)
+    console.log(`[UPLOAD] Submission added to processing queue`)
+
+    await cleanupUploadFiles(session, finalFilePath)
+
+    console.log(`[UPLOAD] Upload complete process finished successfully for ID: ${uuid}`)
+    res.json(
+      successResponse({
+        message: 'Upload completed successfully',
+        submissionId: submission._id,
+        files: uploads
+      })
+    )
+  })
+)
 
 /**
  * ## Chunked Upload API Documentation
@@ -913,4 +937,4 @@ router.post(
  * ```
  */
 
-export { router as forgeUploadApi }; 
+export { router as forgeUploadApi }

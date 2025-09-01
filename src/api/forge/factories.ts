@@ -1,33 +1,59 @@
-import express, { Request, Response, Router } from 'express';
-import { ApiError, successResponse } from '../../middleware/types/errors.ts';
-import { requireWalletAddress } from '../../middleware/auth.ts';
-import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
-import { FactoryModel } from '../../models/Factory.ts';
-import { generateAppsForFactory } from '../../services/factory/factoryDatabaseService.ts';
-import BlockchainService from '../../services/blockchain/index.ts';
+import express, { type Request, type Response, type Router } from 'express'
+import { requireWalletAddress } from '../../middleware/auth.ts'
+import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
+import { ApiError, successResponse } from '../../middleware/types/errors.ts'
 import {
-  Factory,
-  FactoryStatus,
-  FactorySearchCriteria,
-  FactorySearchResult
-} from '../../types/factory.ts';
-import { supportedTokens, getTokenContractAddress } from '../../services/blockchain/tokens.ts';
-import { createFactoryService } from '../../services/blockchain/factoryTransactionService.ts';
-import { validateBody, validateQuery, validateParams, ValidationRules } from '../../middleware/validator.ts';
+  ValidationRules,
+  validateBody,
+  validateParams,
+  validateQuery
+} from '../../middleware/validator.ts'
+import { FactoryModel } from '../../models/Factory.ts'
+import { createFactoryService } from '../../services/blockchain/factoryTransactionService.ts'
+import BlockchainService from '../../services/blockchain/index.ts'
+import { getTokenContractAddress, supportedTokens } from '../../services/blockchain/tokens.ts'
+import { generateAppsForFactory } from '../../services/factory/factoryDatabaseService.ts'
 import {
+  type Factory,
+  type FactorySearchCriteria,
+  type FactorySearchResult,
+  FactoryStatus
+} from '../../types/factory.ts'
+import {
+  batchClaimSchema,
   createPoolSchema,
-  predictPoolSchema,
   fundPoolSchema,
   generateClaimSchema,
-  batchClaimSchema,
+  getUserFactoriesSchema,
   poolAddressParamSchema,
   poolInfoQuerySchema,
-  searchFactoriesSchema,
-  getUserFactoriesSchema,
-} from '../schemas/forgeFactory.ts';
+  predictPoolSchema,
+  searchFactoriesSchema
+} from '../schemas/forgeFactory.ts'
 
-const router: Router = express.Router();
-const blockchainService = new BlockchainService(process.env.RPC_URL || '');
+// MongoDB query and sort types
+interface MongoQuery {
+  [key: string]: unknown
+  $and?: Array<Record<string, unknown>>
+  ownerAddress?: string
+  status?: FactoryStatus
+}
+
+interface MongoSort {
+  [key: string]: 1 | -1
+}
+
+interface PredictPoolQuery {
+  creator: string
+  token: string
+}
+
+interface PoolInfoQuery {
+  account: string
+}
+
+const router: Router = express.Router()
+const blockchainService = new BlockchainService(process.env.RPC_URL || '')
 
 /**
  * @swagger
@@ -64,14 +90,14 @@ const blockchainService = new BlockchainService(process.env.RPC_URL || '');
  */
 router.get(
   '/supported-tokens',
-  errorHandlerAsync(async (req: Request, res: Response) => {
+  errorHandlerAsync(async (_req: Request, res: Response) => {
     const tokens = Object.entries(supportedTokens).map(([symbol, { name }]) => ({
       symbol,
       name
-    }));
-    res.status(200).json(successResponse(tokens));
+    }))
+    res.status(200).json(successResponse(tokens))
   })
-);
+)
 
 /**
  * @swagger
@@ -123,7 +149,8 @@ router.get(
  *       '400':
  *         description: Invalid search criteria
  */
-router.post('/search',
+router.post(
+  '/search',
   validateBody(searchFactoriesSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const criteria: FactorySearchCriteria = {
@@ -136,14 +163,14 @@ router.post('/search',
       offset: req.body.offset || 0,
       sortBy: req.body.sortBy || 'createdAt',
       sortOrder: req.body.sortOrder || 'desc'
-    };
+    }
 
     // Build MongoDB query
-    const query: any = {};
-    const andConditions = [];
+    const query: MongoQuery = {}
+    const andConditions: Array<Record<string, unknown>> = []
 
     if (criteria.skills && criteria.skills.length > 0) {
-      andConditions.push({ skills: { $in: criteria.skills } });
+      andConditions.push({ skills: { $in: criteria.skills } })
     }
 
     if (criteria.searchTerm) {
@@ -153,51 +180,54 @@ router.post('/search',
           { name: { $regex: criteria.searchTerm, $options: 'i' } },
           { description: { $regex: criteria.searchTerm, $options: 'i' } }
         ]
-      });
+      })
     }
 
     if (criteria.ownerAddress) {
-      andConditions.push({ ownerAddress: criteria.ownerAddress });
+      andConditions.push({ ownerAddress: criteria.ownerAddress })
     }
 
     if (criteria.token) {
-      andConditions.push({ 'token.address': criteria.token });
+      andConditions.push({ 'token.address': criteria.token })
     }
 
     if (criteria.status) {
-      andConditions.push({ status: criteria.status });
+      andConditions.push({ status: criteria.status })
     }
 
     if (andConditions.length > 0) {
-      query.$and = andConditions;
+      query.$and = andConditions
     }
 
     // Build sort
-    const sortField = criteria.sortBy || 'createdAt';
-    const sortDirection = criteria.sortOrder === 'asc' ? 1 : -1;
-    const sort: any = {};
-    sort[sortField] = sortDirection;
+    const sortField = criteria.sortBy || 'createdAt'
+    const sortDirection = criteria.sortOrder === 'asc' ? 1 : -1
+    const sort: MongoSort = {}
+    sort[sortField] = sortDirection
 
-    // Execute query
+    // Execute query with guaranteed non-null values
+    const limit = criteria.limit ?? 20
+    const offset = criteria.offset ?? 0
+
     const factories = await FactoryModel.find(query)
-      .skip(criteria.offset!)
-      .limit(criteria.limit!)
+      .skip(offset)
+      .limit(limit)
       .sort(sort)
-      .lean<Factory[]>();
+      .lean<Factory[]>()
 
-    const total = await FactoryModel.countDocuments(query);
+    const total = await FactoryModel.countDocuments(query)
 
     const result: FactorySearchResult = {
       factories,
       total,
-      limit: criteria.limit!,
-      offset: criteria.offset!,
-      hasMore: (criteria.offset! + criteria.limit!) < total
-    };
+      limit,
+      offset,
+      hasMore: offset + limit < total
+    }
 
-    res.json(successResponse(result));
+    res.json(successResponse(result))
   })
-);
+)
 
 /**
  * @swagger
@@ -227,40 +257,41 @@ router.post('/search',
  *       '200':
  *         description: User's factories
  */
-router.get('/',
+router.get(
+  '/',
   requireWalletAddress,
   validateQuery(getUserFactoriesSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    // @ts-ignore
-    const ownerAddress = req.walletAddress.toLowerCase();
-    const limit = parseInt(req.query.limit as string) || 20;
-    const offset = parseInt(req.query.offset as string) || 0;
-    const status = req.query.status as FactoryStatus;
+    // @ts-expect-error
+    const ownerAddress = req.walletAddress.toLowerCase()
+    const limit = parseInt(req.query.limit as string, 10) || 20
+    const offset = parseInt(req.query.offset as string, 10) || 0
+    const status = req.query.status as FactoryStatus
 
-    const query: any = { ownerAddress };
+    const query: MongoQuery = { ownerAddress }
     if (status) {
-      query.status = status;
+      query.status = status
     }
 
     const factories = await FactoryModel.find(query)
       .skip(offset)
       .limit(limit)
       .sort({ createdAt: -1 })
-      .lean<Factory[]>();
+      .lean<Factory[]>()
 
-    const total = await FactoryModel.countDocuments(query);
+    const total = await FactoryModel.countDocuments(query)
 
     const result: FactorySearchResult = {
       factories,
       total,
       limit,
       offset,
-      hasMore: (offset + limit) < total
-    };
+      hasMore: offset + limit < total
+    }
 
-    res.json(successResponse(result));
+    res.json(successResponse(result))
   })
-);
+)
 
 /**
  * @swagger
@@ -281,29 +312,37 @@ router.get('/',
  *       '404':
  *         description: Factory not found
  */
-router.get('/:id',
-  validateParams({ id: { required: true, rules: [ValidationRules.isString()] } }),
+router.get(
+  '/:id',
+  validateParams({
+    id: { required: true, rules: [ValidationRules.isString()] }
+  }),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const { id } = req.params
 
-    const factory = await FactoryModel.findById(id).lean<Factory>();
+    const factory = await FactoryModel.findById(id).lean<Factory>()
 
     if (!factory) {
-      throw ApiError.notFound('Factory not found');
+      throw ApiError.notFound('Factory not found')
     }
 
-    const balance = await blockchainService.getTokenBalance(factory.token.address, factory.poolAddress);
-    console.log('balance', balance);
-    console.log('factory', factory);
-    console.log('factory.token.address', factory.token.address);
-    console.log('factory.ownerAddress', factory.ownerAddress);
+    const balance = await blockchainService.getTokenBalance(
+      factory.token.address,
+      factory.poolAddress
+    )
+    console.log('balance', balance)
+    console.log('factory', factory)
+    console.log('factory.token.address', factory.token.address)
+    console.log('factory.ownerAddress', factory.ownerAddress)
 
-    res.json(successResponse({
-      ...factory,
-      balance
-    }));
+    res.json(
+      successResponse({
+        ...factory,
+        balance
+      })
+    )
   })
-);
+)
 
 /**
  * @swagger
@@ -349,55 +388,71 @@ router.get('/:id',
  *       '404':
  *         description: Factory not found
  */
-router.put('/:id',
+router.put(
+  '/:id',
   requireWalletAddress,
-  validateParams({ id: { required: true, rules: [ValidationRules.isString()] } }),
+  validateParams({
+    id: { required: true, rules: [ValidationRules.isString()] }
+  }),
   validateBody({
-    name: { required: false, rules: [ValidationRules.isString(), ValidationRules.minLength(1), ValidationRules.maxLength(100)] },
-    description: { required: false, rules: [ValidationRules.isString(), ValidationRules.maxLength(1000)] },
+    name: {
+      required: false,
+      rules: [
+        ValidationRules.isString(),
+        ValidationRules.minLength(1),
+        ValidationRules.maxLength(100)
+      ]
+    },
+    description: {
+      required: false,
+      rules: [ValidationRules.isString(), ValidationRules.maxLength(1000)]
+    },
     skills: { required: false, rules: [ValidationRules.isArray()] },
-    status: { required: false, rules: [ValidationRules.isIn([FactoryStatus.active, FactoryStatus.paused])] },
+    status: {
+      required: false,
+      rules: [ValidationRules.isIn([FactoryStatus.active, FactoryStatus.paused])]
+    },
     pricePerDemo: { required: false, rules: [ValidationRules.isNumber()] }
   }),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
-    // @ts-ignore
-    const ownerAddress = req.walletAddress.toLowerCase();
+    const { id } = req.params
+    // @ts-expect-error
+    const ownerAddress = req.walletAddress.toLowerCase()
 
-    const factory = await FactoryModel.findById(id);
+    const factory = await FactoryModel.findById(id)
 
     if (!factory) {
-      throw ApiError.notFound('Factory not found');
+      throw ApiError.notFound('Factory not found')
     }
 
     if (factory.ownerAddress !== ownerAddress) {
-      throw ApiError.forbidden('Not authorized to update this factory');
+      throw ApiError.forbidden('Not authorized to update this factory')
     }
 
     // Validate balance for status changes
-    const balance = await blockchainService.getTokenBalance(factory.token.address, ownerAddress);
+    const balance = await blockchainService.getTokenBalance(factory.token.address, ownerAddress)
     if (req.body.status && (balance === 0 || balance < factory.pricePerDemo)) {
-      throw ApiError.badRequest('Cannot activate factory: insufficient balance');
+      throw ApiError.badRequest('Cannot activate factory: insufficient balance')
     }
 
     // Update fields
-    if (req.body.name !== undefined) factory.name = req.body.name;
-    if (req.body.description !== undefined) factory.description = req.body.description;
-    if (req.body.skills !== undefined) factory.skills = req.body.skills;
-    if (req.body.status !== undefined) factory.status = req.body.status;
-    if (req.body.pricePerDemo !== undefined) factory.pricePerDemo = req.body.pricePerDemo;
+    if (req.body.name !== undefined) factory.name = req.body.name
+    if (req.body.description !== undefined) factory.description = req.body.description
+    if (req.body.skills !== undefined) factory.skills = req.body.skills
+    if (req.body.status !== undefined) factory.status = req.body.status
+    if (req.body.pricePerDemo !== undefined) factory.pricePerDemo = req.body.pricePerDemo
 
     // If skills were updated, regenerate apps
     if (req.body.skills) {
-      generateAppsForFactory(id, req.body.skills).catch(console.error);
+      generateAppsForFactory(id, req.body.skills).catch(console.error)
     }
 
-    await factory.save();
+    await factory.save()
 
-    const updatedFactory = await FactoryModel.findById(id).lean<Factory>();
-    res.json(successResponse(updatedFactory));
+    const updatedFactory = await FactoryModel.findById(id).lean<Factory>()
+    res.json(successResponse(updatedFactory))
   })
-);
+)
 
 /**
  * @swagger
@@ -433,34 +488,41 @@ router.post(
   requireWalletAddress,
   validateBody(createPoolSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { token, creator } = req.body;
-    // @ts-ignore
-    const authenticatedAddress = req.walletAddress;
+    const { token, creator } = req.body
+    // @ts-expect-error
+    const authenticatedAddress = req.walletAddress
 
     if (authenticatedAddress.toLowerCase() !== creator.toLowerCase()) {
-      throw ApiError.forbidden('Authenticated user does not match creator address');
+      throw ApiError.forbidden('Authenticated user does not match creator address')
     }
 
     try {
-      const factoryService = createFactoryService();
-      const tokenAddress = getTokenContractAddress(token);
+      const factoryService = createFactoryService()
+      const tokenAddress = getTokenContractAddress(token)
 
-      const transactionData = await factoryService.prepareCreatePoolTransaction(tokenAddress, creator);
+      const transactionData = await factoryService.prepareCreatePoolTransaction(
+        tokenAddress,
+        creator
+      )
 
-      res.status(200).json(successResponse({
-        ...transactionData,
-        creator,
-        token
-      }));
+      res.status(200).json(
+        successResponse({
+          ...transactionData,
+          creator,
+          token
+        })
+      )
     } catch (error) {
-      console.error('Pool creation preparation failed:', error);
-      throw ApiError.internalError(`Pool creation preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Pool creation preparation failed:', error)
+      throw ApiError.internalError(
+        `Pool creation preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   })
-);
+)
 
 /**
-  * @swagger
+ * @swagger
  * /forge/factories/pools/predict:
  *   get:
  *     summary: Predict reward pool address
@@ -490,28 +552,32 @@ router.get(
   '/pools/predict',
   validateQuery(predictPoolSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { creator, token } = req.query as any;
+    const { creator, token } = req.query as unknown as PredictPoolQuery
 
     try {
-      const factoryService = createFactoryService();
-      const tokenAddress = getTokenContractAddress(token);
-      const result = await factoryService.predictPoolAddress(creator, tokenAddress);
+      const factoryService = createFactoryService()
+      const tokenAddress = getTokenContractAddress(token)
+      const result = await factoryService.predictPoolAddress(creator, tokenAddress)
 
-      res.status(200).json(successResponse({
-        predicted: result.predicted,
-        salt: result.salt,
-        creator,
-        token
-      }));
+      res.status(200).json(
+        successResponse({
+          predicted: result.predicted,
+          salt: result.salt,
+          creator,
+          token
+        })
+      )
     } catch (error) {
-      console.error('Pool prediction failed:', error);
-      throw ApiError.internalError(`Pool prediction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Pool prediction failed:', error)
+      throw ApiError.internalError(
+        `Pool prediction failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   })
-);
+)
 
 /**
-  * @swagger
+ * @swagger
  * /forge/factories/pools/{poolAddress}:
  *   get:
  *     summary: Get reward pool information
@@ -541,23 +607,27 @@ router.get(
   validateParams(poolAddressParamSchema),
   validateQuery(poolInfoQuerySchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { poolAddress } = req.params;
-    const { account } = req.query as any;
+    const { poolAddress } = req.params
+    const { account } = req.query as unknown as PoolInfoQuery
 
     try {
-      const factoryService = createFactoryService();
-      const poolInfo = await factoryService.getPoolInfo(poolAddress, account);
+      const factoryService = createFactoryService()
+      const poolInfo = await factoryService.getPoolInfo(poolAddress, account)
 
-      res.status(200).json(successResponse({
-        poolAddress,
-        ...poolInfo
-      }));
+      res.status(200).json(
+        successResponse({
+          poolAddress,
+          ...poolInfo
+        })
+      )
     } catch (error) {
-      console.error('Failed to get pool info:', error);
-      throw ApiError.internalError(`Failed to get pool info: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Failed to get pool info:', error)
+      throw ApiError.internalError(
+        `Failed to get pool info: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   })
-);
+)
 
 /**
  * @swagger
@@ -592,30 +662,38 @@ router.post(
   requireWalletAddress,
   validateBody(fundPoolSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { poolAddress, amount } = req.body;
+    const { poolAddress, amount } = req.body
 
     try {
-      const factoryService = createFactoryService();
-      // @ts-ignore
-      const authenticatedAddress = req.walletAddress;
+      const factoryService = createFactoryService()
+      // @ts-expect-error
+      const authenticatedAddress = req.walletAddress
 
-      const transactionData = await factoryService.prepareFundPoolTransaction(poolAddress, amount, authenticatedAddress);
-
-      res.status(200).json(successResponse({
-        ...transactionData,
+      const transactionData = await factoryService.prepareFundPoolTransaction(
         poolAddress,
         amount,
-        funderAddress: authenticatedAddress
-      }));
+        authenticatedAddress
+      )
+
+      res.status(200).json(
+        successResponse({
+          ...transactionData,
+          poolAddress,
+          amount,
+          funderAddress: authenticatedAddress
+        })
+      )
     } catch (error) {
-      console.error('Pool funding preparation failed:', error);
-      throw ApiError.internalError(`Pool funding preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Pool funding preparation failed:', error)
+      throw ApiError.internalError(
+        `Pool funding preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   })
-);
+)
 
 /**
-  * @swagger
+ * @swagger
  * /forge/factories/claims:
  *   post:
  *     summary: Generate a single claim signature
@@ -650,29 +728,33 @@ router.post(
   requireWalletAddress,
   validateBody(generateClaimSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { vaultAddress, account, cumulativeAmount } = req.body;
+    const { vaultAddress, account, cumulativeAmount } = req.body
 
     try {
-      const factoryService = createFactoryService();
+      const factoryService = createFactoryService()
 
       const signatureData = await factoryService.prepareClaimSignatureData(
         vaultAddress,
         account,
         cumulativeAmount
-      );
+      )
 
-      res.status(200).json(successResponse({
-        vaultAddress,
-        account,
-        cumulativeAmount,
-        ...signatureData
-      }));
+      res.status(200).json(
+        successResponse({
+          vaultAddress,
+          account,
+          cumulativeAmount,
+          ...signatureData
+        })
+      )
     } catch (error) {
-      console.error('Claim signature preparation failed:', error);
-      throw ApiError.internalError(`Claim signature preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Claim signature preparation failed:', error)
+      throw ApiError.internalError(
+        `Claim signature preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   })
-);
+)
 
 /**
  * @swagger
@@ -715,22 +797,26 @@ router.post(
   requireWalletAddress,
   validateBody(batchClaimSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { claims } = req.body;
+    const { claims } = req.body
 
     try {
-      const factoryService = createFactoryService();
-      const batchData = await factoryService.prepareBatchClaimData(claims);
+      const factoryService = createFactoryService()
+      const batchData = await factoryService.prepareBatchClaimData(claims)
 
-      res.status(200).json(successResponse({
-        ...batchData,
-        count: batchData.claimDataForSigning.length
-      }));
+      res.status(200).json(
+        successResponse({
+          ...batchData,
+          count: batchData.claimDataForSigning.length
+        })
+      )
     } catch (error) {
-      console.error('Batch claim preparation failed:', error);
-      throw ApiError.internalError(`Batch claim preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Batch claim preparation failed:', error)
+      throw ApiError.internalError(
+        `Batch claim preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   })
-);
+)
 
 /**
  * @swagger
@@ -748,19 +834,23 @@ router.post(
  */
 router.get(
   '/publisher',
-  errorHandlerAsync(async (req: Request, res: Response) => {
+  errorHandlerAsync(async (_req: Request, res: Response) => {
     try {
-      const factoryService = createFactoryService();
-      const publisherInfo = await factoryService.getPublisherInfo();
+      const factoryService = createFactoryService()
+      const publisherInfo = await factoryService.getPublisherInfo()
 
-      res.status(200).json(successResponse({
-        ...publisherInfo
-      }));
+      res.status(200).json(
+        successResponse({
+          ...publisherInfo
+        })
+      )
     } catch (error) {
-      console.error('Failed to get publisher info:', error);
-      throw ApiError.internalError(`Failed to get publisher info: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Failed to get publisher info:', error)
+      throw ApiError.internalError(
+        `Failed to get publisher info: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   })
-);
+)
 
-export { router as factoriesApi };
+export { router as factoriesApi }

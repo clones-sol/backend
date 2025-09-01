@@ -1,141 +1,145 @@
-import { GraphQLClient } from 'graphql-request';
+import { GraphQLClient } from 'graphql-request'
 
 interface SubgraphConfig {
-  endpoint: string;
-  timeout: number;
-  retries: number;
+  endpoint: string
+  timeout: number
+  retries: number
 }
 
 interface PoolSearchCriteria {
-  skills?: string[];
-  searchTerm?: string;
-  category?: string;
-  creator?: string;
-  token?: string;
-  minFunding?: string;
-  maxFunding?: string;
-  isActive?: boolean;
-  limit?: number;
-  offset?: number;
-  orderBy?: 'createdAt' | 'totalFunded' | 'totalClaimed' | 'totalUsers';
-  orderDirection?: 'asc' | 'desc';
+  skills?: string[]
+  searchTerm?: string
+  category?: string
+  creator?: string
+  token?: string
+  minFunding?: string
+  maxFunding?: string
+  isActive?: boolean
+  limit?: number
+  offset?: number
+  orderBy?: 'createdAt' | 'totalFunded' | 'totalClaimed' | 'totalUsers'
+  orderDirection?: 'asc' | 'desc'
 }
 
 interface PoolSearchResult {
-  id: string;
-  creator: string;
+  id: string
+  creator: string
   token: {
-    symbol: string;
-    name: string;
-    id: string;
-  };
-  totalFunded: string;
-  totalClaimed: string;
-  totalUsers: string;
-  totalClaims: string;
-  isActive: boolean;
-  skillsHash?: string;
-  taskTypeHash?: string;
-  description?: string;
-  createdAt: string;
-  updatedAt: string;
+    symbol: string
+    name: string
+    id: string
+  }
+  totalFunded: string
+  totalClaimed: string
+  totalUsers: string
+  totalClaims: string
+  isActive: boolean
+  skillsHash?: string
+  taskTypeHash?: string
+  description?: string
+  createdAt: string
+  updatedAt: string
 }
 
 interface FactoryAnalytics {
-  totalPools: string;
-  totalVolume: string;
-  totalUsers: string;
-  totalClaims: string;
-  averagePoolSize: string;
-  updatedAt: string;
+  totalPools: string
+  totalVolume: string
+  totalUsers: string
+  totalClaims: string
+  averagePoolSize: string
+  updatedAt: string
 }
 
 interface UserActivity {
-  id: string;
-  totalClaimed: string;
-  uniquePools: string;
-  totalClaims: string;
+  id: string
+  totalClaimed: string
+  uniquePools: string
+  totalClaims: string
   claims: Array<{
-    id: string;
+    id: string
     pool: {
-      id: string;
-      token: { symbol: string };
-    };
-    grossAmount: string;
-    timestamp: string;
-  }>;
+      id: string
+      token: { symbol: string }
+    }
+    grossAmount: string
+    timestamp: string
+  }>
 }
 
 export class GraphQLService {
-  private client: GraphQLClient;
-  private config: SubgraphConfig;
+  private client: GraphQLClient
+  private config: SubgraphConfig
 
   constructor() {
     if (!process.env.GRAPH_ENDPOINT) {
-      throw new Error('GRAPH_ENDPOINT environment variable must be set');
+      throw new Error('GRAPH_ENDPOINT environment variable must be set')
     }
     this.config = {
       endpoint: process.env.GRAPH_ENDPOINT,
       timeout: 30000,
       retries: 3
-    };
+    }
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
-    };
+    }
 
     if (process.env.GRAPH_API_KEY) {
-      headers['Authorization'] = `Bearer ${process.env.GRAPH_API_KEY}`;
+      headers.Authorization = `Bearer ${process.env.GRAPH_API_KEY}`
     }
 
     this.client = new GraphQLClient(this.config.endpoint, {
       headers
-    });
+    })
   }
 
   /**
    * Search pools by criteria from The Graph
    */
   async searchPools(criteria: PoolSearchCriteria): Promise<{
-    pools: PoolSearchResult[];
-    total: number;
-    hasMore: boolean;
+    pools: PoolSearchResult[]
+    total: number
+    hasMore: boolean
   }> {
     try {
-      const query = this.buildPoolSearchQuery(criteria);
-      const variables = this.buildPoolSearchVariables(criteria);
+      const query = this.buildPoolSearchQuery(criteria)
+      const variables = this.buildPoolSearchVariables(criteria)
 
-      console.log('Executing pool search query:', { query: query.substring(0, 200) + '...', variables });
+      console.log('Executing pool search query:', {
+        query: `${query.substring(0, 200)}...`,
+        variables
+      })
 
       const data = await this.client.request<{
-        pools: PoolSearchResult[];
-        poolsTotal: Array<{ id: string }>;
-      }>(query, variables);
+        pools: PoolSearchResult[]
+        poolsTotal: Array<{ id: string }>
+      }>(query, variables)
 
-      console.log('Received GraphQL data:', JSON.stringify(data, null, 2));
+      console.log('Received GraphQL data:', JSON.stringify(data, null, 2))
 
       if (!data || !data.pools) {
-        console.error('GraphQL query returned no pools or an error response.', data);
+        console.error('GraphQL query returned no pools or an error response.', data)
         return {
           pools: [],
           total: 0,
-          hasMore: false,
-        };
+          hasMore: false
+        }
       }
 
       // Return raw subgraph data
-      const total = data.poolsTotal ? data.poolsTotal.length : data.pools.length;
-      const hasMore = (criteria.offset || 0) + (criteria.limit || 20) < total;
+      const total = data.poolsTotal ? data.poolsTotal.length : data.pools.length
+      const hasMore = (criteria.offset || 0) + (criteria.limit || 20) < total
 
       return {
         pools: data.pools,
         total,
         hasMore
-      };
-
+      }
     } catch (error) {
-      console.error('Failed to search pools via GraphQL:', error);
-      throw new Error(`Pool search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Failed to search pools via GraphQL:', error)
+      throw new Error(
+        `Pool search failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   }
 
@@ -154,28 +158,32 @@ export class GraphQLService {
           updatedAt
         }
       }
-    `;
+    `
 
     try {
-      const data = await this.client.request<{ factoryStats: FactoryAnalytics }>(query);
-      return data.factoryStats;
+      const data = await this.client.request<{
+        factoryStats: FactoryAnalytics
+      }>(query)
+      return data.factoryStats
     } catch (error) {
-      console.error('Failed to fetch factory analytics:', error);
-      return null;
+      console.error('Failed to fetch factory analytics:', error)
+      return null
     }
   }
 
   /**
    * Get daily statistics for analytics dashboard
    */
-  async getDailyStats(dates: string[]): Promise<Array<{
-    date: string;
-    poolsCreated: string;
-    volume: string;
-    uniqueUsers: string;
-    totalClaims: string;
-    batchClaims: string;
-  }>> {
+  async getDailyStats(dates: string[]): Promise<
+    Array<{
+      date: string
+      poolsCreated: string
+      volume: string
+      uniqueUsers: string
+      totalClaims: string
+      batchClaims: string
+    }>
+  > {
     const query = `
       query GetDailyStats($dates: [String!]!) {
         dailyStats(where: { id_in: $dates }) {
@@ -188,25 +196,25 @@ export class GraphQLService {
           batchClaims
         }
       }
-    `;
+    `
 
     try {
       const data = await this.client.request<{
         dailyStats: Array<{
-          id: string;
-          date: string;
-          poolsCreated: string;
-          volume: string;
-          uniqueUsers: string;
-          totalClaims: string;
-          batchClaims: string;
+          id: string
+          date: string
+          poolsCreated: string
+          volume: string
+          uniqueUsers: string
+          totalClaims: string
+          batchClaims: string
         }>
-      }>(query, { dates });
+      }>(query, { dates })
 
-      return data.dailyStats;
+      return data.dailyStats
     } catch (error) {
-      console.error('Failed to fetch daily stats:', error);
-      return [];
+      console.error('Failed to fetch daily stats:', error)
+      return []
     }
   }
 
@@ -238,42 +246,44 @@ export class GraphQLService {
           }
         }
       }
-    `;
+    `
 
     try {
       const data = await this.client.request<{ user: UserActivity }>(query, {
         userAddress: userAddress.toLowerCase()
-      });
+      })
 
-      return data.user;
+      return data.user
     } catch (error) {
-      console.error('Failed to fetch user activity:', error);
-      return null;
+      console.error('Failed to fetch user activity:', error)
+      return null
     }
   }
 
   /**
    * Get batch claim analytics for gas optimization insights
    */
-  async getBatchClaimAnalytics(limit: number = 100): Promise<Array<{
-    id: string;
-    caller: string;
-    successful: string;
-    failed: string;
-    totalGross: string;
-    timestamp: string;
-    successes: Array<{
-      vault: string;
-      account: string;
-      gross: string;
-      fee: string;
-    }>;
-    failures: Array<{
-      vault: string;
-      account: string;
-      reason: string;
-    }>;
-  }>> {
+  async getBatchClaimAnalytics(limit: number = 100): Promise<
+    Array<{
+      id: string
+      caller: string
+      successful: string
+      failed: string
+      totalGross: string
+      timestamp: string
+      successes: Array<{
+        vault: string
+        account: string
+        gross: string
+        fee: string
+      }>
+      failures: Array<{
+        vault: string
+        account: string
+        reason: string
+      }>
+    }>
+  > {
     const query = `
       query GetBatchClaimAnalytics($limit: Int!) {
         batchClaims(
@@ -300,35 +310,35 @@ export class GraphQLService {
           }
         }
       }
-    `;
+    `
 
     try {
       const data = await this.client.request<{
         batchClaims: Array<{
-          id: string;
-          caller: string;
-          successful: string;
-          failed: string;
-          totalGross: string;
-          timestamp: string;
+          id: string
+          caller: string
+          successful: string
+          failed: string
+          totalGross: string
+          timestamp: string
           successes: Array<{
-            vault: string;
-            account: string;
-            gross: string;
-            fee: string;
-          }>;
+            vault: string
+            account: string
+            gross: string
+            fee: string
+          }>
           failures: Array<{
-            vault: string;
-            account: string;
-            reason: string;
-          }>;
+            vault: string
+            account: string
+            reason: string
+          }>
         }>
-      }>(query, { limit });
+      }>(query, { limit })
 
-      return data.batchClaims;
+      return data.batchClaims
     } catch (error) {
-      console.error('Failed to fetch batch claim analytics:', error);
-      return [];
+      console.error('Failed to fetch batch claim analytics:', error)
+      return []
     }
   }
 
@@ -368,19 +378,19 @@ export class GraphQLService {
           updatedAt
         }
       }
-    `;
+    `
 
     try {
       const data = await this.client.request<{ pools: PoolSearchResult[] }>(query, {
         creator: creator.toLowerCase(),
         limit,
         offset
-      });
+      })
 
-      return data.pools;
+      return data.pools
     } catch (error) {
-      console.error('Failed to fetch pools by creator:', error);
-      return [];
+      console.error('Failed to fetch pools by creator:', error)
+      return []
     }
   }
 
@@ -388,51 +398,52 @@ export class GraphQLService {
    * Build dynamic GraphQL query for pool search
    */
   private buildPoolSearchQuery(criteria: PoolSearchCriteria): string {
-    const whereConditions: string[] = [];
-    const variableDefinitions: string[] = [];
+    const whereConditions: string[] = []
+    const variableDefinitions: string[] = []
 
     if (criteria.creator) {
-      whereConditions.push(`creator: $creator`);
-      variableDefinitions.push(`$creator: String`);
+      whereConditions.push(`creator: $creator`)
+      variableDefinitions.push(`$creator: String`)
     }
 
     if (criteria.token) {
-      whereConditions.push(`token: $token`);
-      variableDefinitions.push(`$token: String`);
+      whereConditions.push(`token: $token`)
+      variableDefinitions.push(`$token: String`)
     }
 
     if (criteria.isActive !== undefined) {
-      whereConditions.push(`isActive: $isActive`);
-      variableDefinitions.push(`$isActive: Boolean`);
+      whereConditions.push(`isActive: $isActive`)
+      variableDefinitions.push(`$isActive: Boolean`)
     }
 
     if (criteria.minFunding) {
-      whereConditions.push(`totalFunded_gte: $minFunding`);
-      variableDefinitions.push(`$minFunding: String`);
+      whereConditions.push(`totalFunded_gte: $minFunding`)
+      variableDefinitions.push(`$minFunding: String`)
     }
 
     if (criteria.maxFunding) {
-      whereConditions.push(`totalFunded_lte: $maxFunding`);
-      variableDefinitions.push(`$maxFunding: String`);
+      whereConditions.push(`totalFunded_lte: $maxFunding`)
+      variableDefinitions.push(`$maxFunding: String`)
     }
 
     if (criteria.skills && criteria.skills.length > 0) {
-      whereConditions.push(`skills_contains: $skills`);
-      variableDefinitions.push(`$skills: [String!]`);
+      whereConditions.push(`skills_contains: $skills`)
+      variableDefinitions.push(`$skills: [String!]`)
     }
 
     if (criteria.searchTerm) {
-      whereConditions.push(`description_contains_nocase: $searchTerm`);
-      variableDefinitions.push(`$searchTerm: String`);
+      whereConditions.push(`description_contains_nocase: $searchTerm`)
+      variableDefinitions.push(`$searchTerm: String`)
     }
 
-    const whereClause = whereConditions.length > 0 ? `where: { ${whereConditions.join(', ')} }` : '';
-    const variableClause = variableDefinitions.length > 0 ? `(${variableDefinitions.join(', ')})` : '';
+    const whereClause = whereConditions.length > 0 ? `where: { ${whereConditions.join(', ')} }` : ''
+    const variableClause =
+      variableDefinitions.length > 0 ? `(${variableDefinitions.join(', ')})` : ''
 
-    const orderBy = criteria.orderBy || 'createdAt';
-    const orderDirection = criteria.orderDirection || 'desc';
-    const first = criteria.limit || 20;
-    const skip = criteria.offset || 0;
+    const orderBy = criteria.orderBy || 'createdAt'
+    const orderDirection = criteria.orderDirection || 'desc'
+    const first = criteria.limit || 20
+    const skip = criteria.offset || 0
 
     return `
       query SearchPools${variableClause} {
@@ -466,31 +477,35 @@ export class GraphQLService {
           id
         }
       }
-    `;
+    `
   }
 
   /**
    * Build variables for GraphQL query
    */
   private buildPoolSearchVariables(criteria: PoolSearchCriteria): Record<string, any> {
-    const variables: Record<string, any> = {};
+    const variables: Record<string, any> = {}
 
-    if (criteria.creator) variables.creator = criteria.creator.toLowerCase();
-    if (criteria.token) variables.token = criteria.token.toLowerCase();
-    if (criteria.isActive !== undefined) variables.isActive = criteria.isActive;
-    if (criteria.searchTerm) variables.searchTerm = criteria.searchTerm;
-    if (criteria.skills) variables.skills = criteria.skills.map(s => s.toLowerCase());
-    if (criteria.minFunding) variables.minFunding = criteria.minFunding;
-    if (criteria.maxFunding) variables.maxFunding = criteria.maxFunding;
+    if (criteria.creator) variables.creator = criteria.creator.toLowerCase()
+    if (criteria.token) variables.token = criteria.token.toLowerCase()
+    if (criteria.isActive !== undefined) variables.isActive = criteria.isActive
+    if (criteria.searchTerm) variables.searchTerm = criteria.searchTerm
+    if (criteria.skills) variables.skills = criteria.skills.map((s) => s.toLowerCase())
+    if (criteria.minFunding) variables.minFunding = criteria.minFunding
+    if (criteria.maxFunding) variables.maxFunding = criteria.maxFunding
 
-    return variables;
+    return variables
   }
 
   /**
    * Health check for GraphQL endpoint
    */
-  async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; message: string; latency?: number }> {
-    const startTime = Date.now();
+  async healthCheck(): Promise<{
+    status: 'healthy' | 'unhealthy'
+    message: string
+    latency?: number
+  }> {
+    const startTime = Date.now()
 
     try {
       const query = `
@@ -499,23 +514,23 @@ export class GraphQLService {
             totalPools
           }
         }
-      `;
+      `
 
-      await this.client.request(query);
-      const latency = Date.now() - startTime;
+      await this.client.request(query)
+      const latency = Date.now() - startTime
 
       return {
         status: 'healthy',
         message: 'GraphQL endpoint responding',
         latency
-      };
+      }
     } catch (error) {
       return {
         status: 'unhealthy',
         message: `GraphQL endpoint unreachable: ${error instanceof Error ? error.message : 'Unknown error'}`
-      };
+      }
     }
   }
 }
 
-export default GraphQLService;
+export default GraphQLService

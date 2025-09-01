@@ -1,4 +1,4 @@
-import { ValidationSchema, ValidationRules } from '../../middleware/validator.ts';
+import { ValidationRules, type ValidationSchema } from '../../middleware/validator.ts'
 
 /**
  * Schema for initializing a chunked upload
@@ -17,7 +17,7 @@ export const initUploadSchema: ValidationSchema = {
     required: true,
     rules: [ValidationRules.isObject()]
   }
-};
+}
 
 /**
  * Schema for uploading a chunk
@@ -35,7 +35,7 @@ export const uploadChunkSchema: ValidationSchema = {
       ValidationRules.matches(/^[a-f0-9]{64}$/i, 'Must be a valid SHA-256 hash (64 hex characters)')
     ]
   }
-};
+}
 
 /**
  * Schema for upload ID parameter
@@ -46,4 +46,4 @@ export const uploadIdParamSchema: ValidationSchema = {
     required: true,
     rules: [ValidationRules.isString(), ValidationRules.minLength(1)]
   }
-};
+}

@@ -1,5 +1,5 @@
-import { isAddress } from 'ethers';
-import { ApiError } from '../middleware/types/errors.js';
+import { isAddress } from 'ethers'
+import { ApiError } from '../middleware/types/errors.js'
 
 /**
  * Centralized address validation utility with consistent error handling
@@ -12,9 +12,9 @@ import { ApiError } from '../middleware/types/errors.js';
  */
 export function isValidAddress(address: unknown): address is string {
   try {
-    return typeof address === 'string' && isAddress(address);
+    return typeof address === 'string' && isAddress(address)
   } catch {
-    return false;
+    return false
   }
 }
 
@@ -24,9 +24,12 @@ export function isValidAddress(address: unknown): address is string {
  * @param fieldName - Name of the field for error message
  * @throws ApiError.badRequest if address is invalid
  */
-export function validateAddress(address: unknown, fieldName: string = 'address'): asserts address is string {
+export function validateAddress(
+  address: unknown,
+  fieldName: string = 'address'
+): asserts address is string {
   if (!isValidAddress(address)) {
-    throw ApiError.badRequest(`${fieldName} must be a valid Ethereum address`);
+    throw ApiError.badRequest(`${fieldName} must be a valid Ethereum address`)
   }
 }
 
@@ -36,14 +39,17 @@ export function validateAddress(address: unknown, fieldName: string = 'address')
  * @param fieldName - Name of the field for error message
  * @throws ApiError.badRequest if any address is invalid
  */
-export function validateAddresses(addresses: unknown[], fieldName: string = 'addresses'): asserts addresses is string[] {
+export function validateAddresses(
+  addresses: unknown[],
+  fieldName: string = 'addresses'
+): asserts addresses is string[] {
   if (!Array.isArray(addresses)) {
-    throw ApiError.badRequest(`${fieldName} must be an array`);
+    throw ApiError.badRequest(`${fieldName} must be an array`)
   }
-  
+
   for (let i = 0; i < addresses.length; i++) {
     if (!isValidAddress(addresses[i])) {
-      throw ApiError.badRequest(`${fieldName}[${i}] must be a valid Ethereum address`);
+      throw ApiError.badRequest(`${fieldName}[${i}] must be a valid Ethereum address`)
     }
   }
 }
@@ -55,8 +61,8 @@ export function validateAddresses(addresses: unknown[], fieldName: string = 'add
  * @throws ApiError.badRequest if address is invalid
  */
 export function normalizeAddress(address: unknown, fieldName: string = 'address'): string {
-  validateAddress(address, fieldName);
-  return address.toLowerCase();
+  validateAddress(address, fieldName)
+  return address.toLowerCase()
 }
 
 /**
@@ -65,7 +71,7 @@ export function normalizeAddress(address: unknown, fieldName: string = 'address'
  * @returns true if valid address, false otherwise
  */
 export function mongooseAddressValidator(value: unknown): boolean {
-  return isValidAddress(value);
+  return isValidAddress(value)
 }
 
 /**
@@ -74,10 +80,10 @@ export function mongooseAddressValidator(value: unknown): boolean {
  * @returns true if valid, false otherwise
  */
 export function isValidPrivateKey(privateKey: unknown): privateKey is string {
-  if (typeof privateKey !== 'string') return false;
-  
-  const cleanKey = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
-  return cleanKey.length === 64 && /^[a-fA-F0-9]{64}$/.test(cleanKey);
+  if (typeof privateKey !== 'string') return false
+
+  const cleanKey = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey
+  return cleanKey.length === 64 && /^[a-fA-F0-9]{64}$/.test(cleanKey)
 }
 
 /**
@@ -86,8 +92,13 @@ export function isValidPrivateKey(privateKey: unknown): privateKey is string {
  * @param fieldName - Name of the field for error message
  * @throws ApiError.internalError if private key is invalid
  */
-export function validatePrivateKey(privateKey: unknown, fieldName: string = 'privateKey'): asserts privateKey is string {
+export function validatePrivateKey(
+  privateKey: unknown,
+  fieldName: string = 'privateKey'
+): asserts privateKey is string {
   if (!isValidPrivateKey(privateKey)) {
-    throw ApiError.internalError(`${fieldName} must be 64 hex characters (with or without 0x prefix)`);
+    throw ApiError.internalError(
+      `${fieldName} must be 64 hex characters (with or without 0x prefix)`
+    )
   }
 }

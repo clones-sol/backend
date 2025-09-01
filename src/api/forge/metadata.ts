@@ -1,10 +1,87 @@
-import express from 'express';
-import { body, param, query, validationResult } from 'express-validator';
-import { FactoryModel } from '../../models/Factory.ts';
-import { GraphQLService } from '../../services/blockchain/graphqlService.js';
+import express from 'express'
+import { body, param, query, validationResult } from 'express-validator'
+import { FactoryModel } from '../../models/Factory.ts'
+import { GraphQLService } from '../../services/blockchain/graphqlService.js'
 
-const router = express.Router();
-const graphqlService = new GraphQLService();
+const router = express.Router()
+const _graphqlService = new GraphQLService()
+
+interface ValidationResult {
+  valid: boolean
+  duplicates?: boolean
+  containsSkills?: boolean
+  containsRelevantTerms?: boolean
+}
+
+function validateSkills(skills: string[]): { result: ValidationResult; warnings: string[] } {
+  const result = {
+    valid: skills.every((skill: string) => typeof skill === 'string' && skill.length >= 2),
+    duplicates: skills.length !== new Set(skills.map((s: string) => s.toLowerCase())).size
+  }
+  const warnings = result.duplicates ? ['Duplicate skills detected'] : []
+  return { result, warnings }
+}
+
+function validateName(
+  name: string,
+  skills?: string[]
+): { result: ValidationResult; warnings: string[] } {
+  const result = {
+    valid: name.length >= 3 && name.length <= 100,
+    containsSkills: skills
+      ? skills.some((skill: string) => name.toLowerCase().includes(skill.toLowerCase()))
+      : false
+  }
+  const warnings = skills && !result.containsSkills ? ['Name does not contain any skills'] : []
+  return { result, warnings }
+}
+
+function validateDescription(
+  description: string,
+  skills?: string[]
+): { result: ValidationResult; warnings: string[] } {
+  const result = {
+    valid: description.length >= 10 && description.length <= 500,
+    containsRelevantTerms: [...(skills || [])].some((term: string) =>
+      description.toLowerCase().includes(term.toLowerCase())
+    )
+  }
+  const warnings =
+    skills && !result.containsRelevantTerms ? ['Description does not contain skills'] : []
+  return { result, warnings }
+}
+
+function validateMetadataSemantics(
+  skills: string[],
+  name: string,
+  description: string
+): {
+  validationResults: Record<string, ValidationResult>
+  warnings: string[]
+} {
+  const validationResults: Record<string, ValidationResult> = {}
+  const allWarnings: string[] = []
+
+  if (skills) {
+    const skillsValidation = validateSkills(skills)
+    validationResults.skills = skillsValidation.result
+    allWarnings.push(...skillsValidation.warnings)
+  }
+
+  if (name) {
+    const nameValidation = validateName(name, skills)
+    validationResults.name = nameValidation.result
+    allWarnings.push(...nameValidation.warnings)
+  }
+
+  if (description) {
+    const descValidation = validateDescription(description, skills)
+    validationResults.description = descValidation.result
+    allWarnings.push(...descValidation.warnings)
+  }
+
+  return { validationResults, warnings: allWarnings }
+}
 
 /**
  * @swagger
@@ -48,82 +125,93 @@ const graphqlService = new GraphQLService();
  *       '500':
  *         description: Metadata update failed.
  */
-router.post('/update',
+router.post(
+  '/update',
   // Validation middleware
   [
     body('poolAddress').isEthereumAddress().withMessage('Invalid pool address'),
-    body('name').optional().isLength({ min: 3, max: 100 }).withMessage('Name must be 3-100 characters'),
-    body('description').optional().isLength({ min: 10, max: 500 }).withMessage('Description must be 10-500 characters'),
-    body('skills').optional().isArray({ min: 1, max: 10 }).withMessage('Skills must be array of 1-10 items'),
-    body('skills.*').isLength({ min: 2, max: 50 }).withMessage('Each skill must be 2-50 characters'),
+    body('name')
+      .optional()
+      .isLength({ min: 3, max: 100 })
+      .withMessage('Name must be 3-100 characters'),
+    body('description')
+      .optional()
+      .isLength({ min: 10, max: 500 })
+      .withMessage('Description must be 10-500 characters'),
+    body('skills')
+      .optional()
+      .isArray({ min: 1, max: 10 })
+      .withMessage('Skills must be array of 1-10 items'),
+    body('skills.*').isLength({ min: 2, max: 50 }).withMessage('Each skill must be 2-50 characters')
   ],
   async (req: express.Request, res: express.Response) => {
     try {
       // Check validation errors
-      const errors = validationResult(req);
+      const errors = validationResult(req)
       if (!errors.isEmpty()) {
         return res.status(400).json({
           error: 'Validation failed',
           details: errors.array()
-        });
+        })
       }
 
-      const { poolAddress, name, description, skills } = req.body;
+      const { poolAddress, name, description, skills } = req.body
 
       // Find the pool to update
-      const factory = await FactoryModel.findOne({ poolAddress });
+      const factory = await FactoryModel.findOne({ poolAddress })
       if (!factory) {
         return res.status(404).json({
           error: 'Factory not found',
           poolAddress
-        });
+        })
       }
 
       const generateSearchString = (desc: string, skillsArr: string[]): string => {
-        const searchParts: string[] = [];
-        if (desc) searchParts.push(desc.toLowerCase());
-        skillsArr.forEach(skill => searchParts.push(skill.toLowerCase()));
-        return searchParts.join(' ');
-      };
+        const searchParts: string[] = []
+        if (desc) searchParts.push(desc.toLowerCase())
+        for (const skill of skillsArr) {
+          searchParts.push(skill.toLowerCase())
+        }
+        return searchParts.join(' ')
+      }
 
-      const updateFields: any = {};
-      if (name !== undefined) updateFields.name = name;
-      if (description !== undefined) updateFields.description = description;
-      if (skills !== undefined) updateFields.skillsArray = skills;
+      const updateFields: Record<string, unknown> = {}
+      if (name !== undefined) updateFields.name = name
+      if (description !== undefined) updateFields.description = description
+      if (skills !== undefined) updateFields.skillsArray = skills
 
       if (description !== undefined || skills !== undefined) {
-        const finalDescription = description ?? factory.description ?? '';
-        const finalSkills = skills ?? factory.skills ?? [];
+        const finalDescription = description ?? factory.description ?? ''
+        const finalSkills = skills ?? factory.skills ?? []
 
-        updateFields.searchString = generateSearchString(finalDescription, finalSkills);
+        updateFields.searchString = generateSearchString(finalDescription, finalSkills)
       }
 
       const updatedPool = await FactoryModel.findOneAndUpdate(
         { poolAddress },
         { $set: updateFields },
         { new: true }
-      );
+      )
 
       res.json({
         success: true,
         data: {
           poolAddress,
-          name: updatedPool!.name,
-          description: updatedPool!.description,
-          skills: updatedPool!.skills,
+          name: updatedPool?.name,
+          description: updatedPool?.description,
+          skills: updatedPool?.skills,
           updatedAt: new Date().toISOString()
         }
-      });
-
+      })
     } catch (error) {
-      console.error('Failed to update pool metadata:', error);
+      console.error('Failed to update pool metadata:', error)
       res.status(500).json({
         error: 'Failed to update metadata',
         message: error instanceof Error ? error.message : 'Unknown error'
-      });
+      })
     }
   }
-);
+)
 
 /**
  * @swagger
@@ -146,28 +234,27 @@ router.post('/update',
  *       '500':
  *         description: Database retrieval failed.
  */
-router.get('/pool/:poolAddress',
-  [
-    param('poolAddress').isEthereumAddress().withMessage('Invalid pool address format')
-  ],
+router.get(
+  '/pool/:poolAddress',
+  [param('poolAddress').isEthereumAddress().withMessage('Invalid pool address format')],
   async (req: express.Request, res: express.Response) => {
     try {
-      const errors = validationResult(req);
+      const errors = validationResult(req)
       if (!errors.isEmpty()) {
         return res.status(400).json({
           error: 'Invalid pool address',
           details: errors.array()
-        });
+        })
       }
 
-      const { poolAddress } = req.params;
-      const factory = await FactoryModel.findOne({ poolAddress });
+      const { poolAddress } = req.params
+      const factory = await FactoryModel.findOne({ poolAddress })
 
       if (!factory) {
         return res.status(404).json({
           error: 'Factory not found',
           poolAddress
-        });
+        })
       }
 
       res.json({
@@ -181,17 +268,16 @@ router.get('/pool/:poolAddress',
           createdAt: factory.createdAt,
           updatedAt: factory.updatedAt
         }
-      });
-
+      })
     } catch (error) {
-      console.error('Failed to retrieve pool metadata:', error);
+      console.error('Failed to retrieve pool metadata:', error)
       res.status(500).json({
         error: 'Failed to retrieve metadata from database',
         message: error instanceof Error ? error.message : 'Unknown error'
-      });
+      })
     }
   }
-);
+)
 
 /**
  * @swagger
@@ -221,36 +307,37 @@ router.get('/pool/:poolAddress',
  *       '500':
  *         description: Database retrieval failed.
  */
-router.get('/pools',
+router.get(
+  '/pools',
   [
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be 1-100'),
     query('offset').optional().isInt({ min: 0 }).withMessage('Offset must be non-negative')
   ],
   async (req: express.Request, res: express.Response) => {
     try {
-      const errors = validationResult(req);
+      const errors = validationResult(req)
       if (!errors.isEmpty()) {
         return res.status(400).json({
           error: 'Validation failed',
           details: errors.array()
-        });
+        })
       }
 
-      const limit = parseInt(req.query.limit as string) || 20;
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = parseInt(req.query.limit as string, 10) || 20
+      const offset = parseInt(req.query.offset as string, 10) || 0
 
       const pools = await FactoryModel.find({})
         .select('poolAddress name description skillsArray searchString createdAt updatedAt')
         .skip(offset)
         .limit(limit)
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
 
-      const total = await FactoryModel.countDocuments({});
+      const total = await FactoryModel.countDocuments({})
 
       res.json({
         success: true,
         data: {
-          pools: pools.map(pool => ({
+          pools: pools.map((pool) => ({
             poolAddress: pool.poolAddress,
             name: pool.name,
             description: pool.description,
@@ -265,17 +352,16 @@ router.get('/pools',
             hasMore: offset + limit < total
           }
         }
-      });
-
+      })
     } catch (error) {
-      console.error('Failed to retrieve pools:', error);
+      console.error('Failed to retrieve pools:', error)
       res.status(500).json({
         error: 'Failed to retrieve pools from database',
         message: error instanceof Error ? error.message : 'Unknown error'
-      });
+      })
     }
   }
-);
+)
 
 /**
  * @swagger
@@ -302,37 +388,41 @@ router.get('/pools',
  *       '500':
  *         description: Search failed.
  */
-router.post('/search',
+router.post(
+  '/search',
   [
-    body('skills').optional().isArray({ max: 10 }).withMessage('Skills must be array of max 10 items'),
-    body('searchTerm').optional().isLength({ min: 2, max: 100 }).withMessage('Search term must be 2-100 characters'),
-    body('category').optional().isLength({ min: 2, max: 50 }).withMessage('Category must be 2-50 characters'),
+    body('skills')
+      .optional()
+      .isArray({ max: 10 })
+      .withMessage('Skills must be array of max 10 items'),
+    body('searchTerm')
+      .optional()
+      .isLength({ min: 2, max: 100 })
+      .withMessage('Search term must be 2-100 characters'),
+    body('category')
+      .optional()
+      .isLength({ min: 2, max: 50 })
+      .withMessage('Category must be 2-50 characters'),
     body('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be 1-100'),
     body('offset').optional().isInt({ min: 0 }).withMessage('Offset must be non-negative')
   ],
   async (req: express.Request, res: express.Response) => {
     try {
-      const errors = validationResult(req);
+      const errors = validationResult(req)
       if (!errors.isEmpty()) {
         return res.status(400).json({
           error: 'Validation failed',
           details: errors.array()
-        });
+        })
       }
 
-      const {
-        skills,
-        searchTerm,
-        category,
-        limit = 20,
-        offset = 0
-      } = req.body;
+      const { skills, searchTerm, category, limit = 20, offset = 0 } = req.body
 
-      const query: any = {};
-      const andConditions = [];
+      const query: Record<string, unknown> = {}
+      const andConditions = []
 
       if (skills && skills.length > 0) {
-        andConditions.push({ skillsArray: { $in: skills } });
+        andConditions.push({ skillsArray: { $in: skills } })
       }
 
       if (searchTerm) {
@@ -342,25 +432,27 @@ router.post('/search',
             { name: { $regex: searchTerm, $options: 'i' } },
             { description: { $regex: searchTerm, $options: 'i' } }
           ]
-        });
+        })
       }
 
       if (andConditions.length > 0) {
-        query.$and = andConditions;
+        query.$and = andConditions
       }
 
       const pools = await FactoryModel.find(query)
-        .select('poolAddress name description skills tags pricePerDemo demonstrations createdAt updatedAt')
+        .select(
+          'poolAddress name description skills tags pricePerDemo demonstrations createdAt updatedAt'
+        )
         .skip(offset)
         .limit(limit)
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
 
-      const total = await FactoryModel.countDocuments(query);
+      const total = await FactoryModel.countDocuments(query)
 
       res.json({
         success: true,
         data: {
-          pools: pools.map(pool => ({
+          pools: pools.map((pool) => ({
             poolAddress: pool.poolAddress,
             name: pool.name,
             description: pool.description,
@@ -374,7 +466,7 @@ router.post('/search',
             total,
             limit,
             offset,
-            hasMore: offset + limit < total,
+            hasMore: offset + limit < total
           },
           filters: {
             skills,
@@ -383,17 +475,16 @@ router.post('/search',
           },
           searchedAt: new Date().toISOString()
         }
-      });
-
+      })
     } catch (error) {
-      console.error('Failed to search pools by metadata:', error);
+      console.error('Failed to search pools by metadata:', error)
       res.status(500).json({
         error: 'Failed to search pools',
         message: error instanceof Error ? error.message : 'Unknown error'
-      });
+      })
     }
   }
-);
+)
 
 /**
  * @swagger
@@ -409,7 +500,7 @@ router.post('/search',
  */
 router.get('/health', async (_req: express.Request, res: express.Response) => {
   try {
-    const poolCount = await FactoryModel.countDocuments({});
+    const poolCount = await FactoryModel.countDocuments({})
 
     res.status(200).json({
       success: true,
@@ -420,10 +511,9 @@ router.get('/health', async (_req: express.Request, res: express.Response) => {
         database: 'Database'
       },
       timestamp: new Date().toISOString()
-    });
-
+    })
   } catch (error) {
-    console.error('Health check failed:', error);
+    console.error('Health check failed:', error)
     res.status(500).json({
       success: false,
       data: {
@@ -431,9 +521,9 @@ router.get('/health', async (_req: express.Request, res: express.Response) => {
         message: `Database connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       },
       timestamp: new Date().toISOString()
-    });
+    })
   }
-});
+})
 
 /**
  * @swagger
@@ -464,58 +554,36 @@ router.get('/health', async (_req: express.Request, res: express.Response) => {
  *       '500':
  *         description: Internal validation error.
  */
-router.post('/validate',
+router.post(
+  '/validate',
   [
-    body('skills').optional().isArray({ min: 1, max: 10 }).withMessage('Skills must be array of 1-10 items'),
-    body('name').optional().isLength({ min: 3, max: 100 }).withMessage('Name must be 3-100 characters'),
-    body('description').optional().isLength({ min: 10, max: 500 }).withMessage('Description must be 10-500 characters'),
+    body('skills')
+      .optional()
+      .isArray({ min: 1, max: 10 })
+      .withMessage('Skills must be array of 1-10 items'),
+    body('name')
+      .optional()
+      .isLength({ min: 3, max: 100 })
+      .withMessage('Name must be 3-100 characters'),
+    body('description')
+      .optional()
+      .isLength({ min: 10, max: 500 })
+      .withMessage('Description must be 10-500 characters')
   ],
   async (req: express.Request, res: express.Response) => {
     try {
-      const errors = validationResult(req);
+      const errors = validationResult(req)
       if (!errors.isEmpty()) {
         return res.status(400).json({
           success: false,
           error: 'Validation failed',
           details: errors.array()
-        });
+        })
       }
 
-      const { skills, name, description } = req.body;
-
-      // Perform additional semantic validation
-      const validationResults: any = {};
-      const warnings: string[] = [];
-
-      if (skills) {
-        validationResults.skills = {
-          valid: skills.every((skill: string) => typeof skill === 'string' && skill.length >= 2),
-          duplicates: skills.length !== new Set(skills.map((s: string) => s.toLowerCase())).size
-        };
-        if (validationResults.skills.duplicates) warnings.push('Duplicate skills detected');
-      }
-
-      if (name) {
-        validationResults.name = {
-          valid: name.length >= 3 && name.length <= 100,
-          containsSkills: skills ? skills.some((skill: string) => name.toLowerCase().includes(skill.toLowerCase())) : false
-        };
-        if (skills && !validationResults.name.containsSkills) warnings.push('Name does not contain any skills');
-      }
-
-      if (description) {
-        validationResults.description = {
-          valid: description.length >= 10 && description.length <= 500,
-          containsRelevantTerms: [...(skills || [])].some((term: string) =>
-            description.toLowerCase().includes(term.toLowerCase())
-          )
-        };
-        if (skills && !validationResults.description.containsRelevantTerms) {
-          warnings.push('Description does not contain skills');
-        }
-      }
-
-      const isValid = Object.values(validationResults).every((result: any) => result.valid);
+      const { skills, name, description } = req.body
+      const { validationResults, warnings } = validateMetadataSemantics(skills, name, description)
+      const isValid = Object.values(validationResults).every((result) => result.valid)
 
       res.json({
         success: true,
@@ -527,17 +595,16 @@ router.post('/validate',
             estimatedCategory: 'general'
           }
         }
-      });
-
+      })
     } catch (error) {
-      console.error('Failed to validate metadata:', error);
+      console.error('Failed to validate metadata:', error)
       res.status(500).json({
         success: false,
         error: 'Validation failed',
         message: error instanceof Error ? error.message : 'Unknown error'
-      });
+      })
     }
   }
-);
+)
 
-export default router;
+export default router

@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ethers } from 'ethers'
 
 /**
  * Centralized amount validation utility
@@ -15,39 +15,43 @@ export class AmountValidator {
   static validateAndParseAmount(amount: string, decimals: number, tokenSymbol: string): bigint {
     // Validate input is string
     if (typeof amount !== 'string' || amount.trim() === '') {
-      throw new Error('Amount must be a non-empty string');
+      throw new Error('Amount must be a non-empty string')
     }
 
-    const amountStr = amount.trim();
-    
+    const amountStr = amount.trim()
+
     // Check for scientific notation
     if (amountStr.includes('e') || amountStr.includes('E')) {
-      throw new Error(`Scientific notation not supported: ${amount}. Please use decimal format.`);
+      throw new Error(`Scientific notation not supported: ${amount}. Please use decimal format.`)
     }
 
     // Parse as number for validation
-    const numAmount = Number(amountStr);
-    if (isNaN(numAmount) || numAmount <= 0) {
-      throw new Error(`Invalid amount: ${amount}. Must be a positive number.`);
+    const numAmount = Number(amountStr)
+    if (Number.isNaN(numAmount) || numAmount <= 0) {
+      throw new Error(`Invalid amount: ${amount}. Must be a positive number.`)
     }
 
     // Check decimal places don't exceed token precision
-    const decimalPlaces = (amountStr.split('.')[1] || '').length;
+    const decimalPlaces = (amountStr.split('.')[1] || '').length
     if (decimalPlaces > decimals) {
-      throw new Error(`Too many decimal places. Maximum ${decimals} decimals allowed for ${tokenSymbol}.`);
+      throw new Error(
+        `Too many decimal places. Maximum ${decimals} decimals allowed for ${tokenSymbol}.`
+      )
     }
 
     // Validate minimum amount based on token decimals
-    const minAmount = 1 / Math.pow(10, decimals);
+    const minAmount = 1 / 10 ** decimals
     if (numAmount < minAmount) {
-      throw new Error(`Amount too small. Minimum amount is ${minAmount} ${tokenSymbol}`);
+      throw new Error(`Amount too small. Minimum amount is ${minAmount} ${tokenSymbol}`)
     }
 
     // Use ethers.parseUnits with exact string to avoid precision issues
     try {
-      return ethers.parseUnits(amountStr, decimals);
+      return ethers.parseUnits(amountStr, decimals)
     } catch (error) {
-      throw new Error(`Failed to parse amount: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to parse amount: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   }
 
@@ -58,21 +62,21 @@ export class AmountValidator {
    */
   static validateBasicAmount(amount: string): number {
     if (typeof amount !== 'string' || amount.trim() === '') {
-      throw new Error('Amount must be a non-empty string');
+      throw new Error('Amount must be a non-empty string')
     }
 
-    const amountStr = amount.trim();
-    
+    const amountStr = amount.trim()
+
     // Check for scientific notation
     if (amountStr.includes('e') || amountStr.includes('E')) {
-      throw new Error(`Scientific notation not supported: ${amount}. Please use decimal format.`);
+      throw new Error(`Scientific notation not supported: ${amount}. Please use decimal format.`)
     }
 
-    const numAmount = Number(amountStr);
-    if (isNaN(numAmount) || numAmount <= 0) {
-      throw new Error(`Invalid amount: ${amount}. Must be a positive number.`);
+    const numAmount = Number(amountStr)
+    if (Number.isNaN(numAmount) || numAmount <= 0) {
+      throw new Error(`Invalid amount: ${amount}. Must be a positive number.`)
     }
 
-    return numAmount;
+    return numAmount
   }
 }

@@ -1,15 +1,20 @@
-import OpenAI from 'openai';
-import { ILLMService, LLMConfig, StreamResponse, GenericModelMessage } from '../../types/index.ts';
+import OpenAI from 'openai'
+import type {
+  GenericModelMessage,
+  ILLMService,
+  LLMConfig,
+  StreamResponse
+} from '../../types/index.ts'
 
 export class OpenAIService implements ILLMService {
-  private openai: OpenAI;
-  private config: LLMConfig;
+  private openai: OpenAI
+  private config: LLMConfig
 
   constructor(config: LLMConfig) {
-    this.config = config;
+    this.config = config
     this.openai = new OpenAI({
       apiKey: config.apiKey
-    });
+    })
   }
 
   async createChatCompletion(
@@ -30,23 +35,23 @@ export class OpenAIService implements ILLMService {
         tools: tools,
         tool_choice: toolChoice,
         parallel_tool_calls: false
-      });
+      })
 
       return {
         async *[Symbol.asyncIterator]() {
           try {
             for await (const chunk of stream) {
-              const delta = chunk.choices[0]?.delta;
+              const delta = chunk.choices[0]?.delta
 
               if (delta?.content) {
                 yield {
                   type: 'text_delta',
                   delta: delta.content
-                };
+                }
               }
 
               if (delta?.tool_calls?.[0]) {
-                const toolCall = delta.tool_calls[0];
+                const toolCall = delta.tool_calls[0]
                 if (toolCall.function && toolCall.id) {
                   yield {
                     type: 'tool_call',
@@ -55,25 +60,25 @@ export class OpenAIService implements ILLMService {
                       name: toolCall.function.name || 'unknown',
                       arguments: toolCall.function.arguments || ''
                     }
-                  };
+                  }
                 }
               }
 
               if (chunk.choices[0]?.finish_reason === 'stop') {
-                yield { type: 'stop' };
+                yield { type: 'stop' }
               }
             }
           } catch (error) {
             yield {
               type: 'error',
               message: error instanceof Error ? error.message : 'Unknown error occurred'
-            };
+            }
           }
         }
-      };
+      }
     } catch (error) {
-      console.error('OpenAI Service Error:', error);
-      throw error;
+      console.error('OpenAI Service Error:', error)
+      throw error
     }
   }
 }

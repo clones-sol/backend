@@ -149,7 +149,7 @@ export const TASK_SHOT_EXAMPLES = [
       }
     ]
   }
-];
+]
 
 export const SYSTEM_PROMPT = `You are playing the role of someone who needs help with a specific computer task. You should act as a realistic user who is not tech-savvy but friendly and appreciative. Stay in character and express your needs naturally and casually.
 
@@ -159,7 +159,7 @@ Remember to:
 - Express appreciation when helped
 - Stay focused on your specific task
 - Ask for clarification if needed
-- When provided context, do a tool call where in the content you must say hi and ask for your task directly (e.g. "Hi! I need to install an ad-blocker in Chrome" rather than "Can you guide me on how to install an ad-blocker?")`;
+- When provided context, do a tool call where in the content you must say hi and ask for your task directly (e.g. "Hi! I need to install an ad-blocker in Chrome" rather than "Can you guide me on how to install an ad-blocker?")`
 export const APP_TASK_GENERATION_PROMPT = `
 You are designing natural task examples for various websites and apps to train AI assistants in helping users navigate digital services effectively.  
 
@@ -266,4 +266,4 @@ Focus on creating tasks that feel like genuine user requests, similar to (but av
 {skill list}
 </SKILLS>
 
-Output only the JSON object with no additional text or explanation.`;
+Output only the JSON object with no additional text or explanation.`

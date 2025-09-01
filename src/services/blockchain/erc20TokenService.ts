@@ -1,10 +1,10 @@
-import { ethers } from "ethers";
-import { tokenCache } from '../../utils/tokenCache.js';
+import { ethers } from 'ethers'
+import { tokenCache } from '../../utils/tokenCache.js'
 
 export type Erc20Artifact = {
-    abi: any[];
-    bytecode: string;
-};
+  abi: any[]
+  bytecode: string
+}
 
 /**
  * Creates an unsigned transaction to deploy an ERC-20 token contract
@@ -32,73 +32,73 @@ export type Erc20Artifact = {
  * @returns An object containing the unsigned tx request and the expected contract address.
  */
 export async function createTokenDeploymentTransaction(
-    provider: ethers.JsonRpcProvider,
-    payerAddress: string,
-    tokenName: string,
-    tokenSymbol: string,
-    tokenSupply: number,
-    tokenDecimals: number,
-    artifact: Erc20Artifact
+  provider: ethers.JsonRpcProvider,
+  payerAddress: string,
+  tokenName: string,
+  tokenSymbol: string,
+  tokenSupply: number,
+  tokenDecimals: number,
+  artifact: Erc20Artifact
 ): Promise<{
-    unsignedTx: ethers.TransactionRequest;
-    expectedContractAddress: string | null;
+  unsignedTx: ethers.TransactionRequest
+  expectedContractAddress: string | null
 }> {
-    // Prepare constructor args
-    const initialRecipient = payerAddress;
-    const initialOwner = payerAddress;
-    const initialSupplyRaw = ethers.parseUnits(tokenSupply.toString(), tokenDecimals);
+  // Prepare constructor args
+  const initialRecipient = payerAddress
+  const initialOwner = payerAddress
+  const initialSupplyRaw = ethers.parseUnits(tokenSupply.toString(), tokenDecimals)
 
-    // Build deploy transaction data
-    const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode);
-    const deployTx = await factory.getDeployTransaction(
-        tokenName,
-        tokenSymbol,
-        tokenDecimals,
-        initialRecipient,
-        initialSupplyRaw,
-        initialOwner
-    );
+  // Build deploy transaction data
+  const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode)
+  const deployTx = await factory.getDeployTransaction(
+    tokenName,
+    tokenSymbol,
+    tokenDecimals,
+    initialRecipient,
+    initialSupplyRaw,
+    initialOwner
+  )
 
-    // Attach sender and estimate gas + fees
-    const nonce = await provider.getTransactionCount(payerAddress);
-    const fee = await provider.getFeeData();
+  // Attach sender and estimate gas + fees
+  const nonce = await provider.getTransactionCount(payerAddress)
+  const fee = await provider.getFeeData()
 
-    const unsignedTx: ethers.TransactionRequest = {
-        ...deployTx,
-        from: payerAddress,
-        nonce
-    };
+  const unsignedTx: ethers.TransactionRequest = {
+    ...deployTx,
+    from: payerAddress,
+    nonce
+  }
 
-    // Gas estimate with a small buffer
-    const est = await provider.estimateGas(unsignedTx).catch((err) => {
-        console.error("Gas estimation failed for ERC-20 deployment transaction:", err);
-        // Fallback: use a reasonable default for contract deployment
-        return 3000000n;
-    });
-    if (est) {
-        unsignedTx.gasLimit = (est * 1200n) / 1000n; // +20%
-    }
+  // Gas estimate with a small buffer
+  const est = await provider.estimateGas(unsignedTx).catch((err) => {
+    console.error('Gas estimation failed for ERC-20 deployment transaction:', err)
+    // Fallback: use a reasonable default for contract deployment
+    return 3000000n
+  })
+  if (est) {
+    unsignedTx.gasLimit = (est * 1200n) / 1000n // +20%
+  }
 
-    // EIP-1559 fees with reasonable fallbacks
-    if (fee.maxFeePerGas && fee.maxPriorityFeePerGas) {
-        unsignedTx.maxFeePerGas = fee.maxFeePerGas;
-        unsignedTx.maxPriorityFeePerGas = fee.maxPriorityFeePerGas;
-    } else if (fee.gasPrice) {
-        unsignedTx.gasPrice = fee.gasPrice;
-    }
+  // EIP-1559 fees with reasonable fallbacks
+  if (fee.maxFeePerGas && fee.maxPriorityFeePerGas) {
+    unsignedTx.maxFeePerGas = fee.maxFeePerGas
+    unsignedTx.maxPriorityFeePerGas = fee.maxPriorityFeePerGas
+  } else if (fee.gasPrice) {
+    unsignedTx.gasPrice = fee.gasPrice
+  }
 
-    // Predict contract address (CREATE)
-    let expectedContractAddress: string | null = null;
-    try {
-        expectedContractAddress = ethers.getCreateAddress({
-            from: payerAddress,
-            nonce
-        });
-    } catch {
-        expectedContractAddress = null;
-    }
+  // Predict contract address (CREATE)
+  let expectedContractAddress: string | null = null
+  try {
+    expectedContractAddress = ethers.getCreateAddress({
+      from: payerAddress,
+      nonce
+    })
+  } catch {
+    expectedContractAddress = null
+  }
 
-    return { unsignedTx, expectedContractAddress };
+  return { unsignedTx, expectedContractAddress }
 }
 
 /**
@@ -116,45 +116,42 @@ export async function createTokenDeploymentTransaction(
  * @returns An unsigned tx request ready to be signed and sent.
  */
 export async function createMintTransaction(
-    provider: ethers.JsonRpcProvider,
-    tokenAddress: string,
-    minterAddress: string,
-    recipient: string,
-    amount: number,
-    artifactAbi: any[]
+  provider: ethers.JsonRpcProvider,
+  tokenAddress: string,
+  minterAddress: string,
+  recipient: string,
+  amount: number,
+  artifactAbi: any[]
 ): Promise<ethers.TransactionRequest> {
-    const erc20 = new ethers.Contract(tokenAddress, artifactAbi, provider);
-    const metadata = await tokenCache.getTokenMetadata(tokenAddress, provider);
-    const rawAmount = ethers.parseUnits(amount.toString(), metadata.decimals);
+  const erc20 = new ethers.Contract(tokenAddress, artifactAbi, provider)
+  const metadata = await tokenCache.getTokenMetadata(tokenAddress, provider)
+  const rawAmount = ethers.parseUnits(amount.toString(), metadata.decimals)
 
-    // Populate calldata for mint(recipient, rawAmount)
-    const data: string = await erc20.interface.encodeFunctionData("mint", [
-        recipient,
-        rawAmount
-    ]);
+  // Populate calldata for mint(recipient, rawAmount)
+  const data: string = await erc20.interface.encodeFunctionData('mint', [recipient, rawAmount])
 
-    const fee = await provider.getFeeData();
-    const nonce = await provider.getTransactionCount(minterAddress);
+  const fee = await provider.getFeeData()
+  const nonce = await provider.getTransactionCount(minterAddress)
 
-    const tx: ethers.TransactionRequest = {
-        to: tokenAddress,
-        from: minterAddress,
-        data,
-        nonce
-    };
+  const tx: ethers.TransactionRequest = {
+    to: tokenAddress,
+    from: minterAddress,
+    data,
+    nonce
+  }
 
-    // Estimate gas and add buffer
-    const est = await provider.estimateGas(tx).catch(() => null);
-    if (est) {
-        tx.gasLimit = (est * 1200n) / 1000n; // +20%
-    }
+  // Estimate gas and add buffer
+  const est = await provider.estimateGas(tx).catch(() => null)
+  if (est) {
+    tx.gasLimit = (est * 1200n) / 1000n // +20%
+  }
 
-    if (fee.maxFeePerGas && fee.maxPriorityFeePerGas) {
-        tx.maxFeePerGas = fee.maxFeePerGas;
-        tx.maxPriorityFeePerGas = fee.maxPriorityFeePerGas;
-    } else if (fee.gasPrice) {
-        tx.gasPrice = fee.gasPrice;
-    }
+  if (fee.maxFeePerGas && fee.maxPriorityFeePerGas) {
+    tx.maxFeePerGas = fee.maxFeePerGas
+    tx.maxPriorityFeePerGas = fee.maxPriorityFeePerGas
+  } else if (fee.gasPrice) {
+    tx.gasPrice = fee.gasPrice
+  }
 
-    return tx;
+  return tx
 }

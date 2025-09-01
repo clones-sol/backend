@@ -1,36 +1,45 @@
-import express, { Request, Response } from 'express';
-import rateLimit from 'express-rate-limit';
-import { referralService } from '../services/referral/index.ts';
-import { errorHandlerAsync } from '../middleware/errorHandler.ts';
-import { validateBody, validateParams, ValidationRules } from '../middleware/validator.ts';
-import { ApiError, successResponse } from '../middleware/types/errors.ts';
-import { requireAdminAuth, requireWalletAddress } from '../middleware/auth.ts';
+import express, { type Request, type Response } from 'express'
+import rateLimit from 'express-rate-limit'
+import { requireAdminAuth, requireWalletAddress } from '../middleware/auth.ts'
+import { errorHandlerAsync } from '../middleware/errorHandler.ts'
+import { ApiError, successResponse } from '../middleware/types/errors.ts'
+import type { AuthenticatedRequest } from '../middleware/types/request.ts'
+import { ValidationRules, validateBody, validateParams } from '../middleware/validator.ts'
+import { ReferralModel } from '../models/Referral.ts'
+import { referralService } from '../services/referral/index.ts'
 import {
-  generateCodeSchema,
   applyReferrerCodeSchema,
   extendExpirationSchema,
-  regenerateCodeSchema,
-} from './schemas/referral.ts';
-import { ReferralModel } from '../models/Referral.ts';
-import { AuthenticatedRequest } from '../middleware/types/request.ts';
+  generateCodeSchema,
+  regenerateCodeSchema
+} from './schemas/referral.ts'
 
-const router = express.Router();
+const router = express.Router()
 
-const isEvmAddressRule = ValidationRules.isEVMAddress();
+const isEvmAddressRule = ValidationRules.isEVMAddress()
 
 // Rate limiters
 const generalRateLimiter = rateLimit({
-  windowMs: 60_000, max: 100, standardHeaders: true, legacyHeaders: false,
+  windowMs: 60_000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: 'Too many requests from this IP, please try again later.'
-});
+})
 const sensitiveRateLimiter = rateLimit({
-  windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false,
+  windowMs: 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: 'Too many sensitive operations from this IP, please try again later.'
-});
+})
 const adminRateLimiter = rateLimit({
-  windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false,
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: 'Too many admin operations from this IP, please try again later.'
-});
+})
 
 /**
  * @swagger
@@ -100,20 +109,22 @@ router.post(
   requireWalletAddress,
   validateBody(generateCodeSchema),
   errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
-    const { walletAddress } = req.body;
+    const { walletAddress } = req.body
     if (String(req.walletAddress).toLowerCase() !== String(walletAddress).toLowerCase())
-      throw ApiError.forbidden('You can only generate a referral code for your own wallet.');
+      throw ApiError.forbidden('You can only generate a referral code for your own wallet.')
 
-    const referralCodeData = await referralService.generateReferralCode(walletAddress);
-    const referralLink = `${process.env.FRONTEND_URL}/ref/${referralCodeData.referralCode}`;
-    res.status(200).json(successResponse({
-      referralCode: referralCodeData.referralCode,
-      createdAt: referralCodeData.createdAt,
-      referralLink,
-      walletAddress
-    }));
+    const referralCodeData = await referralService.generateReferralCode(walletAddress)
+    const referralLink = `${process.env.FRONTEND_URL}/ref/${referralCodeData.referralCode}`
+    res.status(200).json(
+      successResponse({
+        referralCode: referralCodeData.referralCode,
+        createdAt: referralCodeData.createdAt,
+        referralLink,
+        walletAddress
+      })
+    )
   })
-);
+)
 
 /**
  * @swagger
@@ -166,34 +177,41 @@ router.post(
 router.get(
   '/code/:walletAddress',
   generalRateLimiter,
-  validateParams({ walletAddress: { required: true, rules: [isEvmAddressRule] } }),
+  validateParams({
+    walletAddress: { required: true, rules: [isEvmAddressRule] }
+  }),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { walletAddress } = req.params;
-    const referralCode = await referralService.getReferralCode(walletAddress);
-    if (!referralCode) throw ApiError.notFound('Referral code not found for this wallet');
+    const { walletAddress } = req.params
+    const referralCode = await referralService.getReferralCode(walletAddress)
+    if (!referralCode) throw ApiError.notFound('Referral code not found for this wallet')
 
     const [referrerInfo, totalReferrals] = await Promise.all([
       referralService.getReferrer(walletAddress),
       ReferralModel.countDocuments({ referrerAddress: walletAddress })
-    ]);
+    ])
 
     const referrer = referrerInfo
-      ? { walletAddress: referrerInfo.walletAddress, referralCode: referrerInfo.referralCode }
-      : null;
+      ? {
+          walletAddress: referrerInfo.walletAddress,
+          referralCode: referrerInfo.referralCode
+        }
+      : null
 
-    const referralLink = `${process.env.FRONTEND_URL}/ref/${referralCode.referralCode}`;
+    const referralLink = `${process.env.FRONTEND_URL}/ref/${referralCode.referralCode}`
 
-    return res.status(200).json(successResponse({
-      referralCode: referralCode.referralCode,
-      referralLink,
-      walletAddress: referralCode.walletAddress,
-      totalReferrals,
-      totalRewards: referralCode.totalRewards,
-      isActive: referralCode.isActive,
-      referrer
-    }));
+    return res.status(200).json(
+      successResponse({
+        referralCode: referralCode.referralCode,
+        referralLink,
+        walletAddress: referralCode.walletAddress,
+        totalReferrals,
+        totalRewards: referralCode.totalRewards,
+        isActive: referralCode.isActive,
+        referrer
+      })
+    )
   })
-);
+)
 
 /**
  * @swagger
@@ -247,21 +265,27 @@ router.post(
   sensitiveRateLimiter,
   validateBody(applyReferrerCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { referreeAddress, referralCode } = req.body;
+    const { referreeAddress, referralCode } = req.body
 
-    const referrerAddress = await referralService.validateReferralCode(referralCode);
-    if (!referrerAddress) throw ApiError.badRequest('Invalid or expired referral code.');
+    const referrerAddress = await referralService.validateReferralCode(referralCode)
+    if (!referrerAddress) throw ApiError.badRequest('Invalid or expired referral code.')
 
-    const referral = await referralService.createReferral(referrerAddress, referreeAddress, referralCode);
-    if (!referral._id) throw ApiError.internalError('Failed to create referral: Missing _id');
+    const referral = await referralService.createReferral(
+      referrerAddress,
+      referreeAddress,
+      referralCode
+    )
+    if (!referral._id) throw ApiError.internalError('Failed to create referral: Missing _id')
 
-    return res.status(201).json(successResponse({
-      referralId: referral._id,
-      referrerAddress: referral.referrerAddress,
-      referreeAddress: referral.referreeAddress
-    }));
+    return res.status(201).json(
+      successResponse({
+        referralId: referral._id,
+        referrerAddress: referral.referrerAddress,
+        referreeAddress: referral.referreeAddress
+      })
+    )
   })
-);
+)
 
 /**
  * @swagger
@@ -300,13 +324,15 @@ router.post(
 router.get(
   '/stats/:walletAddress',
   generalRateLimiter,
-  validateParams({ walletAddress: { required: true, rules: [isEvmAddressRule] } }),
+  validateParams({
+    walletAddress: { required: true, rules: [isEvmAddressRule] }
+  }),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { walletAddress } = req.params;
-    const stats = await referralService.getReferralStats(walletAddress);
-    return res.status(200).json(successResponse(stats));
+    const { walletAddress } = req.params
+    const stats = await referralService.getReferralStats(walletAddress)
+    return res.status(200).json(successResponse(stats))
   })
-);
+)
 
 /**
  * @swagger
@@ -352,14 +378,16 @@ router.get(
 router.get(
   '/referred/:walletAddress',
   generalRateLimiter,
-  validateParams({ walletAddress: { required: true, rules: [isEvmAddressRule] } }),
+  validateParams({
+    walletAddress: { required: true, rules: [isEvmAddressRule] }
+  }),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { walletAddress } = req.params;
-    const hasBeenReferred = await referralService.hasBeenReferred(walletAddress);
-    const referrer = hasBeenReferred ? await referralService.getReferrer(walletAddress) : null;
-    return res.status(200).json(successResponse({ hasBeenReferred, referrer }));
+    const { walletAddress } = req.params
+    const hasBeenReferred = await referralService.hasBeenReferred(walletAddress)
+    const referrer = hasBeenReferred ? await referralService.getReferrer(walletAddress) : null
+    return res.status(200).json(successResponse({ hasBeenReferred, referrer }))
   })
-);
+)
 
 /**
  * @swagger
@@ -405,14 +433,16 @@ router.get(
 router.get(
   '/referrer/:walletAddress',
   generalRateLimiter,
-  validateParams({ walletAddress: { required: true, rules: [isEvmAddressRule] } }),
+  validateParams({
+    walletAddress: { required: true, rules: [isEvmAddressRule] }
+  }),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { walletAddress } = req.params;
-    const referrer = await referralService.getReferrer(walletAddress);
-    if (!referrer) throw ApiError.notFound('No referrer found for this wallet');
-    return res.status(200).json(successResponse({ referrer }));
+    const { walletAddress } = req.params
+    const referrer = await referralService.getReferrer(walletAddress)
+    if (!referrer) throw ApiError.notFound('No referrer found for this wallet')
+    return res.status(200).json(successResponse({ referrer }))
   })
-);
+)
 
 /**
  * @swagger
@@ -449,11 +479,16 @@ router.post(
   '/cleanup/expired-codes',
   adminRateLimiter,
   requireAdminAuth,
-  errorHandlerAsync(async (req: Request, res: Response) => {
-    const cleanedCount = await referralService.cleanupExpiredCodes();
-    return res.status(200).json(successResponse({ message: `Cleaned up ${cleanedCount} expired referral codes`, cleanedCount }));
+  errorHandlerAsync(async (_req: Request, res: Response) => {
+    const cleanedCount = await referralService.cleanupExpiredCodes()
+    return res.status(200).json(
+      successResponse({
+        message: `Cleaned up ${cleanedCount} expired referral codes`,
+        cleanedCount
+      })
+    )
   })
-);
+)
 
 /**
  * @swagger
@@ -488,11 +523,11 @@ router.get(
   '/cleanup/stats',
   adminRateLimiter,
   requireAdminAuth,
-  errorHandlerAsync(async (req: Request, res: Response) => {
-    const stats = await referralService.getCleanupStats();
-    return res.status(200).json(successResponse(stats));
+  errorHandlerAsync(async (_req: Request, res: Response) => {
+    const stats = await referralService.getCleanupStats()
+    return res.status(200).json(successResponse(stats))
   })
-);
+)
 
 /**
  * @swagger
@@ -548,11 +583,16 @@ router.post(
   adminRateLimiter,
   validateBody(extendExpirationSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { walletAddress, extensionDays } = req.body;
-    const success = await referralService.extendExpiration(walletAddress, extensionDays || 30);
-    return res.status(200).json(successResponse({ success, message: success ? 'Expiration extended successfully' : 'Failed to extend expiration' }));
+    const { walletAddress, extensionDays } = req.body
+    const success = await referralService.extendExpiration(walletAddress, extensionDays || 30)
+    return res.status(200).json(
+      successResponse({
+        success,
+        message: success ? 'Expiration extended successfully' : 'Failed to extend expiration'
+      })
+    )
   })
-);
+)
 
 /**
  * @swagger
@@ -605,14 +645,16 @@ router.post(
   adminRateLimiter,
   validateBody(regenerateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { walletAddress } = req.body;
-    const newCode = await referralService.regenerateExpiredCode(walletAddress);
-    return res.status(200).json(successResponse({
-      success: !!newCode,
-      newCode,
-      message: newCode ? 'Code regenerated successfully' : 'Failed to regenerate code'
-    }));
+    const { walletAddress } = req.body
+    const newCode = await referralService.regenerateExpiredCode(walletAddress)
+    return res.status(200).json(
+      successResponse({
+        success: !!newCode,
+        newCode,
+        message: newCode ? 'Code regenerated successfully' : 'Failed to regenerate code'
+      })
+    )
   })
-);
+)
 
-export { router as referralApi };
+export { router as referralApi }

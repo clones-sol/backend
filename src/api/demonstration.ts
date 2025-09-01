@@ -1,33 +1,33 @@
-import express, { Request, Response } from 'express';
-import OpenAI from 'openai';
-import dotenv from 'dotenv';
-import { ChatCompletionContentPartImage } from 'openai/resources/index.mjs';
-import { errorHandlerAsync } from '../middleware/errorHandler.ts';
-import { validateBody } from '../middleware/validator.ts';
-import { progressCheckSchema } from './schemas/demonstration.ts';
-import { successResponse } from '../middleware/types/errors.ts';
-import { getLeaderboardData } from '../services/demonstration/demonstration.ts';
+import dotenv from 'dotenv'
+import express, { type Request, type Response } from 'express'
+import OpenAI from 'openai'
+import type { ChatCompletionContentPartImage } from 'openai/resources/index.mjs'
+import { errorHandlerAsync } from '../middleware/errorHandler.ts'
+import { successResponse } from '../middleware/types/errors.ts'
+import { validateBody } from '../middleware/validator.ts'
+import { getLeaderboardData } from '../services/demonstration/demonstration.ts'
+import { progressCheckSchema } from './schemas/demonstration.ts'
 
-dotenv.config();
+dotenv.config()
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
-});
+})
 
 // Clean up cache periodically (every hour)
 
-const router = express.Router();
+const router = express.Router()
 
 // Check quest progress based on recent screenshots
 router.post(
   '/progress',
   validateBody(progressCheckSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { quest, screenshots } = req.body;
-    console.log('CHECKING PROGRESS');
+    const { quest, screenshots } = req.body
+    console.log('CHECKING PROGRESS')
 
     // Take up to last 5 screenshots
-    const recentScreenshots = screenshots.slice(-5);
+    const recentScreenshots = screenshots.slice(-5)
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -48,49 +48,49 @@ Base your analysis on visual evidence from the screenshots showing completed act
             },
             ...recentScreenshots.map(
               (screenshot: string) =>
-              ({
-                type: 'image_url',
-                image_url: { url: screenshot }
-              } as ChatCompletionContentPartImage)
+                ({
+                  type: 'image_url',
+                  image_url: { url: screenshot }
+                }) as ChatCompletionContentPartImage
             )
           ]
         }
       ]
-    });
+    })
 
-    const content = response.choices[0].message.content;
-    console.log(content);
+    const content = response.choices[0].message.content
+    console.log(content)
 
     if (!content) {
-      throw new Error('Empty response from OpenAI');
+      throw new Error('Empty response from OpenAI')
     }
 
     // Try to parse JSON array from response
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    const jsonMatch = content.match(/\[[\s\S]*\]/)
     if (!jsonMatch) {
-      throw new Error('No valid JSON array found in response');
+      throw new Error('No valid JSON array found in response')
     }
 
-    const completed_subgoals = JSON.parse(jsonMatch[0]);
+    const completed_subgoals = JSON.parse(jsonMatch[0])
 
     // Count completed objectives
-    const completed_objectives = completed_subgoals.filter((complete: boolean) => complete).length;
+    const completed_objectives = completed_subgoals.filter((complete: boolean) => complete).length
 
     return res.status(200).json(
       successResponse({
         completed_subgoals,
         completed_objectives
       })
-    );
+    )
   })
-);
+)
 
 router.get(
   '/leaderboards',
   errorHandlerAsync(async (_req, res) => {
-    const data = await getLeaderboardData();
-    return res.status(200).json(successResponse(data));
+    const data = await getLeaderboardData()
+    return res.status(200).json(successResponse(data))
   })
-);
+)
 
-export { router as gymApi };
+export { router as gymApi }
