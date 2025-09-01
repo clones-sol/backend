@@ -2,7 +2,7 @@
 
 This is the backend server for the Clones project. It manages the database, handles API requests, and powers real-time agent operations.
 
-## 🔒 Security Architecture
+## Security Architecture
 
 This backend follows a **transaction preparation security model**:
 - **No private keys stored server-side**: All transactions are signed client-side via MetaMask

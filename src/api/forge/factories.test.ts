@@ -51,6 +51,7 @@ const { mockSupportedTokens } = vi.hoisted(() => {
 vi.mock('../../services/blockchain/tokens.ts', () => ({
     supportedTokens: mockSupportedTokens,
     getTokenContractAddress: vi.fn((tokenSymbol: string) => mockSupportedTokens[tokenSymbol as keyof typeof mockSupportedTokens]?.address || `0xaddress_for_${tokenSymbol}`),
+    getSupportedTokenSymbols: vi.fn(() => Object.keys(mockSupportedTokens)),
 }));
 
 // Mock blockchain factory service
@@ -309,7 +310,7 @@ describe('Forge Factories API', () => {
 
     describe('GET /pools/:poolAddress', () => {
         it('should get pool info', async () => {
-            const poolAddress = '0xPool1';
+            const poolAddress = '0x1234567890123456789012345678901234567890'; // Must be a valid address format
             mockFactoryService.getPoolInfo.mockResolvedValue({ owner: TEST_WALLET_ADDRESS });
 
             const response = await supertest(app)
@@ -317,6 +318,7 @@ describe('Forge Factories API', () => {
                 .expect(200);
 
             expect(mockFactoryService.getPoolInfo).toHaveBeenCalledWith(poolAddress, undefined);
+            expect(response.body.data.owner).toBe(TEST_WALLET_ADDRESS);
         });
     });
 });

@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
-import { DBForgeRaceSubmission, ForgeSubmissionProcessingStatus } from '../types/index.ts';
+import { DBDemonstrationSubmission, ForgeSubmissionProcessingStatus } from '../types/index.ts';
 
-export const forgeRaceSubmissionSchema = new mongoose.Schema<DBForgeRaceSubmission>(
+export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstrationSubmission>(
   {
     _id: { type: String },
     address: { type: String, required: true },
@@ -55,6 +55,6 @@ export const forgeRaceSubmissionSchema = new mongoose.Schema<DBForgeRaceSubmissi
 );
 
 // Index to help with querying pending submissions
-forgeRaceSubmissionSchema.index({ status: 1, createdAt: 1 });
+demonstrationSubmissionSchema.index({ status: 1, createdAt: 1 });
 
-export const ForgeRaceSubmission = mongoose.model('ForgeRaceSubmission', forgeRaceSubmissionSchema);
+export const DemonstrationSubmission = mongoose.model('DemonstrationSubmission', demonstrationSubmissionSchema);

@@ -211,20 +211,27 @@ factorySchema.index({ demonstrations: -1 });
 factorySchema.index({ 'apps.categories': 1 });
 factorySchema.index({ 'apps.name': 'text', 'apps.tasks.prompt': 'text' });
 
-// Pre-save middleware to update search text
+// Pre-save middleware to update search text only if relevant fields changed
 factorySchema.pre('save', function (next) {
-  const searchParts: string[] = [
-    this.name?.toLowerCase() || '',
-    this.description?.toLowerCase() || '',
-    ...(this.skills || []).map(s => s.toLowerCase()),
-    ...(this.apps || []).flatMap(app => [
-      app.name?.toLowerCase() || '',
-      app.description?.toLowerCase() || '',
-      ...(app.categories || []).map(c => c.toLowerCase())
-    ])
-  ].filter(Boolean);
+  if (
+    this.isModified('name') ||
+    this.isModified('description') ||
+    this.isModified('skills') ||
+    this.isModified('apps')
+  ) {
+    const searchParts: string[] = [
+      this.name?.toLowerCase() || '',
+      this.description?.toLowerCase() || '',
+      ...(this.skills || []).map(s => s.toLowerCase()),
+      ...(this.apps || []).flatMap(app => [
+        app.name?.toLowerCase() || '',
+        app.description?.toLowerCase() || '',
+        ...(app.categories || []).map(c => c.toLowerCase())
+      ])
+    ].filter(Boolean);
 
-  this.searchText = searchParts.join(' ');
+    this.searchText = searchParts.join(' ');
+  }
   next();
 });
 

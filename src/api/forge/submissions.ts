@@ -3,7 +3,7 @@ import express, { Request, Response, Router } from 'express';
 import { requireWalletAddress } from '../../middleware/auth.ts';
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts';
 import { ApiError, successResponse } from '../../middleware/types/errors.ts';
-import { ForgeRaceSubmission, FactoryModel } from '../../models/Models.ts';
+import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts';
 import { validateParams, ValidationRules } from '../../middleware/validator.ts';
 export { router as forgeSubmissionsApi };
 
@@ -36,7 +36,7 @@ router.get(
     // @ts-ignore - Get walletAddress from the request object
     const address = req.walletAddress;
 
-    const submissions = await ForgeRaceSubmission.find({ address })
+    const submissions = await DemonstrationSubmission.find({ address })
       .sort({ createdAt: -1 })
       .select('-__v');
 
@@ -46,13 +46,13 @@ router.get(
 
 /**
  * @swagger
- * /forge/submissions/pool/{poolId}:
+ * /forge/submissions/pool/{factoryId}:
  *   get:
  *     summary: Get submissions for a pool
  *     tags: [Submissions]
  *     parameters:
  *       - in: path
- *         name: poolId
+ *         name: factoryId
  *         required: true
  *         schema:
  *           type: string
@@ -67,18 +67,18 @@ router.get(
  *         description: Internal server error
  */
 router.get(
-  '/pool/:poolId',
+  '/pool/:factoryId',
   requireWalletAddress,
-  validateParams({ poolId: { required: true, rules: [ValidationRules.isString()] } }),
+  validateParams({ factoryId: { required: true, rules: [ValidationRules.isString()] } }),
   requireWalletAddress,
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { poolId } = req.params;
+    const { factoryId } = req.params;
 
     // @ts-ignore - Get walletAddress from the request object
     const address = req.walletAddress;
 
     // Verify that the pool belongs to the user
-    const factory = await FactoryModel.findById(poolId);
+    const factory = await FactoryModel.findById(factoryId);
     if (!factory) {
       throw ApiError.notFound('Factory not found');
     }
@@ -87,7 +87,7 @@ router.get(
       throw ApiError.unauthorized('Not authorized to view submissions for this factory');
     }
 
-    const submissions = await ForgeRaceSubmission.find({ 'meta.quest.pool_id': poolId })
+    const submissions = await DemonstrationSubmission.find({ 'meta.quest.factoryId': factoryId })
       .sort({ createdAt: -1 })
       .select('-__v');
 
@@ -125,7 +125,7 @@ router.get(
   requireWalletAddress,
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const submission = await ForgeRaceSubmission.findById(id);
+    const submission = await DemonstrationSubmission.findById(id);
 
     if (!submission) {
       throw ApiError.notFound('Submission not found');

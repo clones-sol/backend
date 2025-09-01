@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { ForgeRaceSubmission, FactoryModel } from '../../models/Models.ts';
+import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts';
 
 // Cache to store generated instruction lists
 const CACHE_EXPIRY = 2 * 60 * 60 * 1000;
@@ -45,7 +45,7 @@ export async function getLeaderboardData() {
     rewards: number;
     avgScore: number;
     nickname?: string;
-  }[] = await ForgeRaceSubmission.aggregate([
+  }[] = await DemonstrationSubmission.aggregate([
     { $match: { status: 'completed', reward: { $exists: true, $gt: 0 }, clampedScore: { $gte: 50 } } },
     {
       $group: {
@@ -88,7 +88,7 @@ export async function getLeaderboardData() {
   }));
 
   // Get forge leaderboard - convert string pool_id to ObjectId
-  const forgeLeaderboardData = await ForgeRaceSubmission.aggregate([
+  const forgeLeaderboardData = await DemonstrationSubmission.aggregate([
     {
       $match: {
         status: 'completed',
@@ -134,14 +134,14 @@ export async function getLeaderboardData() {
 
   // Get overall stats
 
-  const totalWorkersResult = await ForgeRaceSubmission.aggregate([
+  const totalWorkersResult = await DemonstrationSubmission.aggregate([
     { $group: { _id: '$address' } },
     { $count: 'total' }
   ]);
 
   const totalWorkers = totalWorkersResult.length > 0 ? totalWorkersResult[0].total : 0;
 
-  const tasksStats = await ForgeRaceSubmission.aggregate([
+  const tasksStats = await DemonstrationSubmission.aggregate([
     { $match: { status: 'completed' } },
     {
       $group: {

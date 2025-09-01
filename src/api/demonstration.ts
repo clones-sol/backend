@@ -4,9 +4,9 @@ import dotenv from 'dotenv';
 import { ChatCompletionContentPartImage } from 'openai/resources/index.mjs';
 import { errorHandlerAsync } from '../middleware/errorHandler.ts';
 import { validateBody } from '../middleware/validator.ts';
-import { progressCheckSchema } from './schemas/gym.ts';
+import { progressCheckSchema } from './schemas/demonstration.ts';
 import { successResponse } from '../middleware/types/errors.ts';
-import { getLeaderboardData } from '../services/gym/gym.ts';
+import { getLeaderboardData } from '../services/demonstration/demonstration.ts';
 
 dotenv.config();
 

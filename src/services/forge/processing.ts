@@ -1,12 +1,12 @@
 import mongoose from 'mongoose';
 import {
   ForgeSubmissionGradeResult,
-  DBForgeRaceSubmission,
+  DBDemonstrationSubmission,
   ForgeSubmissionProcessingStatus,
   UploadLimitType,
   OnChainReward
 } from '../../types/index.ts';
-import { ForgeRaceSubmission, FactoryModel } from '../../models/Models.ts';
+import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
@@ -33,7 +33,7 @@ const processingQueue: string[] = [];
 async function calculateUserCumulativeRewards(userAddress: string, factoryId: string): Promise<number> {
   try {
     // Find all completed submissions for this user and factory with rewards > 0
-    const submissions = await ForgeRaceSubmission.find({
+    const submissions = await DemonstrationSubmission.find({
       address: userAddress,
       'meta.factory_id': factoryId,
       status: ForgeSubmissionProcessingStatus.COMPLETED,
@@ -62,7 +62,7 @@ export async function processNextInQueue() {
   isProcessing = true;
   const submissionId = processingQueue[0];
   let submission:
-    | (mongoose.Document<unknown, {}, DBForgeRaceSubmission> & DBForgeRaceSubmission)
+    | (mongoose.Document<unknown, {}, DBDemonstrationSubmission> & DBDemonstrationSubmission)
     | null = null;
 
   try {
@@ -70,7 +70,7 @@ export async function processNextInQueue() {
     let retries = 3;
     while (retries > 0) {
       try {
-        submission = await ForgeRaceSubmission.findById(submissionId);
+        submission = await DemonstrationSubmission.findById(submissionId);
         if (submission) break;
         retries--;
         if (retries === 0) {
@@ -241,7 +241,7 @@ export async function processNextInQueue() {
             }
 
             // Check 3: Previous submission with higher/equal score
-            const previousSubmission = await ForgeRaceSubmission.findOne({
+            const previousSubmission = await DemonstrationSubmission.findOne({
               address: submission.address,
               'meta.quest.factory_id': factory._id.toString(),
               $or: [
@@ -261,7 +261,7 @@ export async function processNextInQueue() {
 
             // Check 4: Per-task upload limit
             if (task.uploadLimit) {
-              const taskSubmissionsCount = await ForgeRaceSubmission.countDocuments({
+              const taskSubmissionsCount = await DemonstrationSubmission.countDocuments({
                 address: submission.address,
                 'meta.quest.task_id': submission?.meta?.quest.task_id,
                 status: ForgeSubmissionProcessingStatus.COMPLETED,
@@ -287,7 +287,7 @@ export async function processNextInQueue() {
                 startOfDay.setHours(0, 0, 0, 0);
 
                 // Count submissions for today
-                gymSubmissionsCount = await ForgeRaceSubmission.countDocuments({
+                gymSubmissionsCount = await DemonstrationSubmission.countDocuments({
                   address: submission.address,
                   'meta.quest.factory_id': factory._id.toString(),
                   status: ForgeSubmissionProcessingStatus.COMPLETED,
@@ -296,7 +296,7 @@ export async function processNextInQueue() {
                 });
               } else if (limitType === UploadLimitType.total) {
                 // Count all submissions
-                gymSubmissionsCount = await ForgeRaceSubmission.countDocuments({
+                gymSubmissionsCount = await DemonstrationSubmission.countDocuments({
                   address: submission.address,
                   'meta.quest.factory_id': factory._id.toString(),
                   status: ForgeSubmissionProcessingStatus.COMPLETED,
@@ -401,7 +401,7 @@ export async function processNextInQueue() {
   } catch (error) {
     const errorMessage = (error as Error).message;
     // Update submission with error
-    await ForgeRaceSubmission.findByIdAndUpdate(submissionId, {
+    await DemonstrationSubmission.findByIdAndUpdate(submissionId, {
       status: ForgeSubmissionProcessingStatus.FAILED,
       error: errorMessage
     });

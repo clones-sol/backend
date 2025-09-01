@@ -3,6 +3,7 @@ import { AmountValidator } from '../../utils/amountValidation.ts';
 import { ApiError } from '../../middleware/types/errors.ts';
 import { CircuitBreakerManager } from '../../utils/circuitBreaker.ts';
 import RewardPoolFactoryABI from '../../contracts/abis/RewardPoolFactory.json' with { type: 'json' };
+import erc20ABI from '../../contracts/abis/ERC20.json' with { type: 'json' };
 import ClaimRouterABI from '../../contracts/abis/ClaimRouter.json' with { type: 'json' };
 import RewardPoolImplementationABI from '../../contracts/abis/RewardPoolImplementation.json' with { type: 'json' };
 
@@ -19,11 +20,7 @@ const VAULT_ABI = RewardPoolImplementationABI;
 
 const CLAIM_ROUTER_ABI = ClaimRouterABI;
 
-const ERC20_ABI = [
-    'function decimals() external view returns (uint8)',
-    'function balanceOf(address account) external view returns (uint256)',
-    'function allowance(address owner, address spender) external view returns (uint256)'
-];
+const ERC20_ABI = erc20ABI;
 
 interface NetworkConfig {
     factoryAddress: string;
@@ -91,7 +88,7 @@ class FactoryService {
             async () => await factory.allowedTokens(token),
             async () => false // Fallback: assume not allowed
         );
-        
+
         if (!isAllowed) {
             throw ApiError.badRequest(`Token ${token} is not in the factory allowlist`);
         }
@@ -157,7 +154,7 @@ class FactoryService {
             tokenContract.decimals(),
             tokenContract.symbol()
         ]);
-        
+
         // Use centralized amount validation with proper token decimals
         const amountWei = AmountValidator.validateAndParseAmount(amount.toString(), Number(decimals), tokenSymbol);
 
