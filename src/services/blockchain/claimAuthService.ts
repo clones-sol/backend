@@ -1,5 +1,7 @@
 import { ethers } from 'ethers';
+import { tokenCache } from '../../utils/tokenCache.js';
 import { ApiError } from '../../middleware/types/errors.ts';
+import { validatePrivateKey } from '../../utils/addressValidation.js';
 
 /**
  * Service for generating EIP-712 claim authorization signatures
@@ -17,6 +19,12 @@ class ClaimAuthService {
   constructor(rpcUrl: string, publisherPrivateKey: string, factoryAddress: string, oldPublisherPrivateKey?: string) {
     if (!publisherPrivateKey) {
       throw ApiError.internalError('PUBLISHER_PRIVATE_KEY is required for claim authorization signatures');
+    }
+
+    // Validate private key format
+    validatePrivateKey(publisherPrivateKey, 'PUBLISHER_PRIVATE_KEY');
+    if (oldPublisherPrivateKey) {
+      validatePrivateKey(oldPublisherPrivateKey, 'OLD_PUBLISHER_PRIVATE_KEY');
     }
 
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -70,13 +78,9 @@ class ClaimAuthService {
         poolContract.token()
       ]);
 
-      // Get token decimals to convert from wei
-      const tokenContract = new ethers.Contract(tokenAddress, [
-        'function decimals() external view returns (uint8)'
-      ], this.provider);
-
-      const decimals = await tokenContract.decimals();
-      const alreadyClaimed = parseFloat(ethers.formatUnits(alreadyClaimedWei, decimals));
+      // Get token decimals from cache
+      const metadata = await tokenCache.getTokenMetadata(tokenAddress, this.provider);
+      const alreadyClaimed = parseFloat(ethers.formatUnits(alreadyClaimedWei, metadata.decimals));
 
       console.log(`User ${userAddress} already claimed: ${alreadyClaimed} tokens`);
       return alreadyClaimed;
@@ -187,13 +191,9 @@ class ClaimAuthService {
     ], this.provider);
 
     const tokenAddress = await poolContract.token();
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      'function decimals() external view returns (uint8)'
-    ], this.provider);
-
-    const decimals = await tokenContract.decimals();
-    console.log('Decimals:', decimals);
-    const cumulativeAmountWei = ethers.parseUnits(newCumulativeAmount.toString(), decimals);
+    const metadata = await tokenCache.getTokenMetadata(tokenAddress, this.provider);
+    console.log('Decimals:', metadata.decimals);
+    const cumulativeAmountWei = ethers.parseUnits(newCumulativeAmount.toString(), metadata.decimals);
     console.log('Cumulative amount wei:', cumulativeAmountWei);
 
     const message = {

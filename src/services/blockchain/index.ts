@@ -1,4 +1,5 @@
 import { ethers } from "ethers";
+import { tokenCache } from '../../utils/tokenCache.js';
 
 const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)",
@@ -33,12 +34,12 @@ class BlockchainService {
   async getTokenBalance(tokenAddress: string, walletAddress: string): Promise<number> {
     try {
       const erc20 = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
-      const [raw, decimals] = await Promise.all([
+      const [raw, metadata] = await Promise.all([
         erc20.balanceOf(walletAddress),
-        erc20.decimals()
+        tokenCache.getTokenMetadata(tokenAddress, this.provider)
       ]);
 
-      return Number(ethers.formatUnits(raw, decimals));
+      return Number(ethers.formatUnits(raw, metadata.decimals));
     } catch (e) {
       console.error("Error getting token balance:", e);
       return 0;
