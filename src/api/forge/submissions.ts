@@ -87,7 +87,7 @@ router.get(
       throw ApiError.unauthorized('Not authorized to view submissions for this factory');
     }
 
-    const submissions = await DemonstrationSubmission.find({ 'meta.quest.factoryId': factoryId })
+    const submissions = await DemonstrationSubmission.find({ 'meta.quest.pool_id': factoryId })
       .sort({ createdAt: -1 })
       .select('-__v');
 
