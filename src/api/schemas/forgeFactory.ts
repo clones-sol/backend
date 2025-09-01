@@ -46,10 +46,6 @@ export const generateClaimSchema: ValidationSchema = {
     cumulativeAmount: {
         required: true,
         rules: [ValidationRules.isNumber(), ValidationRules.min(0)]
-    },
-    deadline: {
-        required: false,
-        rules: [ValidationRules.isNumber()]
     }
 };
 

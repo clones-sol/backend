@@ -637,8 +637,6 @@ router.post(
  *                 format: hex
  *               cumulativeAmount:
  *                 type: number
- *               deadline:
- *                 type: number
  *     responses:
  *       '200':
  *         description: Claim signature data
@@ -652,24 +650,21 @@ router.post(
   requireWalletAddress,
   validateBody(generateClaimSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { vaultAddress, account, cumulativeAmount, deadline } = req.body;
+    const { vaultAddress, account, cumulativeAmount } = req.body;
 
     try {
       const factoryService = createFactoryService();
-      const defaultDeadline = deadline || (Math.floor(Date.now() / 1000) + (60 * 60 * 24)); // 24 hours
 
       const signatureData = await factoryService.prepareClaimSignatureData(
         vaultAddress,
         account,
-        cumulativeAmount,
-        defaultDeadline
+        cumulativeAmount
       );
 
       res.status(200).json(successResponse({
         vaultAddress,
         account,
         cumulativeAmount,
-        deadline: defaultDeadline,
         ...signatureData
       }));
     } catch (error) {
@@ -706,8 +701,6 @@ router.post(
  *                       type: string
  *                       format: hex
  *                     cumulativeAmount:
- *                       type: number
- *                     deadline:
  *                       type: number
  *     responses:
  *       '200':

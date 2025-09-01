@@ -33,7 +33,6 @@ const OPTIMIZATION_BATCH_SIZE = 10;
 // Default and fallback gas price settings.
 const DEFAULT_GAS_PRICE = ethers.parseUnits("2", "gwei");
 const DEFAULT_PRIORITY_FEE_RATIO = 10n;
-const FALLBACK_GAS_PRICE = ethers.parseUnits("2", "gwei");
 const FALLBACK_PRIORITY_FEE = ethers.parseUnits("0.5", "gwei");
 
 // Gas price levels in Gwei for providing user advice.
@@ -50,7 +49,7 @@ const GAS_PRICE_LEVELS = {
  */
 
 const CLAIM_ROUTER_ABI = [
-    'function claimAll((address vault, address account, uint256 cumulativeAmount, uint256 deadline, bytes signature)[] calldata claims) external returns (uint256 successful, uint256 failed)',
+    'function claimAll((address vault, address account, uint256 cumulativeAmount, bytes signature)[] calldata claims) external returns (uint256 successful, uint256 failed)',
     'function maxBatchSize() external view returns (uint256)'
 ];
 
@@ -113,7 +112,7 @@ class GasEstimationService {
             console.error('Failed to get gas price:', error);
             // Conservative fallback
             return {
-                maxFeePerGas: FALLBACK_GAS_PRICE,
+                maxFeePerGas: DEFAULT_GAS_PRICE,
                 maxPriorityFeePerGas: FALLBACK_PRIORITY_FEE
             };
         }

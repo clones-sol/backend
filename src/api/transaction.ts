@@ -5,6 +5,7 @@ import { ApiError, successResponse } from '../middleware/types/errors.ts';
 import { validateBody, validateQuery } from '../middleware/validator.ts';
 import { WalletConnectionModel, TransactionSessionModel } from '../models/Models.ts';
 import { ethers } from 'ethers';
+import { validateAddress } from '../utils/addressValidation.js';
 import { getTokenContractAddress } from '../services/blockchain/tokens.ts';
 import { createFactoryService } from '../services/blockchain/factoryTransactionService.ts';
 import { TransactionSessionService } from '../services/transactionSession.ts';
@@ -155,9 +156,7 @@ router.post(
         if (!token || !amount) {
           throw ApiError.badRequest('Token and amount required for fundPool');
         }
-        if (!poolAddress || !ethers.isAddress(poolAddress)) {
-          throw ApiError.badRequest('Valid pool address required for fundPool');
-        }
+        validateAddress(poolAddress, 'poolAddress');
         // Validate amount format (basic validation only - proper decimals handled in service)
         try {
           AmountValidator.validateBasicAmount(amount);
@@ -167,9 +166,7 @@ router.post(
         break;
 
       case 'claimRewards':
-        if (!poolAddress || !ethers.isAddress(poolAddress)) {
-          throw ApiError.badRequest('Valid pool address required for claimRewards');
-        }
+        validateAddress(poolAddress, 'poolAddress');
         break;
 
       default:

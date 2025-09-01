@@ -153,7 +153,7 @@ export interface OnChainReward {
   tokenAddress: string;
   poolAddress: string;
   amount: number; // Individual reward for this submission
-  submissionId: string; // Submission ID (previously incorrectly named taskId)
+  submissionId: string; // Submission ID
   txHash: string;
   timestamp: number;
   cumulativeAmount?: number; // Total cumulative amount user can claim

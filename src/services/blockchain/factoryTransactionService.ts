@@ -33,7 +33,6 @@ interface ClaimData {
     vault: string;
     account: string;
     cumulativeAmount: string;
-    deadline: number;
     signature: string;
 }
 
@@ -253,8 +252,7 @@ class FactoryService {
     async prepareClaimSignatureData(
         vaultAddress: string,
         account: string,
-        cumulativeAmount: number,
-        deadline: number
+        cumulativeAmount: number
     ): Promise<{
         domain: EIP712Domain;
         types: any;
@@ -273,8 +271,7 @@ class FactoryService {
         const types = {
             Claim: [
                 { name: "account", type: "address" },
-                { name: "cumulativeAmount", type: "uint256" },
-                { name: "deadline", type: "uint256" }
+                { name: "cumulativeAmount", type: "uint256" }
             ]
         };
 
@@ -288,8 +285,7 @@ class FactoryService {
 
         const message = {
             account,
-            cumulativeAmount: cumulativeAmountWei,
-            deadline: BigInt(deadline)
+            cumulativeAmount: cumulativeAmountWei
         };
 
         return {
@@ -308,7 +304,6 @@ class FactoryService {
         vaultAddress: string;
         account: string;
         cumulativeAmount: number;
-        deadline?: number;
     }>): Promise<{
         claimDataForSigning: Array<{
             domain: EIP712Domain;
@@ -317,7 +312,6 @@ class FactoryService {
             vaultAddress: string;
             account: string;
             cumulativeAmount: string;
-            deadline: number;
         }>;
         maxBatchSize: number;
     }> {
@@ -328,18 +322,14 @@ class FactoryService {
             throw new Error(`Batch size ${claims.length} exceeds maximum ${maxBatchSize}`);
         }
 
-        const defaultDeadline = Math.floor(Date.now() / 1000) + (60 * 60 * 24); // 24 hours from now
         const claimDataForSigning = [];
 
         for (const claim of claims) {
-            const deadline = claim.deadline || defaultDeadline;
-
             // Prepare EIP-712 data for this claim
             const signatureData = await this.prepareClaimSignatureData(
                 claim.vaultAddress,
                 claim.account,
-                claim.cumulativeAmount,
-                deadline
+                claim.cumulativeAmount
             );
 
             // Get token decimals for proper amount formatting
@@ -354,8 +344,7 @@ class FactoryService {
                 ...signatureData,
                 vaultAddress: claim.vaultAddress,
                 account: claim.account,
-                cumulativeAmount: cumulativeAmountWei.toString(),
-                deadline,
+                cumulativeAmount: cumulativeAmountWei.toString()
             });
         }
 
@@ -425,8 +414,12 @@ export function createFactoryService(): FactoryService {
         rpcUrl: process.env.RPC_URL || 'https://sepolia.base.org',
     };
 
-    if (!config.factoryAddress || !config.claimRouterAddress || !config.publisherAddress) {
-        throw ApiError.internalError(`Missing blockchain configuration environment variables (REWARD_POOL_FACTORY_ADDRESS, CLAIM_ROUTER_ADDRESS, PUBLISHER_ADDRESS)`);
+    const missingVars = [];
+    if (!config.factoryAddress) missingVars.push('REWARD_POOL_FACTORY_ADDRESS');
+    if (!config.claimRouterAddress) missingVars.push('CLAIM_ROUTER_ADDRESS');
+    if (!config.publisherAddress) missingVars.push('PUBLISHER_ADDRESS');
+    if (missingVars.length > 0) {
+        throw ApiError.internalError(`Missing blockchain configuration environment variable(s): ${missingVars.join(', ')}`);
     }
 
     return new FactoryService(config);
