@@ -201,7 +201,9 @@ export async function processNextInQueue() {
 
             // Check 2: Invalid task_id
             // Find the task within the factory's apps
-            let task = factory.apps.flatMap(app => app.tasks).find((t: any) => t.id === submission?.meta?.quest.task_id)
+            let task = factory.apps
+              .flatMap((app) => app.tasks)
+              .find((t: any) => t.id === submission?.meta?.quest.task_id)
 
             if (!task) {
               reward = 0
@@ -228,8 +230,9 @@ export async function processNextInQueue() {
 
             if (previousSubmission) {
               reward = 0
-              gradeResult.reasoning = `( system: no reward given - previous submission exists with score of ${previousSubmission.grade_result?.score || 0
-                } ) ${gradeResult.reasoning}`
+              gradeResult.reasoning = `( system: no reward given - previous submission exists with score of ${
+                previousSubmission.grade_result?.score || 0
+              } ) ${gradeResult.reasoning}`
               break
             }
 
@@ -362,8 +365,8 @@ export async function processNextInQueue() {
             `( system: claim authorization generated - farmer can claim ` +
             `${claimAuthorization.newClaimableAmount.toFixed(2)} ${factory.token.symbol} ` +
             `[already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}, new reward: ${reward.toFixed(2)}] ) ` +
-            `${submission.grade_result.reasoning}`;
-          submission.grade_result.reasoning = reasoningMessage;
+            `${submission.grade_result.reasoning}`
+          submission.grade_result.reasoning = reasoningMessage
           submission.onChainReward = onChainReward
 
           // Save updated claim authorization data

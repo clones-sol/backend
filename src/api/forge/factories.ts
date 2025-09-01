@@ -137,7 +137,7 @@ router.get(
  *                 default: 0
  *               sortBy:
  *                 type: string
- *                 enum: [createdAt, demonstrations, totalEarned]
+ *                 enum: [createdAt, totalEarned]
  *                 default: createdAt
  *               sortOrder:
  *                 type: string

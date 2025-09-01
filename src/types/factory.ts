@@ -82,7 +82,6 @@ export interface Factory {
   pricePerDemo: number // Reward per demonstration
 
   // Statistics
-  demonstrations: number // Total demonstrations completed
   totalEarned: number // Total rewards paid out
 
   // Configuration
@@ -132,7 +131,7 @@ export interface FactorySearchCriteria {
   status?: FactoryStatus
   limit?: number
   offset?: number
-  sortBy?: 'createdAt' | 'demonstrations' | 'totalEarned'
+  sortBy?: 'createdAt' | 'totalEarned'
   sortOrder?: 'asc' | 'desc'
 }
 
@@ -151,7 +150,6 @@ export interface FactoryAnalytics {
   activeFactories: number
   totalBalance: number
   totalDemonstrations: number
-  totalEarned: number
   averageFactorySize: number
   topSkills: Array<{ skill: string; count: number }>
   topTokens: Array<{ token: string; balance: number }>

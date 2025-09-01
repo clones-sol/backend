@@ -179,11 +179,6 @@ const factorySchema = new Schema<IFactoryDocument>(
     },
 
     // Statistics
-    demonstrations: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
     totalEarned: {
       type: Number,
       default: 0,
@@ -225,7 +220,7 @@ factorySchema.virtual('id').get(function () {
 factorySchema.index({ ownerAddress: 1, status: 1 })
 factorySchema.index({ skills: 1, status: 1 })
 factorySchema.index({ createdAt: -1 })
-factorySchema.index({ demonstrations: -1 })
+factorySchema.index({ totalEarned: -1 })
 // Apps-specific indexes
 factorySchema.index({ 'apps.categories': 1 })
 factorySchema.index({ 'apps.name': 'text', 'apps.tasks.prompt': 'text' })

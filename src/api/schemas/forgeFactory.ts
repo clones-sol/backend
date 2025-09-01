@@ -152,7 +152,7 @@ export const searchFactoriesSchema: ValidationSchema = {
   },
   sortBy: {
     required: false,
-    rules: [ValidationRules.isIn(['createdAt', 'demonstrations', 'totalEarned'])]
+    rules: [ValidationRules.isIn(['createdAt', 'totalEarned'])]
   },
   sortOrder: {
     required: false,

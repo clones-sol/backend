@@ -91,7 +91,7 @@ router.get(
     }
 
     const submissions = await DemonstrationSubmission.find({
-      'meta.quest.pool_id': factoryId
+      'meta.factoryId': factoryId
     })
       .sort({ createdAt: -1 })
       .select('-__v')
