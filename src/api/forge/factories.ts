@@ -444,7 +444,7 @@ router.put(
 
     // If skills were updated, regenerate apps
     if (req.body.skills) {
-      generateAppsForFactory(id, req.body.skills).catch(console.error)
+      await generateAppsForFactory(id, req.body.skills).catch(console.error)
     }
 
     await factory.save()

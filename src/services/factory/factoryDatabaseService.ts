@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import OpenAI from 'openai'
 import { FactoryModel } from '../../models/Factory.ts'
-import type { FactoryApp } from '../../types/factory.ts'
+import type { FactoryApp, FactoryStatus } from '../../types/factory.ts'
+
 
 // Configure OpenAI
 const openai = new OpenAI({
@@ -141,7 +142,7 @@ export async function createFactoryWithApps(
     name,
     description: `Factory for ${name}`,
     ownerAddress: creatorAddress,
-    status: 'active',
+    status: 'paused',
     skills,
     token,
     pricePerDemo,
@@ -154,8 +155,8 @@ export async function createFactoryWithApps(
 
   await factory.save()
 
-  // Generate apps asynchronously
-  generateAppsForFactory(factoryId, skills).catch((error) => {
+  // Generate apps
+  await generateAppsForFactory(factoryId, skills).catch((error) => {
     console.error(`Failed to generate apps for factory ${factoryId}:`, error)
   })
 

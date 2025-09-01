@@ -4,13 +4,13 @@ import * as path from 'node:path'
 import type mongoose from 'mongoose'
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
 import { acquireLock, releaseLock } from '../../models/ProcessingLock.ts'
+import { type DBDemonstrationSubmission } from '../../types/db.ts'
 import {
-  type DBDemonstrationSubmission,
   type ForgeSubmissionGradeResult,
   ForgeSubmissionProcessingStatus,
   type OnChainReward,
   UploadLimitType
-} from '../../types/index.ts'
+} from '../../types/factory.ts'
 import { createClaimAuthService } from '../blockchain/claimAuthService.ts'
 import { getTokenContractAddress } from '../blockchain/tokens.ts'
 
