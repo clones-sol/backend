@@ -1,5 +1,5 @@
 import { type Document, model, Schema } from 'mongoose'
-import type { UploadChunk, UploadSession } from '../types/forge.ts'
+import type { UploadChunk, UploadSession } from '../types/factory.ts'
 
 // Interface for the Mongoose document, omitting 'id' from the base UploadSession to avoid conflict with Mongoose's 'id'
 export interface IUploadSessionDocument

@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
+import { FactoryStatus } from '../../types/factory.ts'
 
 // Cache to store generated instruction lists
 const _CACHE_EXPIRY = 2 * 60 * 60 * 1000
@@ -165,7 +166,7 @@ export async function getLeaderboardData() {
   const totalRewards = tasksStats.length > 0 ? tasksStats[0].totalRewards : 0
 
   const activeForges = await FactoryModel.countDocuments({
-    status: 'active'
+    status: FactoryStatus.active
   })
 
   // Compile final result

@@ -5,13 +5,14 @@ import { ApiError, ErrorCode, successResponse } from '../../middleware/types/err
 import { validateBody, validateQuery } from '../../middleware/validator.ts'
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
 import { APP_TASK_GENERATION_PROMPT } from '../../services/forge/index.ts'
-import { FactoryStatus, type FactoryTask } from '../../types/factory.ts'
 import {
   type AppWithLimitInfo,
+  FactoryStatus,
+  type FactoryTask,
   ForgeSubmissionProcessingStatus,
   type TaskWithLimitInfo,
   UploadLimitType
-} from '../../types/index.ts'
+} from '../../types/factory.ts'
 import { generateContentSchema, getTasksSchema } from '../schemas/forgeFactory.ts'
 
 // MongoDB aggregation pipeline types

@@ -4,7 +4,8 @@ import { tokenCache } from '../../utils/tokenCache.js'
 const ERC20_ABI = [
   'function balanceOf(address) view returns (uint256)',
   'function transfer(address to, uint256 amount) returns (bool)',
-  'function decimals() view returns (uint8)'
+  'function decimals() view returns (uint8)',
+  'function allowance(address owner, address spender) view returns (uint256)'
 ]
 
 class BlockchainService {
