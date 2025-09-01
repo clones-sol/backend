@@ -140,7 +140,35 @@ class TokenCache {
 // Singleton instance
 export const tokenCache = new TokenCache();
 
-// Cleanup task - run every hour
-setInterval(() => {
-  tokenCache.cleanup();
-}, 1000 * 60 * 60);
+// Cleanup interval management
+let cleanupIntervalId: NodeJS.Timeout | null = null;
+
+/**
+ * Start automatic cleanup (called once at module load)
+ */
+export function startCleanupInterval(): NodeJS.Timeout {
+  if (cleanupIntervalId) {
+    clearInterval(cleanupIntervalId);
+  }
+  
+  cleanupIntervalId = setInterval(() => {
+    tokenCache.cleanup();
+  }, 1000 * 60 * 60); // 1 hour
+  
+  return cleanupIntervalId;
+}
+
+/**
+ * Stop automatic cleanup (useful for testing or graceful shutdown)
+ */
+export function stopCleanupInterval(): void {
+  if (cleanupIntervalId) {
+    clearInterval(cleanupIntervalId);
+    cleanupIntervalId = null;
+  }
+}
+
+// Start cleanup automatically when module loads (production behavior)
+if (process.env.NODE_ENV !== 'test') {
+  startCleanupInterval();
+}

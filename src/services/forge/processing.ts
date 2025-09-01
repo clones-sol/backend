@@ -23,15 +23,22 @@ const processingLockSchema = new mongoose.Schema({
 const ProcessingLockModel = mongoose.model('ProcessingLock', processingLockSchema);
 
 async function acquireLock(lockId: string): Promise<void> {
-  let lockAcquired = false;
-  while (!lockAcquired) {
+  const maxRetries = 60; // 30 seconds max wait (60 * 500ms)
+  const retryDelay = 500; // 500ms between retries
+  let attempts = 0;
+
+  while (attempts < maxRetries) {
     try {
       await ProcessingLockModel.create({ _id: lockId });
-      lockAcquired = true;
+      return; // Lock acquired successfully
     } catch (error: any) {
       if (error.code === 11000) { // Duplicate key error
+        attempts++;
+        if (attempts >= maxRetries) {
+          throw new Error(`Failed to acquire lock ${lockId} after ${maxRetries} attempts (${maxRetries * retryDelay}ms). Lock may be stale.`);
+        }
         // Lock is held, wait and retry
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
       } else {
         throw error;
       }

@@ -91,14 +91,4 @@ export class TransactionSessionService {
   static async markCancelled(sessionId: string) {
     return await TransactionSessionService.updateSession(sessionId, 'cancelled');
   }
-
-  /**
-   * Clean up expired sessions (can be called by a cron job)
-   */
-  static async cleanupExpiredSessions() {
-    const result = await TransactionSessionModel.deleteMany({
-      expiresAt: { $lt: new Date() }
-    });
-    return result.deletedCount;
-  }
 }
