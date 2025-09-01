@@ -7,49 +7,12 @@ import {
   OnChainReward
 } from '../../types/index.ts';
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts';
+import { acquireLock, releaseLock } from '../../models/ProcessingLock.ts';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { getTokenContractAddress } from '../blockchain/tokens.ts';
 import { createClaimAuthService } from '../blockchain/claimAuthService.ts';
-
-
-// --- Distributed Lock for Reward Calculation ---
-// This should be moved to its own file in /models
-const processingLockSchema = new mongoose.Schema({
-  _id: String, // Lock ID, e.g., `${userAddress}-${factoryId}`
-  createdAt: { type: Date, expires: '5m', default: Date.now } // TTL to prevent stale locks
-});
-const ProcessingLockModel = mongoose.model('ProcessingLock', processingLockSchema);
-
-async function acquireLock(lockId: string): Promise<void> {
-  const maxRetries = 60; // 30 seconds max wait (60 * 500ms)
-  const retryDelay = 500; // 500ms between retries
-  let attempts = 0;
-
-  while (attempts < maxRetries) {
-    try {
-      await ProcessingLockModel.create({ _id: lockId });
-      return; // Lock acquired successfully
-    } catch (error: any) {
-      if (error.code === 11000) { // Duplicate key error
-        attempts++;
-        if (attempts >= maxRetries) {
-          throw new Error(`Failed to acquire lock ${lockId} after ${maxRetries} attempts (${maxRetries * retryDelay}ms). Lock may be stale.`);
-        }
-        // Lock is held, wait and retry
-        await new Promise((resolve) => setTimeout(resolve, retryDelay));
-      } else {
-        throw error;
-      }
-    }
-  }
-}
-
-async function releaseLock(lockId: string): Promise<void> {
-  await ProcessingLockModel.deleteOne({ _id: lockId });
-}
-// --- End Distributed Lock ---
 
 
 // Initialize claim authorization service
@@ -64,38 +27,6 @@ try {
 let isProcessing = false;
 const processingQueue: string[] = [];
 
-/**
- * Calculate user's total cumulative earned rewards for a specific factory/pool
- * Does NOT include already claimed amounts - only tracks earned rewards from completed submissions
- */
-async function calculateUserCumulativeRewards(userAddress: string, factoryId: string): Promise<number> {
-  try {
-    // Use aggregation pipeline for efficient summation in the DB
-    const result = await DemonstrationSubmission.aggregate([
-      {
-        $match: {
-          address: userAddress,
-          'meta.quest.factory_id': factoryId,
-          status: ForgeSubmissionProcessingStatus.COMPLETED,
-          reward: { $gt: 0 }
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          totalEarned: { $sum: '$reward' }
-        }
-      }
-    ]);
-
-    const totalEarned = result.length > 0 ? result[0].totalEarned : 0;
-    console.log(`User ${userAddress} has cumulative earned of ${totalEarned} from factory ${factoryId}`);
-    return totalEarned;
-  } catch (error) {
-    console.error('Error calculating cumulative rewards:', error);
-    return 0;
-  }
-}
 
 export async function addToProcessingQueue(submissionId: string) {
   processingQueue.push(submissionId);
@@ -404,7 +335,6 @@ export async function processNextInQueue() {
       await submission.save();
 
       // Generate claim authorization signature AFTER submission is saved as COMPLETED
-      // This ensures calculateUserCumulativeRewards() includes the current submission
       if (factory && reward !== undefined && reward > 0 && claimAuthService && factory.poolAddress) {
         console.log(
           `Generating claim authorization for submission ${submissionId} to user ${submission.address}`
@@ -413,22 +343,14 @@ export async function processNextInQueue() {
         try {
           const tokenAddress = getTokenContractAddress(factory.token.symbol);
 
-          // Calculate user's total cumulative earned rewards for this pool (now includes current submission)
-          const userCumulativeEarned = await calculateUserCumulativeRewards(
-            submission.address,
-            factory._id.toString()
-          );
-
-          console.log(`User ${submission.address} cumulative earned: ${userCumulativeEarned} (includes current submission)`);
-
-          // Generate claim authorization signature with proper cumulative amount
+          // Generate claim authorization signature - it will handle smart contract reads internally
           claimAuthorization = await claimAuthService.generateClaimAuthorization(
             factory.poolAddress,
             submission.address,
-            userCumulativeEarned // Total earned including current reward (already saved)
+            reward // Just pass the current reward, service will calculate cumulative
           );
 
-          console.log(`Claim authorization generated for submission ${submissionId}, cumulative amount: ${userCumulativeEarned}, claimable: ${claimAuthorization.newClaimableAmount}, publisher: ${claimAuthorization.publisherUsed}`);
+          console.log(`Claim authorization generated for submission ${submissionId}, claimable: ${claimAuthorization.newClaimableAmount}, publisher: ${claimAuthorization.publisherUsed}`);
 
           onChainReward = {
             tokenAddress: tokenAddress,
@@ -437,11 +359,11 @@ export async function processNextInQueue() {
             submissionId: submissionId,
             txHash: '', // No immediate tx, farmer will claim later
             timestamp: Date.now(),
-            cumulativeAmount: userCumulativeEarned // Total cumulative earned (includes current)
+            cumulativeAmount: claimAuthorization.alreadyClaimed + reward // Smart contract cumulative amount
           };
 
           // Update the grade result reasoning and on-chain reward
-          submission.grade_result.reasoning = `( system: claim authorization generated - farmer can claim ${claimAuthorization.newClaimableAmount.toFixed(2)} ${factory.token.symbol} [total earned: ${userCumulativeEarned.toFixed(2)}, already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}] ) ${submission.grade_result.reasoning}`;
+          submission.grade_result.reasoning = `( system: claim authorization generated - farmer can claim ${claimAuthorization.newClaimableAmount.toFixed(2)} ${factory.token.symbol} [already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}, new reward: ${reward.toFixed(2)}] ) ${submission.grade_result.reasoning}`;
           submission.onChainReward = onChainReward;
           
           // Save updated claim authorization data

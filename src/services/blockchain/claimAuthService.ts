@@ -66,7 +66,7 @@ class ClaimAuthService {
   /**
    * Query already claimed amount from the smart contract
    */
-  private async getAlreadyClaimedAmount(poolAddress: string, userAddress: string): Promise<number> {
+  async getAlreadyClaimedAmount(poolAddress: string, userAddress: string): Promise<number> {
     try {
       const poolContract = new ethers.Contract(poolAddress, [
         'function alreadyClaimed(address) external view returns (uint256)',
@@ -86,7 +86,7 @@ class ClaimAuthService {
       return alreadyClaimed;
     } catch (error) {
       console.error('Error querying already claimed amount:', error);
-      return 0; // Safe fallback - assume nothing claimed yet
+      throw ApiError.internalError(`Failed to query already claimed amount from smart contract: ${error instanceof Error ? error.message : 'Unknown error'}. Cannot authorize claim without verifying existing claims.`);
     }
   }
 
@@ -94,18 +94,18 @@ class ClaimAuthService {
    * Generate EIP-712 signature for payWithSig() smart contract function
    * Returns signature data that can be used directly with RewardPoolImplementation
    * 
-   * IMPORTANT: This function now validates that the cumulative amount is greater than
-   * what the user has already claimed to ensure proper progression
+   * IMPORTANT: This function queries the smart contract for already claimed amounts
+   * and calculates the new cumulative amount by adding the individual reward
    * 
    * @param poolAddress - Address of the reward pool contract
    * @param farmerAddress - Address of the farmer to authorize
-   * @param newCumulativeAmount - NEW total cumulative amount the farmer can claim
+   * @param individualReward - Individual reward amount to add to already claimed
    * @returns Signature data ready for smart contract interaction
    */
   async generateClaimAuthorization(
     poolAddress: string,
     farmerAddress: string,
-    newCumulativeAmount: number
+    individualReward: number
   ): Promise<{
     // Smart contract parameters
     account: string;
@@ -153,26 +153,24 @@ class ClaimAuthService {
 
     console.log(`Using publisher ${publisherUsed} for signing (grace period: ${publisherInfo.isInGracePeriod})`);
 
-    // Query already claimed amount from smart contract
+    // Query already claimed amount from smart contract (source of truth)
     const alreadyClaimed = await this.getAlreadyClaimedAmount(poolAddress, farmerAddress);
+    
+    // Calculate new cumulative amount = already claimed + individual reward
+    const newCumulativeAmount = alreadyClaimed + individualReward;
 
-    // Validate amount progression
-    if (newCumulativeAmount <= 0) {
-      throw ApiError.badRequest(`Invalid cumulative amount: ${newCumulativeAmount}. Must be positive.`);
+    // Validate individual reward
+    if (individualReward <= 0) {
+      throw ApiError.badRequest(`Invalid individual reward: ${individualReward}. Must be positive.`);
     }
 
-    // Add tolerance for race conditions or pending transactions
-    const TOLERANCE = 1e-6; // Allow a small delta for floating point errors or pending state
-    if (newCumulativeAmount < alreadyClaimed - TOLERANCE) {
-      throw ApiError.badRequest(`New cumulative amount (${newCumulativeAmount}) must be greater than already claimed (${alreadyClaimed}). If you recently submitted a claim, please wait for it to be mined and try again.`);
-    }
-    if (Math.abs(newCumulativeAmount - alreadyClaimed) <= TOLERANCE) {
-      // Warn but do not reject, as this may be due to pending transactions
-      console.warn(`Claim amount is equal to already claimed. This may be due to pending transactions. Proceeding with caution.`);
+    // Validate new cumulative amount is greater than already claimed
+    if (newCumulativeAmount <= alreadyClaimed) {
+      throw ApiError.badRequest(`New cumulative amount (${newCumulativeAmount}) must be greater than already claimed (${alreadyClaimed})`);
     }
 
-    const newClaimableAmount = newCumulativeAmount - alreadyClaimed;
-    console.log(`Generating signature: alreadyClaimed=${alreadyClaimed}, newCumulative=${newCumulativeAmount}, newClaimable=${newClaimableAmount}`);
+    const newClaimableAmount = individualReward; // This transaction's claimable amount
+    console.log(`Generating signature: alreadyClaimed=${alreadyClaimed}, individualReward=${individualReward}, newCumulative=${newCumulativeAmount}`);
 
 
     // EIP-712 domain - must match RewardPoolImplementation contract
