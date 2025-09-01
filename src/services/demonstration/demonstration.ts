@@ -103,19 +103,19 @@ export async function getLeaderboardData() {
       $match: {
         status: 'completed',
         reward: { $exists: true, $gt: 0 },
-        'meta.quest.pool_id': { $exists: true }
+        'meta.factoryId': { $exists: true }
       }
     },
     {
       $group: {
-        _id: { $toObjectId: '$meta.quest.pool_id' }, // Convert string to ObjectId
+        _id: '$meta.factoryId',
         tasks: { $sum: 1 },
         payout: { $sum: '$reward' }
       }
     },
     {
       $lookup: {
-        from: 'training_pools',
+        from: 'factories',
         localField: '_id',
         foreignField: '_id',
         as: 'pool'

@@ -150,7 +150,6 @@ describe('Forge Factories API', () => {
         searchText: 'Test Factory 1 skill1 skill2 type1',
         createdAt: new Date('2023-01-01'),
         demonstrations: 5,
-        totalEarned: 50,
         token: {
           symbol: 'USDC',
           address: '0xusdc',
@@ -169,7 +168,6 @@ describe('Forge Factories API', () => {
         searchText: 'Another Factory 2 skill3 skill4 type2',
         createdAt: new Date('2023-01-02'),
         demonstrations: 10,
-        totalEarned: 200,
         token: {
           symbol: 'WETH',
           address: '0xweth',

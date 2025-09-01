@@ -277,7 +277,7 @@ async function checkFactoryUploadLimits(factory: Record<string, any>): Promise<v
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       gymSubmissions = await DemonstrationSubmission.countDocuments({
-        'meta.quest.pool_id': factoryId,
+        'meta.factoryId': factoryId,
         createdAt: { $gte: today },
         status: ForgeSubmissionProcessingStatus.COMPLETED,
         reward: { $gt: 0 }
@@ -291,7 +291,7 @@ async function checkFactoryUploadLimits(factory: Record<string, any>): Promise<v
     }
     case UploadLimitType.total:
       gymSubmissions = await DemonstrationSubmission.countDocuments({
-        'meta.quest.pool_id': factoryId,
+        'meta.factoryId': factoryId,
         status: ForgeSubmissionProcessingStatus.COMPLETED,
         reward: { $gt: 0 }
       })
@@ -724,7 +724,7 @@ router.post(
     const uploads = await uploadFilesToStorage(requiredFiles, finalDir, storageConfig)
     console.log(`[UPLOAD] All files uploaded to object storage successfully`)
 
-    meta.factoryId = meta.quest.pool_id
+    // meta.factoryId already set by frontend
 
     const factory = await verifyFactoryAndBalance(meta)
     await checkFactoryUploadLimits(factory)

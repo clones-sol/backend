@@ -3,7 +3,6 @@ import OpenAI from 'openai'
 import { FactoryModel } from '../../models/Factory.ts'
 import type { FactoryApp, FactoryStatus } from '../../types/factory.ts'
 
-
 // Configure OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -146,8 +145,6 @@ export async function createFactoryWithApps(
     skills,
     token,
     pricePerDemo,
-    demonstrations: 0,
-    totalEarned: 0,
     apps: [],
     createdAt: new Date(),
     updatedAt: new Date()

@@ -219,7 +219,7 @@ async function fetchSubmissionCounts(
     DemonstrationSubmission.aggregate([
       {
         $match: {
-          'meta.quest.pool_id': { $in: factoryIds },
+          'meta.factoryId': { $in: factoryIds },
           createdAt: { $gte: today },
           status: ForgeSubmissionProcessingStatus.COMPLETED,
           reward: { $gt: 0 }
@@ -230,7 +230,7 @@ async function fetchSubmissionCounts(
     DemonstrationSubmission.aggregate([
       {
         $match: {
-          'meta.quest.pool_id': { $in: factoryIds },
+          'meta.factoryId': { $in: factoryIds },
           status: ForgeSubmissionProcessingStatus.COMPLETED,
           reward: { $gt: 0 }
         }
@@ -683,7 +683,7 @@ router.get(
               const today = new Date()
               today.setHours(0, 0, 0, 0)
               gymSubmissions = await DemonstrationSubmission.countDocuments({
-                'meta.quest.pool_id': app.factoryId,
+                'meta.factoryId': app.factoryId,
                 createdAt: { $gte: today },
                 status: ForgeSubmissionProcessingStatus.COMPLETED,
                 reward: { $gt: 0 }
@@ -694,7 +694,7 @@ router.get(
 
             case UploadLimitType.total:
               gymSubmissions = await DemonstrationSubmission.countDocuments({
-                'meta.quest.pool_id': app.factoryId,
+                'meta.factoryId': app.factoryId,
                 status: ForgeSubmissionProcessingStatus.COMPLETED,
                 reward: { $gt: 0 }
               })
