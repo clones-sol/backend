@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApiError } from './types/errors.ts';
-import { isAddress } from 'ethers';
+import { isValidAddress } from '../utils/addressValidation.js';
 
 /**
  * Validates if a string is a valid URL.
@@ -192,12 +192,7 @@ export const ValidationRules = {
   // Common validation patterns
   isEVMAddress: (): ValidationRule => ({
     validate: async (value) => {
-      try {
-        if (typeof value !== 'string') return false;
-        return isAddress(value);
-      } catch (error) {
-        return false;
-      }
+      return isValidAddress(value);
     },
     message: 'Must be a valid EVM wallet address'
   }),

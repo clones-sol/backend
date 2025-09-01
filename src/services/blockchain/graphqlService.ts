@@ -386,45 +386,53 @@ export class GraphQLService {
    */
   private buildPoolSearchQuery(criteria: PoolSearchCriteria): string {
     const whereConditions: string[] = [];
+    const variableDefinitions: string[] = [];
 
     if (criteria.creator) {
-      whereConditions.push(`creator: "${criteria.creator.toLowerCase()}"`);
+      whereConditions.push(`creator: $creator`);
+      variableDefinitions.push(`$creator: String`);
     }
 
     if (criteria.token) {
-      whereConditions.push(`token: "${criteria.token.toLowerCase()}"`);
+      whereConditions.push(`token: $token`);
+      variableDefinitions.push(`$token: String`);
     }
 
     if (criteria.isActive !== undefined) {
-      whereConditions.push(`isActive: ${criteria.isActive}`);
+      whereConditions.push(`isActive: $isActive`);
+      variableDefinitions.push(`$isActive: Boolean`);
     }
 
     if (criteria.minFunding) {
-      whereConditions.push(`totalFunded_gte: "${criteria.minFunding}"`);
+      whereConditions.push(`totalFunded_gte: $minFunding`);
+      variableDefinitions.push(`$minFunding: String`);
     }
 
     if (criteria.maxFunding) {
-      whereConditions.push(`totalFunded_lte: "${criteria.maxFunding}"`);
+      whereConditions.push(`totalFunded_lte: $maxFunding`);
+      variableDefinitions.push(`$maxFunding: String`);
     }
 
     if (criteria.skills && criteria.skills.length > 0) {
-      const skillConditions = criteria.skills.map(skill => `"${skill.toLowerCase()}"`).join(', ');
-      whereConditions.push(`skills_contains: [${skillConditions}]`);
+      whereConditions.push(`skills_contains: $skills`);
+      variableDefinitions.push(`$skills: [String!]`);
     }
 
-    // Build search term condition
     if (criteria.searchTerm) {
-      whereConditions.push(`description_contains_nocase: "${criteria.searchTerm}"`);
+      whereConditions.push(`description_contains_nocase: $searchTerm`);
+      variableDefinitions.push(`$searchTerm: String`);
     }
 
     const whereClause = whereConditions.length > 0 ? `where: { ${whereConditions.join(', ')} }` : '';
+    const variableClause = variableDefinitions.length > 0 ? `(${variableDefinitions.join(', ')})` : '';
+    
     const orderBy = criteria.orderBy || 'createdAt';
     const orderDirection = criteria.orderDirection || 'desc';
     const first = criteria.limit || 20;
     const skip = criteria.offset || 0;
 
     return `
-      query SearchPools {
+      query SearchPools${variableClause} {
         pools(
           ${whereClause ? `${whereClause},` : ''}
           orderBy: ${orderBy}
@@ -466,6 +474,7 @@ export class GraphQLService {
 
     if (criteria.creator) variables.creator = criteria.creator.toLowerCase();
     if (criteria.token) variables.token = criteria.token.toLowerCase();
+    if (criteria.isActive !== undefined) variables.isActive = criteria.isActive;
     if (criteria.searchTerm) variables.searchTerm = criteria.searchTerm;
     if (criteria.skills) variables.skills = criteria.skills.map(s => s.toLowerCase());
     if (criteria.minFunding) variables.minFunding = criteria.minFunding;

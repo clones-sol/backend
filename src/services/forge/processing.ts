@@ -402,7 +402,7 @@ export async function processNextInQueue() {
                   tokenAddress: tokenAddress,
                   poolAddress: factory.poolAddress,
                   amount: reward, // Individual reward for this submission
-                  submissionId: submissionId, // Use correct field name
+                  submissionId: submissionId,
                   txHash: '', // No immediate tx, farmer will claim later
                   timestamp: Date.now(),
                   cumulativeAmount: userCumulativeEarned + reward // Total cumulative earned

@@ -31,8 +31,8 @@ const TEST_WALLETS = {
 };
 
 const dummyClaims = [
-    { vault: '0xVault1', account: '0xAccount1', cumulativeAmount: '100', deadline: 123, signature: '0xSig1' },
-    { vault: '0xVault2', account: '0xAccount2', cumulativeAmount: '200', deadline: 124, signature: '0xSig2' },
+    { vault: '0xVault1', account: '0xAccount1', cumulativeAmount: '100', signature: '0xSig1' },
+    { vault: '0xVault2', account: '0xAccount2', cumulativeAmount: '200', signature: '0xSig2' },
 ];
 
 let app: express.Express;
