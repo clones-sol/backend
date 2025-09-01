@@ -57,7 +57,6 @@ export const ValidationRules = {
 
   isNumber: (): ValidationRule => ({
     validate: (value) => {
-      console.log(value)
       if (typeof value === 'string') {
         // Attempt to cast string to number
         const num = Number(value)

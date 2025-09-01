@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import OpenAI from 'openai'
 import { FactoryModel } from '../../models/Factory.ts'
-import type { FactoryApp, FactoryStatus } from '../../types/factory.ts'
+import type { FactoryApp } from '../../types/factory.ts'
+import { APP_TASK_GENERATION_PROMPT } from '../forge/index.ts'
 
 // Configure OpenAI
 const openai = new OpenAI({
@@ -10,33 +11,6 @@ const openai = new OpenAI({
 
 // Track active generations to prevent duplicates
 const activeGenerations = new Map<string, Promise<void>>()
-
-// App generation prompt template
-const APP_GENERATION_PROMPT = `Generate 3 diverse demo apps for an AI agent factory with skills: {skills}
-
-Return a JSON object with this exact structure:
-{
-  "name": "Skills Collection",
-  "apps": [
-    {
-      "id": "app_1",
-      "name": "App Name", 
-      "domain": "category",
-      "description": "Brief description",
-      "categories": ["category1", "category2"],
-      "tasks": [
-        {
-          "id": "task_1",
-          "prompt": "Clear task instruction",
-          "uploadLimit": 10,
-          "rewardLimit": 5.0
-        }
-      ]
-    }
-  ]
-}
-
-Make apps creative and relevant to the skills. Each app should have 1-3 tasks.`
 
 /**
  * Generate apps for a factory using OpenAI
@@ -65,7 +39,7 @@ async function executeGeneration(factoryId: string, skills: string[]): Promise<v
 
     // Generate apps using OpenAI
     const skillsText = skills.join(', ')
-    const prompt = APP_GENERATION_PROMPT.replace('{skills}', skillsText)
+    const prompt = APP_TASK_GENERATION_PROMPT.replace('{skill list}', skillsText)
 
     const response = await openai.chat.completions.create({
       model: 'o3-mini',
