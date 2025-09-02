@@ -219,7 +219,6 @@ factorySchema.virtual('id').get(function () {
 // Indexes for performance
 factorySchema.index({ ownerAddress: 1, status: 1 })
 factorySchema.index({ skills: 1, status: 1 })
-factorySchema.index({ createdAt: -1 })
 factorySchema.index({ totalEarned: -1 })
 // Apps-specific indexes
 factorySchema.index({ 'apps.categories': 1 })
