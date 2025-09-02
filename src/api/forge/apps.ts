@@ -2,11 +2,13 @@ import express, { type Request, type Response, type Router } from 'express'
 import OpenAI from 'openai'
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
 import { ApiError, ErrorCode, successResponse } from '../../middleware/types/errors.ts'
-import { validateBody, validateQuery } from '../../middleware/validator.ts'
+import { validateBody, validateParams, validateQuery } from '../../middleware/validator.ts'
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
 import { APP_TASK_GENERATION_PROMPT } from '../../services/forge/index.ts'
 import {
   type AppWithLimitInfo,
+  type Factory,
+  type FactoryApp,
   FactoryStatus,
   type FactoryTask,
   ForgeSubmissionProcessingStatus,
@@ -14,6 +16,8 @@ import {
   UploadLimitType
 } from '../../types/factory.ts'
 import { generateContentSchema, getTasksSchema } from '../schemas/forgeFactory.ts'
+import { factoryIdParamSchema, updateFactoryAppsSchema } from '../schemas/forgeApps.ts'
+import { requireWalletAddress } from '../../middleware/auth.ts'
 
 // MongoDB aggregation pipeline types
 interface MongoMatchStage {
@@ -31,54 +35,6 @@ const router: Router = express.Router()
 function checkAdultContent(text: string): boolean {
   const lowerText = text.toLowerCase()
   return ADULT_KEYWORDS.some((keyword) => lowerText.includes(keyword.toLowerCase()))
-}
-
-function _buildMatchStage(pool_id?: string, min_reward?: number, max_reward?: number) {
-  const matchStage: MongoMatchStage = {}
-
-  if (pool_id) {
-    matchStage._id = pool_id.toString()
-  } else {
-    matchStage.status = FactoryStatus.active
-  }
-
-  if (min_reward !== undefined || max_reward !== undefined) {
-    const priceFilter: Record<string, number> = {}
-    if (min_reward !== undefined) {
-      priceFilter.$gte = min_reward
-    }
-    if (max_reward !== undefined) {
-      priceFilter.$lte = max_reward
-    }
-    matchStage.pricePerDemo = priceFilter
-  }
-
-  return matchStage
-}
-
-function _buildCategoryFilter(categories?: string): Record<string, unknown> | null {
-  if (!categories) return null
-
-  const categoryList = categories.split(',').map((cat) => cat.trim().toLowerCase())
-  return {
-    $or: [{ 'apps.categories': { $in: categoryList } }, { skills: { $in: categoryList } }]
-  }
-}
-
-function _buildSearchFilter(query?: string): Record<string, unknown> | null {
-  if (!query || query.trim().length < 2) return null
-
-  const searchRegex = new RegExp(query.trim(), 'i')
-  return {
-    $or: [
-      { name: searchRegex },
-      { description: searchRegex },
-      { skills: searchRegex },
-      { 'apps.name': searchRegex },
-      { 'apps.description': searchRegex },
-      { 'apps.categories': searchRegex }
-    ]
-  }
 }
 
 interface TaskQueryParams {
@@ -775,6 +731,55 @@ router.get(
 
     // Return all apps with limit information
     res.status(200).json(successResponse(appsWithLimitInfo))
+  })
+)
+
+/**
+ * @swagger
+ * /forge/factories/{id}/apps:
+ *   put:
+ *     summary: Update factory apps
+ *     tags: [Apps]
+ */
+router.put(
+  '/:id',
+  requireWalletAddress,
+  validateParams(factoryIdParamSchema),
+  validateBody(updateFactoryAppsSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { id } = req.params
+    const { apps } = req.body
+    // @ts-expect-error
+    const ownerAddress = req.walletAddress.toLowerCase()
+
+    // Find the factory
+    const factory = await FactoryModel.findById(id)
+
+    if (!factory) {
+      throw ApiError.notFound('Factory not found')
+    }
+
+    if (factory.ownerAddress !== ownerAddress) {
+      throw ApiError.forbidden('Not authorized to update this factory')
+    }
+
+    // Generate IDs for apps and tasks
+    const appsWithIds: FactoryApp[] = apps.map((app: Omit<FactoryApp, 'id'>) => ({
+      ...app,
+      id: `app_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+      tasks: app.tasks.map((task: Omit<FactoryTask, 'id'>) => ({
+        ...task,
+        id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+      }))
+    }))
+
+    // Update the factory apps
+    factory.apps = appsWithIds
+    await factory.save()
+
+    // Return updated factory
+    const updatedFactory = await FactoryModel.findById(id).lean<Factory>()
+    res.json(successResponse(updatedFactory))
   })
 )
 

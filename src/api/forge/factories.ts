@@ -12,13 +12,12 @@ import { FactoryModel } from '../../models/Factory.ts'
 import { createFactoryService } from '../../services/blockchain/factoryTransactionService.ts'
 import BlockchainService from '../../services/blockchain/index.ts'
 import { getTokenContractAddress, supportedTokens } from '../../services/blockchain/tokens.ts'
-import { generateAppsForFactory } from '../../services/factory/factoryDatabaseService.ts'
 import { getFactoryDemonstrationCount } from '../../utils/factoryStats.ts'
 import {
   type Factory,
   type FactorySearchCriteria,
   type FactorySearchResult,
-  FactoryStatus
+  FactoryStatus,
 } from '../../types/factory.ts'
 import {
   batchClaimSchema,
@@ -427,10 +426,12 @@ router.put(
       throw ApiError.forbidden('Not authorized to update this factory')
     }
 
-    // Validate balance for status changes
-    const balance = await blockchainService.getTokenBalance(factory.token.address, ownerAddress)
-    if (req.body.status && (balance === 0 || balance < factory.pricePerDemo)) {
-      throw ApiError.badRequest('Cannot activate factory: insufficient balance')
+    // Validate balance only when transitioning from paused to active
+    if (req.body.status === FactoryStatus.active && factory.status === FactoryStatus.paused) {
+      const balance = await blockchainService.getTokenBalance(factory.token.address, ownerAddress)
+      if (balance === 0 || balance < factory.pricePerDemo) {
+        throw ApiError.badRequest('Cannot activate factory: insufficient balance')
+      }
     }
 
     // Update fields
@@ -440,10 +441,6 @@ router.put(
     if (req.body.status !== undefined) factory.status = req.body.status
     if (req.body.pricePerDemo !== undefined) factory.pricePerDemo = req.body.pricePerDemo
 
-    // If skills were updated, regenerate apps
-    if (req.body.skills) {
-      await generateAppsForFactory(id, req.body.skills).catch(console.error)
-    }
 
     await factory.save()
 

@@ -213,6 +213,27 @@ export const ValidationRules = {
     message: 'Must provide at least one element'
   }),
 
+  arrayMinLength: (min: number): ValidationRule => ({
+    validate: (value) => {
+      if (!Array.isArray(value)) return false
+      return value.length >= min
+    },
+    message: `Array must contain at least ${min} element${min > 1 ? 's' : ''}`
+  }),
+
+  arrayItemsValidator: (itemRule: ValidationRule): ValidationRule => ({
+    validate: async (value) => {
+      if (!Array.isArray(value)) return false
+      
+      for (const item of value) {
+        const result = await itemRule.validate(item)
+        if (!result) return false
+      }
+      return true
+    },
+    message: 'One or more array items are invalid'
+  }),
+
   isInteger: (): ValidationRule => ({
     validate: (value) => {
       return Number.isInteger(value)

@@ -60,8 +60,7 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
   for (let i = 0; i < sortedChunks.length; i++) {
     const chunk = sortedChunks[i]
     console.log(
-      `[UPLOAD] Writing chunk ${i + 1}/${sortedChunks.length} (index: ${
-        chunk.chunkIndex
+      `[UPLOAD] Writing chunk ${i + 1}/${sortedChunks.length} (index: ${chunk.chunkIndex
       }, size: ${chunk.size} bytes)`
     )
     await new Promise<void>((resolve, reject) => {
@@ -241,12 +240,12 @@ export const requireUploadSession = errorHandlerAsync(
 const router: Router = express.Router()
 
 async function verifyFactoryAndBalance(meta: Record<string, any>): Promise<any> {
-  if (!meta.factoryId) {
+  if (!meta.quest.pool_id) {
     throw ApiError.badRequest('Invalid data: missing pool id')
   }
 
-  console.log(`[UPLOAD] Verifying pool balance and status for factoryId: ${meta.factoryId}`)
-  const factory = await FactoryModel.findById(meta.factoryId)
+  console.log(`[UPLOAD] Verifying pool balance and status for factoryId: ${meta.quest.pool_id}`)
+  const factory = await FactoryModel.findById(meta.quest.pool_id)
   if (!factory) {
     throw ApiError.notFound('Factory not found')
   }
@@ -313,7 +312,7 @@ async function checkTaskUploadLimits(
   }
 
   const taskFactory = await FactoryModel.findOne({
-    _id: meta.factoryId,
+    _id: meta.quest.pool_id,
     'apps.tasks.id': meta.quest.task_id
   })
 
@@ -532,12 +531,12 @@ router.post(
     const checksum = req.body.checksum
 
     if (Number.isNaN(chunkIndex) || chunkIndex < 0 || chunkIndex >= session.totalChunks) {
-      await unlink(req.file.path).catch(() => {})
+      await unlink(req.file.path).catch(() => { })
       throw ApiError.badRequest('Invalid chunk index')
     }
 
     if (!checksum) {
-      await unlink(req.file.path).catch(() => {})
+      await unlink(req.file.path).catch(() => { })
       throw ApiError.badRequest('Checksum is required')
     }
 
@@ -546,7 +545,7 @@ router.post(
     const calculatedChecksum = createHash('sha256').update(fileBuffer).digest('hex')
 
     if (calculatedChecksum !== checksum) {
-      await unlink(req.file.path).catch(() => {})
+      await unlink(req.file.path).catch(() => { })
       throw ApiError.badRequest('Checksum verification failed', {
         expected: checksum,
         calculated: calculatedChecksum
@@ -724,9 +723,8 @@ router.post(
     const uploads = await uploadFilesToStorage(requiredFiles, finalDir, storageConfig)
     console.log(`[UPLOAD] All files uploaded to object storage successfully`)
 
-    // meta.factoryId already set by frontend
-
     const factory = await verifyFactoryAndBalance(meta)
+
     await checkFactoryUploadLimits(factory)
     await checkTaskUploadLimits(meta, factory)
 
