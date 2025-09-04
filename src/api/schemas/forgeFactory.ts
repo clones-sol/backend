@@ -37,6 +37,20 @@ export const fundPoolSchema: ValidationSchema = {
   }
 }
 
+export const withdrawPoolSchema: ValidationSchema = {
+  poolAddress: {
+    required: true,
+    rules: [ValidationRules.isEVMAddress()]
+  },
+  amount: {
+    required: true,
+    rules: [
+      ValidationRules.isNumber(),
+      ValidationRules.customValidator((value) => value > 0, 'Amount must be greater than 0')
+    ]
+  }
+}
+
 export const generateClaimSchema: ValidationSchema = {
   vaultAddress: {
     required: true,

@@ -28,7 +28,8 @@ import {
   poolAddressParamSchema,
   poolInfoQuerySchema,
   predictPoolSchema,
-  searchFactoriesSchema
+  searchFactoriesSchema,
+  withdrawPoolSchema
 } from '../schemas/forgeFactory.ts'
 
 // MongoDB query and sort types
@@ -843,6 +844,69 @@ router.get(
       console.error('Failed to get publisher info:', error)
       throw ApiError.internalError(
         `Failed to get publisher info: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  })
+)
+
+/**
+ * @swagger
+ * /forge/factories/pools/withdraw:
+ *   post:
+ *     summary: Withdraw funds from a reward pool (creator only)
+ *     tags: [Factories]
+ *     security:
+ *       - walletAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               poolAddress:
+ *                 type: string
+ *                 format: hex
+ *               amount:
+ *                 type: number
+ *     responses:
+ *       '200':
+ *         description: Pool withdrawal transaction data
+ *       '403':
+ *         description: Not authorized to withdraw from this pool
+ *       '500':
+ *         description: Internal server error
+ */
+router.post(
+  '/pools/withdraw',
+  requireWalletAddress,
+  validateBody(withdrawPoolSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { poolAddress, amount } = req.body
+
+    try {
+      const factoryService = createFactoryService()
+      // @ts-expect-error
+      const authenticatedAddress = req.walletAddress
+
+      const transactionData = await factoryService.prepareWithdrawPoolTransaction(
+        poolAddress,
+        amount,
+        authenticatedAddress
+      )
+
+      res.status(200).json(
+        successResponse({
+          ...transactionData,
+          poolAddress,
+          amount,
+          withdrawerAddress: authenticatedAddress
+        })
+      )
+    } catch (error) {
+      console.error('Pool withdrawal preparation failed:', error)
+      throw ApiError.internalError(
+        `Pool withdrawal preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
     }
   })
