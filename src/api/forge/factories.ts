@@ -485,8 +485,7 @@ router.post(
   validateBody(createPoolSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { token, creator } = req.body
-    // @ts-expect-error
-    const authenticatedAddress = req.walletAddress
+    const authenticatedAddress = (req as Request & { walletAddress: string }).walletAddress
 
     if (authenticatedAddress.toLowerCase() !== creator.toLowerCase()) {
       throw ApiError.forbidden('Authenticated user does not match creator address')
@@ -662,8 +661,7 @@ router.post(
 
     try {
       const factoryService = createFactoryService()
-      // @ts-expect-error
-      const authenticatedAddress = req.walletAddress
+      const authenticatedAddress = (req as Request & { walletAddress: string }).walletAddress
 
       const transactionData = await factoryService.prepareFundPoolTransaction(
         poolAddress,
@@ -886,8 +884,8 @@ router.post(
 
     try {
       const factoryService = createFactoryService()
-      // @ts-expect-error
-      const authenticatedAddress = req.walletAddress
+
+      const authenticatedAddress = (req as Request & { walletAddress: string }).walletAddress
 
       const transactionData = await factoryService.prepareWithdrawPoolTransaction(
         poolAddress,
