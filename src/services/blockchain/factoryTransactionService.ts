@@ -174,8 +174,8 @@ class FactoryService {
       tokenContract.allowance(creator, this.config.factoryAddress)
     ])
 
-    const sufficientBalance = balance >= amountWei
-    const sufficientAllowance = allowance >= amountWei
+    const sufficientBalance = balance.gte(amountWei)
+    const sufficientAllowance = allowance.gte(amountWei)
 
     return {
       contractAddress: this.config.factoryAddress,
@@ -457,7 +457,7 @@ class FactoryService {
     // Check if withdrawer is the creator
     const creator = await vault.creator()
     const isCreator = creator.toLowerCase() === withdrawerAddress.toLowerCase()
-    
+
     if (!isCreator) {
       throw ApiError.forbidden('Only the pool creator can withdraw funds')
     }
@@ -473,7 +473,7 @@ class FactoryService {
     // Check pool balance
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider)
     const balance = await tokenContract.balanceOf(poolAddress)
-    const sufficientBalance = balance >= amountWei
+    const sufficientBalance = balance.gte(amountWei)
 
     return {
       contractAddress: poolAddress,
