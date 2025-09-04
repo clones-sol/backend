@@ -213,6 +213,21 @@ router.post(
         }
         break
 
+      case 'withdrawPool':
+        if (!amount || !poolAddress) {
+          throw ApiError.badRequest('Amount and pool address required for withdrawPool')
+        }
+        validateAddress(poolAddress, 'poolAddress')
+        // Validate amount format (basic validation only - proper decimals handled in service)
+        try {
+          AmountValidator.validateBasicAmount(amount)
+        } catch (error) {
+          throw ApiError.badRequest(
+            error instanceof Error ? error.message : 'Invalid amount format'
+          )
+        }
+        break
+
       case 'claimRewards':
         validateAddress(poolAddress, 'poolAddress')
         break
@@ -223,7 +238,7 @@ router.post(
 
     // Additional security validation - ensure creator matches session user for creator-required operations
     if (
-      (type === 'createFactory' || type === 'createAndFundFactory' || type === 'fundPool') &&
+      (type === 'createFactory' || type === 'createAndFundFactory' || type === 'fundPool' || type === 'withdrawPool') &&
       creator
     ) {
       if (creator.toLowerCase() !== authenticatedAddress.toLowerCase()) {
@@ -344,6 +359,28 @@ router.post(
               return BigInt(120000) // Fallback
             },
             async () => BigInt(120000) // Circuit breaker fallback
+          )
+          break
+
+        case 'withdrawPool':
+          gasLimit = await gasBreaker.execute(
+            async () => {
+              if (poolAddress && amount && creator) {
+                const amountNum = AmountValidator.validateBasicAmount(amount)
+                const txData = await factoryService.prepareWithdrawPoolTransaction(
+                  poolAddress,
+                  amountNum,
+                  creator
+                )
+                const contract = new ethers.Contract(txData.contractAddress, txData.abi, provider)
+                const estimated = await contract.withdraw.estimateGas(...txData.args, {
+                  from: creator
+                })
+                return (estimated * 120n) / 100n // 20% buffer
+              }
+              return BigInt(80000) // Fallback
+            },
+            async () => BigInt(80000) // Circuit breaker fallback
           )
           break
 
@@ -479,6 +516,21 @@ router.post(
         const amountNumber = AmountValidator.validateBasicAmount(amount)
 
         transactionData = await factoryService.prepareFundPoolTransaction(
+          poolAddress,
+          amountNumber,
+          userAddress
+        )
+        break
+      }
+
+      case 'withdrawPool': {
+        if (!amount || !poolAddress) {
+          throw ApiError.badRequest('Amount and pool address required for withdrawPool')
+        }
+
+        const amountNumber = AmountValidator.validateBasicAmount(amount)
+
+        transactionData = await factoryService.prepareWithdrawPoolTransaction(
           poolAddress,
           amountNumber,
           userAddress
