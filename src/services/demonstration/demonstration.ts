@@ -65,7 +65,6 @@ async function getTokenPricesUSD(tokenSymbols: string[]): Promise<Map<string, nu
  * @returns Object containing forge leaderboard, worker leaderboard, and overall stats
  */
 export async function getLeaderboardData() {
-
   // Get worker leaderboard
   const workerLeaderboardData: {
     address: string
@@ -247,9 +246,10 @@ export async function getLeaderboardData() {
   })
 
   // Update token prices if we have new symbols
-  if (allTokenSymbols.size > tokenPrices.size) {
-    const newTokenPrices = await getTokenPricesUSD([...allTokenSymbols])
-    newTokenPrices.forEach((price, symbol) => tokenPrices.set(symbol, price))
+  const newSymbols = [...allTokenSymbols].filter(symbol => !tokenPrices.has(symbol));
+  if (newSymbols.length > 0) {
+    const newTokenPrices = await getTokenPricesUSD(newSymbols);
+    newTokenPrices.forEach((price, symbol) => tokenPrices.set(symbol, price));
   }
 
   // Add rank and USD calculations to forge leaderboard
