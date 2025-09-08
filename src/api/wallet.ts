@@ -15,7 +15,8 @@ import {
   connectWalletSchema,
   getBalanceSchema,
   getNicknameSchema,
-  setNicknameSchema
+  setNicknameSchema,
+  getTokenPriceSchema
 } from './schemas/wallet.ts'
 
 const router: Router = express.Router()
@@ -316,6 +317,57 @@ router.put(
     }
     await WalletConnectionModel.updateOne({ address }, { $set: { nickname } })
     res.status(200).json(successResponse(nickname))
+  })
+)
+
+/**
+ * @swagger
+ * /wallet/price:
+ *   get:
+ *     summary: Get token price in USD
+ *     description: Retrieves the current price of a token in USD from CoinGecko.
+ *     tags: [Wallet]
+ *     parameters:
+ *       - in: query
+ *         name: symbol
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The token symbol (e.g., "ETH", "USDC", "CLONES").
+ *     responses:
+ *       200:
+ *         description: Token price retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     symbol:
+ *                       type: string
+ *                     priceUSD:
+ *                       type: number
+ *       400:
+ *         description: Bad request - invalid token symbol.
+ *       500:
+ *         description: Internal server error.
+ */
+router.get(
+  '/price',
+  validateQuery(getTokenPriceSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { symbol } = req.query as { symbol: string }
+    
+    const priceUSD = await BlockchainService.getTokenPriceUSD(symbol)
+    
+    res.status(200).json(successResponse({ 
+      symbol: symbol.toUpperCase(),
+      priceUSD 
+    }))
   })
 )
 

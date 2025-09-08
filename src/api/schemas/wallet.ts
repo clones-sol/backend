@@ -109,3 +109,14 @@ export const setNicknameSchema: ValidationSchema = {
     rules: [ValidationRules.isString(), ValidationRules.maxLength(25)]
   }
 }
+
+export const getTokenPriceSchema: ValidationSchema = {
+  symbol: {
+    required: true,
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.matches(/^[A-Z0-9]{2,10}$/i, 'Symbol must be 2-10 alphanumeric characters')
+    ]
+  }
+}

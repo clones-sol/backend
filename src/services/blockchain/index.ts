@@ -30,6 +30,46 @@ class BlockchainService {
     }
   }
 
+  /** Fetch token price in USD from CoinGecko */
+  static async getTokenPriceUSD(tokenSymbol: string): Promise<number> {
+    const tokenMappings: { [key: string]: string } = {
+      'ETH': 'ethereum',
+      'WETH': 'ethereum',
+      'USDC': 'usd-coin',
+      'BTC': 'bitcoin'
+    }
+
+    const coinId = tokenMappings[tokenSymbol.toUpperCase()]
+
+    if (!coinId) {
+      throw new Error(`Token ${tokenSymbol} is not supported for price fetching`)
+    }
+
+    try {
+      const r = await fetch(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`
+      )
+
+      if (!r.ok) {
+        throw new Error(`CoinGecko API returned status ${r.status}`)
+      }
+
+      const data = await r.json()
+      const price = data?.[coinId]?.usd
+
+      if (price === undefined || price === null) {
+        throw new Error(`Price not available for ${tokenSymbol}`)
+      }
+
+      return price
+    } catch (e) {
+      if (e instanceof Error) {
+        throw new Error(`Failed to fetch ${tokenSymbol} price: ${e.message}`)
+      }
+      throw new Error(`Failed to fetch ${tokenSymbol} price: Unknown error`)
+    }
+  }
+
   /** Get ERC-20 balance for an address (adjusted for decimals) */
   async getTokenBalance(tokenAddress: string, walletAddress: string): Promise<number> {
     try {
