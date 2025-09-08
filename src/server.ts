@@ -8,7 +8,7 @@ import helmet from 'helmet'
 import mongoose from 'mongoose'
 import swaggerUi from 'swagger-ui-express'
 import swaggerSpec from '../swagger.ts'
-import { gymApi } from './api/demonstration.ts'
+import { demonstrationApi } from './api/demonstration.ts'
 import { forgeApi } from './api/forge/index.ts'
 import { referralApi } from './api/referral.ts'
 import { transactionApi } from './api/transaction.ts'
@@ -73,7 +73,7 @@ app.use('/api/screenshots', express.static(path.join(__dirname, 'public', 'scree
 app.use('/api/recordings', express.static(path.join(__dirname, 'public', 'recordings')))
 
 // API v1 endpoints
-app.use('/api/v1/gym', gymApi)
+app.use('/api/v1/demonstration', demonstrationApi)
 app.use('/api/v1/forge', forgeApi)
 app.use('/api/v1/wallet', walletApi)
 app.use('/api/v1/referral', referralApi)
