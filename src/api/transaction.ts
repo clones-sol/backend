@@ -10,7 +10,7 @@ import { validateBody, validateQuery } from '../middleware/validator.ts'
 import { TransactionSessionModel, WalletConnectionModel } from '../models/Models.ts'
 import { createFactoryService } from '../services/blockchain/factoryTransactionService.ts'
 import { createGasEstimationService } from '../services/blockchain/gasEstimationService.ts'
-import { getTokenContractAddress } from '../services/blockchain/tokens.ts'
+import { getTokenContractAddress, getTokenInfo } from '../services/blockchain/tokens.ts'
 import { createFactoryWithApps } from '../services/factory/factoryDatabaseService.ts'
 import { TransactionSessionService } from '../services/transactionSession.ts'
 import { ContentFilterService } from '../services/validation/contentFilter.ts'
@@ -857,6 +857,7 @@ router.post(
 
       let factory
       try {
+        const tokenInfo = getTokenInfo(tokenSymbol)
         factory = await createFactoryWithApps(
           poolAddress,
           creatorAddress,
@@ -866,7 +867,7 @@ router.post(
             type: 'ERC20',
             symbol: tokenSymbol,
             address: tokenAddress.toLowerCase(),
-            decimals: 18
+            decimals: tokenInfo.decimals
           },
           pricePerDemo
         )
