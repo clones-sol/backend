@@ -93,4 +93,4 @@ router.get(
   })
 )
 
-export { router as gymApi }
+export { router as demonstrationApi }
