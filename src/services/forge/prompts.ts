@@ -161,71 +161,76 @@ Remember to:
 - Ask for clarification if needed
 - When provided context, do a tool call where in the content you must say hi and ask for your task directly (e.g. "Hi! I need to install an ad-blocker in Chrome" rather than "Can you guide me on how to install an ad-blocker?")`
 export const APP_TASK_GENERATION_PROMPT = `
-You are designing natural task examples for various websites and apps to train AI assistants in helping users navigate digital services effectively.  
+You are designing natural task examples for desktop applications and web browsers that humans can demonstrate by screen recording to train AI computer use models in September 2025.  
+
+### **CRITICAL:** Focus on demonstrable computer interactions, not AI-to-AI tasks
+- Every task must be something a human can show by recording their screen
+- Tasks should involve clicking, typing, navigating interfaces, not abstract concepts
+- The goal is to teach AI models how to use computers like humans do
 
 ### **Instructions:**  
 - Given a list of computer skills, generate **apps and their associated tasks** that naturally incorporate those skills.  
-- Use **common digital services** unless a specific app/website is provided.  
-- Each app should have at least **5 tasks** representing **real-world user interactions**.  
-- Ensure **tasks align with the provided skills** rather than being random generic actions.
+- Focus on **2025's popular platforms and modern interfaces** that users actually interact with.  
+- Each app should have at least **5 tasks** representing **recordable desktop/browser interactions**.  
+- Ensure **tasks align with the provided skills** and can be filmed step-by-step.
 - IMPORTANT: Avoid using personal pronouns like "my" or "your" in task descriptions. Use neutral, general language.
 - Be as exhaustive as possible, enumerating every relevant app and task given the input skill list.
 
-### **Guidelines for Mapping Skills to Apps:**  
+### **Guidelines for Mapping Skills to Apps (Demonstrable 2025 Tasks):**  
 
-#### **1. Browser Management → Web Browsers (Chrome, Firefox, Edge, Safari, etc.)**
-✅ **Examples:** Google Chrome, Mozilla Firefox, Microsoft Edge  
+#### **1. AI Chat Interfaces → Modern AI Platforms (ChatGPT, Claude, Perplexity, etc.)**
+✅ **Examples:** ChatGPT web interface, Claude.ai, Perplexity.ai  
 ✅ **Tasks:**  
-- "Change the default search engine to DuckDuckGo in Chrome."  
-- "Restore recently closed tabs in Firefox."  
-- "Clear browsing history and cookies in Edge."  
-- "Save a webpage as a PDF in Safari."  
-- "Install an ad blocker extension in Chrome."  
+- "Navigate to ChatGPT Plus and create a new custom GPT using the interface."  
+- "Upload a document to Claude.ai and ask it to summarize the content."  
+- "Use Perplexity's search interface to research a topic with follow-up questions."  
+- "Share a ChatGPT conversation link and adjust sharing settings."  
+- "Switch between different AI models in the Claude interface dropdown."  
 
-#### **2. Office Suite → Office Productivity Apps (Microsoft Office, Google Docs, LibreOffice, etc.)**
-✅ **Examples:** Microsoft Word, Google Docs, LibreOffice Writer  
+#### **2. Social Commerce Interfaces → Shopping Platforms (TikTok Shop, Instagram, YouTube, etc.)**
+✅ **Examples:** TikTok Shop Creator Center, Instagram Business Suite, YouTube Studio  
 ✅ **Tasks:**  
-- "Format a document with proper headings in Word."  
-- "Convert a DOCX file to PDF in Google Docs."  
-- "Create a table with merged cells in LibreOffice Writer."  
-- "Set up automatic spell check in Word."  
-- "Insert a graph from an Excel sheet into a Google Docs file."  
+- "Navigate TikTok Shop Creator Center to add a new product listing."  
+- "Set up Instagram Shopping tags on a post using the mobile browser interface."  
+- "Create a YouTube video with product shelves using YouTube Studio."  
+- "Respond to customer messages in Instagram Business Suite inbox."  
+- "Analyze sales metrics in the TikTok Shop analytics dashboard."  
 
-#### **3. Email Client → Email Services (Gmail, Outlook, Thunderbird, etc.)**
-✅ **Examples:** Gmail, Microsoft Outlook, Mozilla Thunderbird  
+#### **3. Modern Design Tools → Browser-Based Creation (Figma, Canva, Midjourney, etc.)**
+✅ **Examples:** Figma web app, Canva browser interface, Midjourney Discord  
 ✅ **Tasks:**  
-- "Set up an email signature in Outlook."  
-- "Create a filter to move newsletters to a specific folder in Gmail."  
-- "Export emails from Thunderbird to a backup file."  
-- "Redirect incoming emails to a different address in Outlook."  
-- "Organize an inbox by creating custom labels in Gmail."  
+- "Create a new Figma project and design a mobile app mockup using components."  
+- "Use Canva's browser interface to design social media templates."  
+- "Generate images using Midjourney commands in the Discord web interface."  
+- "Export designs from Figma in multiple formats using the export panel."  
+- "Collaborate on a Canva design by sharing and adding comments."  
 
-#### **4. Image Editing → Image Editors (Photoshop, GIMP, Canva, etc.)**
-✅ **Examples:** Adobe Photoshop, GIMP, Canva  
+#### **4. Web3 Interfaces → DeFi Platforms (Uniswap, OpenSea, MetaMask, etc.)**
+✅ **Examples:** Uniswap web interface, OpenSea marketplace, MetaMask browser extension  
 ✅ **Tasks:**  
-- "Batch resize multiple images in Photoshop."  
-- "Convert a PNG file to JPG in GIMP."  
-- "Apply a vintage filter to a photo in Canva."  
-- "Enhance the resolution of a blurry image in Photoshop."  
-- "Remove the background from an image in GIMP."  
+- "Connect MetaMask wallet to Uniswap and swap tokens using the interface."  
+- "Browse and filter NFTs on OpenSea marketplace using search tools."  
+- "Add a new token to MetaMask wallet using the import function."  
+- "List an NFT for sale on OpenSea by navigating the selling interface."  
+- "Check transaction history in MetaMask browser extension popup."  
 
-#### **5. File Operations → File Management Apps (File Explorer, etc.)**
-✅ **Examples:** File Explorer, WinRAR  
+#### **5. Productivity Interfaces → Modern Work Tools (Notion, Linear, Obsidian, etc.)**
+✅ **Examples:** Notion web app, Linear interface, Obsidian desktop app  
 ✅ **Tasks:**  
-- "Compress files into a ZIP folder using File Explorer."  
-- "Recover a deleted file from the Recycle Bin."  
-- "Extract a RAR archive using WinRAR."  
-- "Batch rename multiple files in Windows Explorer."  
-- "Backup documents to an external hard drive."  
+- "Create a new Notion database and set up custom properties and views."  
+- "Use Linear's interface to create tickets and assign them to team members."  
+- "Build a knowledge graph in Obsidian by linking notes and using graph view."  
+- "Set up automated Notion templates and use them to create new pages."  
+- "Track project progress in Linear using the roadmap and cycle views."  
 
-#### **6. Code Editor → Development Environments (VS Code, Sublime Text, JetBrains, etc.)**
-✅ **Examples:** Visual Studio Code, Sublime Text, JetBrains IntelliJ IDEA  
+#### **6. Social Platform Interfaces → 2025 Networks (X, Threads, Discord, etc.)**
+✅ **Examples:** X.com (Twitter), Meta Threads, Discord desktop app  
 ✅ **Tasks:**  
-- "Install the Python extension in VS Code."  
-- "Set up a dark theme in Sublime Text."  
-- "Configure workspace settings in JetBrains IntelliJ."  
-- "Enable line numbers in Visual Studio Code."  
-- "Use keyboard shortcuts to quickly navigate files in Sublime Text."  
+- "Create and schedule posts on X.com using the composer interface."  
+- "Navigate Threads web interface to reply to posts and manage followers."  
+- "Set up a new Discord server using the server creation wizard."  
+- "Use X's analytics dashboard to review post performance metrics."  
+- "Moderate a Discord channel by managing roles and permissions."  
 
 ### **Output Format (JSON object):**  
 Output format should be a JSON object with the following structure:
@@ -247,20 +252,22 @@ Output format should be a JSON object with the following structure:
 }
 
 Example categories to consider:
-- Shopping
-- Travel
-- Delivery
-- Entertainment
-- Productivity
-- Local Services
-- Lifestyle
-- News & Media
+- Desktop Applications
+- Web Browsers
+- Social Media Platforms
+- E-commerce Interfaces
+- Design Tools
+- Productivity Software
+- Communication Apps
+- File Management
+- Entertainment Platforms
+- Educational Tools
 
-Focus on creating tasks that feel like genuine user requests, similar to (but avoid personal pronouns):
-- "Order dinner for a family of 4"
-- "Book a hotel in Paris for next weekend"
-- "Find running shoes under $100"
-- "Schedule a cleaning service for tomorrow"
+Focus on creating tasks that feel like genuine user requests for recordable desktop interactions, similar to (but avoid personal pronouns):
+- "Navigate to ChatGPT website and create a new custom GPT"
+- "Use TikTok Shop interface to add product details and pricing"
+- "Open MetaMask browser extension and connect to a DeFi website"
+- "Create a design mockup in Figma using the component library"
 
 <SKILLS>
 {skill list}
