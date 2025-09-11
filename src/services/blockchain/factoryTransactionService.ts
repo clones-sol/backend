@@ -174,8 +174,8 @@ class FactoryService {
       tokenContract.allowance(creator, this.config.factoryAddress)
     ])
 
-    const sufficientBalance = balance.gte(amountWei)
-    const sufficientAllowance = allowance.gte(amountWei)
+    const sufficientBalance = balance >= amountWei
+    const sufficientAllowance = allowance >= amountWei
 
     return {
       contractAddress: this.config.factoryAddress,
@@ -383,6 +383,7 @@ class FactoryService {
     account?: string
   ): Promise<{
     tokenAddress: string
+    tokenSymbol: string
     tokenBalance: string
     alreadyClaimed?: string
     factory: string
@@ -452,10 +453,28 @@ class FactoryService {
       requiredAmount: string
     }
   }> {
+    // Validate pool address format
+    if (!ethers.isAddress(poolAddress)) {
+      throw ApiError.badRequest(`Invalid pool address: ${poolAddress}`)
+    }
+
     const vault = new ethers.Contract(poolAddress, VAULT_ABI, this.provider)
 
-    // Check if withdrawer is the creator
-    const creator = await vault.creator()
+    // Check if pool contract exists and has creator function
+    let creator: string
+    try {
+      const code = await this.provider.getCode(poolAddress)
+      if (code === '0x') {
+        throw ApiError.badRequest(`Pool contract not found at address: ${poolAddress}`)
+      }
+      creator = await vault.creator()
+    } catch (error) {
+      if (error instanceof ApiError) throw error
+      throw ApiError.badRequest(
+        `Failed to validate pool contract: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+
     const isCreator = creator.toLowerCase() === withdrawerAddress.toLowerCase()
 
     if (!isCreator) {
@@ -473,7 +492,7 @@ class FactoryService {
     // Check pool balance
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider)
     const balance = await tokenContract.balanceOf(poolAddress)
-    const sufficientBalance = balance.gte(amountWei)
+    const sufficientBalance = balance >= amountWei
 
     return {
       contractAddress: poolAddress,

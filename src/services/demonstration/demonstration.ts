@@ -91,7 +91,7 @@ export async function getLeaderboardData() {
       $group: {
         _id: {
           address: '$address',
-          factoryId: '$meta.factoryId',
+          factoryId: '$meta.quest.pool_id',
           tokenAddress: '$onChainReward.tokenAddress'
         },
         tasks: { $sum: 1 },
@@ -208,12 +208,12 @@ export async function getLeaderboardData() {
       $match: {
         status: 'completed',
         reward: { $exists: true, $gt: 0 },
-        'meta.factoryId': { $exists: true }
+        'meta.quest.pool_id': { $exists: true }
       }
     },
     {
       $group: {
-        _id: '$meta.factoryId',
+        _id: '$meta.quest.pool_id',
         tasks: { $sum: 1 },
         payout: { $sum: '$reward' }
       }

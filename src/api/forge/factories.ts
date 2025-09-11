@@ -12,7 +12,7 @@ import { FactoryModel } from '../../models/Factory.ts'
 import { createFactoryService } from '../../services/blockchain/factoryTransactionService.ts'
 import BlockchainService from '../../services/blockchain/index.ts'
 import { getTokenContractAddress, supportedTokens } from '../../services/blockchain/tokens.ts'
-import { getFactoryDemonstrationCount } from '../../utils/factoryStats.ts'
+import { getFactoryDemonstrationCount, getFactoriesDemonstrationCounts } from '../../utils/factoryStats.ts'
 import {
   type Factory,
   type FactorySearchCriteria,
@@ -218,8 +218,17 @@ router.post(
 
     const total = await FactoryModel.countDocuments(query)
 
+    // Add demonstration counts to factories
+    const factoryIds = factories.map(f => (f as any)._id.toString())
+    const demonstrationCounts = await getFactoriesDemonstrationCounts(factoryIds)
+    
+    const factoriesWithDemonstrations = factories.map(factory => ({
+      ...factory,
+      demonstrations: demonstrationCounts.get((factory as any)._id.toString()) ?? 0
+    }))
+
     const result: FactorySearchResult = {
-      factories,
+      factories: factoriesWithDemonstrations,
       total,
       limit,
       offset,
@@ -282,8 +291,17 @@ router.get(
 
     const total = await FactoryModel.countDocuments(query)
 
+    // Add demonstration counts to factories
+    const factoryIds = factories.map(f => (f as any)._id.toString())
+    const demonstrationCounts = await getFactoriesDemonstrationCounts(factoryIds)
+    
+    const factoriesWithDemonstrations = factories.map(factory => ({
+      ...factory,
+      demonstrations: demonstrationCounts.get((factory as any)._id.toString()) ?? 0
+    }))
+
     const result: FactorySearchResult = {
-      factories,
+      factories: factoriesWithDemonstrations,
       total,
       limit,
       offset,
@@ -339,6 +357,55 @@ router.get(
         demonstrations
       })
     )
+  })
+)
+
+/**
+ * @swagger
+ * /forge/factories/pools/{poolAddress}/balance:
+ *   get:
+ *     summary: Get pool balance
+ *     tags: [Factories]
+ *     parameters:
+ *       - in: path
+ *         name: poolAddress
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Pool address
+ *     responses:
+ *       '200':
+ *         description: Pool balance
+ *       '400':
+ *         description: Invalid pool address
+ *       '500':
+ *         description: Internal server error
+ */
+router.get(
+  '/pools/:poolAddress/balance',
+  validateParams({
+    poolAddress: { required: true, rules: [ValidationRules.isString()] }
+  }),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { poolAddress } = req.params
+
+    try {
+      const factoryService = createFactoryService()
+      const poolInfo = await factoryService.getPoolInfo(poolAddress)
+
+      res.json(
+        successResponse({
+          balance: poolInfo.tokenBalance,
+          tokenAddress: poolInfo.tokenAddress,
+          tokenSymbol: poolInfo.tokenSymbol
+        })
+      )
+    } catch (error) {
+      console.error('Failed to get pool balance:', error)
+      throw ApiError.internalError(
+        `Failed to get pool balance: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
   })
 )
 

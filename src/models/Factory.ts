@@ -110,7 +110,7 @@ const factoryAppSchema = new Schema<FactoryApp>(
     categories: [
       {
         type: String,
-        maxlength: 50
+        maxlength: 500
       }
     ],
     tasks: [factoryTaskSchema]
@@ -163,7 +163,7 @@ const factorySchema = new Schema<IFactoryDocument>(
     skills: [
       {
         type: String,
-        maxlength: 50,
+        maxlength: 500,
         index: true
       }
     ],

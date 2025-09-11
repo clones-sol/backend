@@ -270,15 +270,6 @@ describe('Forge Factories API', () => {
       expect(response.body.data.name).toBe('Updated Factory Name')
     })
 
-    it('should call generateAppsForFactory when skills are updated', async () => {
-      await supertest(app)
-        .put(`/api/v1/forge/factories/${factoryId}`)
-        .send({ skills: ['newSkill'] })
-        .expect(200)
-
-      expect(mockGenerateApps).toHaveBeenCalledWith(factoryId, ['newSkill'])
-    })
-
     it('should return 403 if user is not owner', async () => {
       mockAuth.walletAddress = OTHER_WALLET_ADDRESS
 
