@@ -13,6 +13,14 @@ class BlockchainService {
 
   constructor(rpcUrl: string) {
     this.provider = new ethers.JsonRpcProvider(rpcUrl)
+
+    // Handle unhandled RPC connection errors in test environment
+    if (process.env.NODE_ENV === 'test') {
+      this.provider.on('error', (error) => {
+        // Silently handle RPC errors in test environment to prevent unhandled rejections
+        console.debug('RPC error suppressed in test environment:', error.message)
+      })
+    }
   }
 
   /** Fetch ETH price in USD from CoinGecko */

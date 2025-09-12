@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
 import express, { type Request, type Response, type Router } from 'express'
-import rateLimit from 'express-rate-limit'
 import mongoose from 'mongoose'
+import { authRateLimit } from '../middleware/rateLimiter.ts'
 import { v4 as uuidv4 } from 'uuid'
 import ClaimRouterABI from '../contracts/abis/ClaimRouter.json' with { type: 'json' }
 import { errorHandlerAsync } from '../middleware/errorHandler.ts'
@@ -62,16 +62,6 @@ interface TransactionParams {
 const router: Router = express.Router()
 
 // Rate limiting for transaction endpoints
-const transactionRateLimit = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 10, // 10 transactions per minute per IP
-  message: {
-    error: 'Too many transaction requests. Please wait before trying again.',
-    code: 'RATE_LIMIT_EXCEEDED'
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-})
 
 const CLAIM_ROUTER_ABI = ClaimRouterABI
 
@@ -135,7 +125,7 @@ const CONTRACT_ADDRESSES = {
  */
 router.post(
   '/validate-tx',
-  transactionRateLimit,
+  authRateLimit,
   validateBody(validateTransactionSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { sessionToken, userAddress, type, creator, token, amount, poolAddress, timestamp } =
@@ -454,7 +444,7 @@ router.post(
  */
 router.post(
   '/prepare-tx',
-  transactionRateLimit,
+  authRateLimit,
   validateBody(prepareTransactionSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { type, sessionToken, creator, token, amount, poolAddress } = req.body
@@ -752,7 +742,7 @@ router.post(
  */
 router.post(
   '/finalize-factory',
-  transactionRateLimit,
+  authRateLimit,
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { txHash, sessionId, metadata } = req.body
 

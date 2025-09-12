@@ -1,7 +1,7 @@
 // This file is run by Vitest before any tests are executed.
 
 process.env.DB_URI = 'mongodb://admin:admin@mongodb:27017/dev?authSource=admin';
-process.env.RPC_URL = 'http://mock-rpc-url-for-tests.com';
+process.env.RPC_URL = 'http://localhost:8545'; // Use localhost to avoid external API rate limits
 process.env.OPENAI_API_KEY = 'mock-openai-api-key';
 process.env.REWARD_POOL_FACTORY_ADDRESS = '0xMockFactoryAddress';
 process.env.CLAIM_ROUTER_ADDRESS = '0xMockClaimRouter';

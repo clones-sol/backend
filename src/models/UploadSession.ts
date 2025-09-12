@@ -4,9 +4,10 @@ import type { UploadChunk, UploadSession } from '../types/factory.ts'
 // Interface for the Mongoose document, omitting 'id' from the base UploadSession to avoid conflict with Mongoose's 'id'
 export interface IUploadSessionDocument
   extends Document,
-    Omit<UploadSession, 'id' | 'receivedChunks'> {
+  Omit<UploadSession, 'id' | 'receivedChunks'> {
   _id: string // Mongoose uses _id
   receivedChunks: Map<string, UploadChunk> // Mongoose Map requires string keys
+  updatedAt: Date
 }
 
 const chunkSchema = new Schema<UploadChunk>(
@@ -30,11 +31,13 @@ const uploadSessionSchema = new Schema<IUploadSessionDocument>(
       default: new Map()
     },
     metadata: { type: Schema.Types.Mixed, required: true },
-    tempDir: { type: String, required: true }
+    tempDir: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
   },
   {
     _id: false, // We are providing our own _id
-    timestamps: true, // This will add createdAt and updatedAt timestamps
+    timestamps: false, // Manually define createdAt with TTL for better control
     toJSON: {
       virtuals: true,
       // Transform the output to return 'id' instead of '_id'
@@ -52,7 +55,7 @@ uploadSessionSchema.virtual('id').get(function () {
   return this._id
 })
 
-// Create a TTL index on the `createdAt` field to automatically delete sessions after 24 hours (86400 seconds)
+// TTL index on the `createdAt` field to automatically delete sessions after 24 hours (86400 seconds)
 uploadSessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 })
 
 export const UploadSessionModel = model<IUploadSessionDocument>(

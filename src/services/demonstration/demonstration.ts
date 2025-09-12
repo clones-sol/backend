@@ -147,7 +147,7 @@ export async function getLeaderboardData() {
     },
     {
       $lookup: {
-        from: 'wallet_connections',
+        from: 'walletconnections',
         localField: '_id',
         foreignField: 'address',
         as: 'walletConnection'

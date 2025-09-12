@@ -4,8 +4,6 @@ services:
   mongodb:
     image: mongo:8.0.4
     container_name: mongodb
-    networks:
-      - node-network
     ports:
       - "27017:27017"
     environment:
@@ -18,8 +16,6 @@ services:
   localstack:
     image: localstack/localstack
     container_name: localstack
-    networks:
-      - node-network
     ports:
       - "4566:4566"
     environment:
@@ -35,8 +31,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis
-    networks:
-      - node-network
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
@@ -51,8 +45,6 @@ services:
     container_name: backend
     working_dir: /app
     command: npm run dev
-    networks:
-      - node-network
     tty: true
     ports:
       - "8001:8001"
@@ -81,8 +73,9 @@ services:
       - "deb.debian.org:host-gateway"
 
 networks:
-  node-network:
-    driver: bridge
+  default:
+    external: true
+    name: clones-network
 
 volumes:
   mongodb_data:
