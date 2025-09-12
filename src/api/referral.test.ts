@@ -15,6 +15,13 @@ vi.mock('../services/redis.ts', () => {
   }
 })
 
+// Mock rate limiter middleware to prevent 429 errors during testing
+vi.mock('../middleware/rateLimiter.ts', () => ({
+  authRateLimit: (_req: any, _res: any, next: any) => next(),
+  generalRateLimit: (_req: any, _res: any, next: any) => next(),
+  strictRateLimit: (_req: any, _res: any, next: any) => next()
+}))
+
 vi.mock('../services/blockchain/index.ts', () => ({
   default: class MockBlockchainService {}
 }))

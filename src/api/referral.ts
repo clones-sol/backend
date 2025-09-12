@@ -1,6 +1,6 @@
 import express, { type Request, type Response } from 'express'
-import rateLimit from 'express-rate-limit'
 import { requireAdminAuth, requireWalletAddress } from '../middleware/auth.ts'
+import { authRateLimit, generalRateLimit, strictRateLimit } from '../middleware/rateLimiter.ts'
 import { errorHandlerAsync } from '../middleware/errorHandler.ts'
 import { ApiError, successResponse } from '../middleware/types/errors.ts'
 import type { AuthenticatedRequest } from '../middleware/types/request.ts'
@@ -18,28 +18,6 @@ const router = express.Router()
 
 const isEvmAddressRule = ValidationRules.isEVMAddress()
 
-// Rate limiters
-const generalRateLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'Too many requests from this IP, please try again later.'
-})
-const sensitiveRateLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'Too many sensitive operations from this IP, please try again later.'
-})
-const adminRateLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'Too many admin operations from this IP, please try again later.'
-})
 
 /**
  * @swagger
@@ -105,7 +83,7 @@ const adminRateLimiter = rateLimit({
  */
 router.post(
   '/generate-code',
-  sensitiveRateLimiter,
+  strictRateLimit,
   requireWalletAddress,
   validateBody(generateCodeSchema),
   errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
@@ -176,7 +154,7 @@ router.post(
  */
 router.get(
   '/code/:walletAddress',
-  generalRateLimiter,
+  generalRateLimit,
   validateParams({
     walletAddress: { required: true, rules: [isEvmAddressRule] }
   }),
@@ -262,7 +240,7 @@ router.get(
  */
 router.post(
   '/apply-referrer-code',
-  sensitiveRateLimiter,
+  strictRateLimit,
   validateBody(applyReferrerCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { referreeAddress, referralCode } = req.body
@@ -323,7 +301,7 @@ router.post(
  */
 router.get(
   '/stats/:walletAddress',
-  generalRateLimiter,
+  generalRateLimit,
   validateParams({
     walletAddress: { required: true, rules: [isEvmAddressRule] }
   }),
@@ -377,7 +355,7 @@ router.get(
  */
 router.get(
   '/referred/:walletAddress',
-  generalRateLimiter,
+  generalRateLimit,
   validateParams({
     walletAddress: { required: true, rules: [isEvmAddressRule] }
   }),
@@ -432,7 +410,7 @@ router.get(
  */
 router.get(
   '/referrer/:walletAddress',
-  generalRateLimiter,
+  generalRateLimit,
   validateParams({
     walletAddress: { required: true, rules: [isEvmAddressRule] }
   }),
@@ -477,7 +455,7 @@ router.get(
  */
 router.post(
   '/cleanup/expired-codes',
-  adminRateLimiter,
+  authRateLimit,
   requireAdminAuth,
   errorHandlerAsync(async (_req: Request, res: Response) => {
     const cleanedCount = await referralService.cleanupExpiredCodes()
@@ -521,7 +499,7 @@ router.post(
  */
 router.get(
   '/cleanup/stats',
-  adminRateLimiter,
+  authRateLimit,
   requireAdminAuth,
   errorHandlerAsync(async (_req: Request, res: Response) => {
     const stats = await referralService.getCleanupStats()
@@ -580,7 +558,7 @@ router.get(
  */
 router.post(
   '/cleanup/extend-expiration',
-  adminRateLimiter,
+  authRateLimit,
   validateBody(extendExpirationSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress, extensionDays } = req.body
@@ -642,7 +620,7 @@ router.post(
  */
 router.post(
   '/cleanup/regenerate-code',
-  adminRateLimiter,
+  authRateLimit,
   validateBody(regenerateCodeSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { walletAddress } = req.body
