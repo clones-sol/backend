@@ -120,3 +120,15 @@ export const getTokenPriceSchema: ValidationSchema = {
     ]
   }
 }
+
+export const establishSessionFromTransactionSchema: ValidationSchema = {
+  sessionId: {
+    required: true,
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.minLength(1),
+      ValidationRules.maxLength(100)
+    ]
+  }
+}

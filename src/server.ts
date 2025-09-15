@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from 'cors'
+import cookieParser from 'cookie-parser'
 import express from 'express'
 import helmet from 'helmet'
 import mongoose from 'mongoose'
@@ -18,6 +19,8 @@ import { errorHandler } from './middleware/errorHandler.ts'
 import { connectToDatabase } from './services/database.ts'
 import { connectToRedis, disconnectFromRedis } from './services/redis.ts'
 import { initializeWebSocketServer } from './services/websockets/socketManager.ts'
+import { configureSecureSession } from './middleware/secureSession.ts'
+import { generalRateLimit } from './middleware/rateLimiter.ts'
 
 const app = express()
 const port = parseInt(process.env.PORT || '8001', 10)
@@ -30,9 +33,24 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // Middlewares
-app.use(express.json({ limit: '15gb' }))
-app.use(express.urlencoded({ extended: true }))
-app.use(helmet())
+app.use(express.json({ limit: '10mb' })) // Reasonable limit for JSON payloads
+app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+app.use(cookieParser()) // Parse cookies for CSRF protection
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true
+  }
+}))
 app.use(
   cors({
     origin: [
@@ -58,8 +76,11 @@ app.use(
       'x-forwarded-for',
       'x-wallet-address',
       'x-connect-token',
-      'content-length'
+      'x-csrf-token',
+      'content-length',
+      'x-real-ip'
     ],
+    credentials: true, // Enable credentials for sessions
     exposedHeaders: ['auth-token', 'x-forwarded-for']
   })
 )
@@ -67,6 +88,12 @@ app.use(
 app.disable('x-powered-by')
 // TODO(reddwarf03): The trust proxy setting 'loopback, linklocal, uniquelocal' may be too permissive for production environments. Consider using a more specific configuration based on your actual proxy setup.
 app.set('trust proxy', 'loopback, linklocal, uniquelocal')
+
+// Apply general rate limiting to all routes
+app.use(generalRateLimit)
+
+// Configure secure session with CSRF protection
+configureSecureSession(app)
 
 // Serve static files from public directory
 app.use('/api/screenshots', express.static(path.join(__dirname, 'public', 'screenshots')))
