@@ -1,9 +1,11 @@
 import { ethers } from 'ethers'
 import express, { type Request, type Response, type Router } from 'express'
 import { requireWalletAddress } from '../middleware/auth.ts'
+import { createSessionFromToken, requireSecureSession, getCSRFConfig } from '../middleware/secureSession.ts'
 import { errorHandlerAsync } from '../middleware/errorHandler.ts'
 import { ApiError, successResponse } from '../middleware/types/errors.ts'
 import { validateBody, validateParams, validateQuery } from '../middleware/validator.ts'
+import { authRateLimit, strictRateLimit } from '../middleware/rateLimiter.ts'
 import { WalletConnectionModel } from '../models/Models.ts'
 import BlockchainService from '../services/blockchain/index.ts'
 import { getTokenContractAddress } from '../services/blockchain/tokens.ts'
@@ -13,6 +15,7 @@ import {
   addressParamSchema,
   checkConnectionSchema,
   connectWalletSchema,
+  establishSessionFromTransactionSchema,
   getBalanceSchema,
   getNicknameSchema,
   setNicknameSchema,
@@ -115,6 +118,7 @@ function normalizeSignatureToBytes(sig: string): string {
  */
 router.post(
   '/connect',
+  authRateLimit, // Rate limit authentication attempts
   validateBody(connectWalletSchema),
   errorHandlerAsync(
     async (req: Request<any, Record<string, never>, ConnectBody>, res: Response) => {
@@ -140,7 +144,8 @@ router.post(
       res.status(200).json(
         successResponse({
           referralCreated,
-          referralCode: req.body.referralCode || null
+          referralCode: req.body.referralCode || null,
+          sessionEstablished: !!(req as any).session?.authenticated
         })
       )
     }
@@ -203,6 +208,69 @@ router.get(
           address: connection?.address,
           referralCode,
           referrer
+        })
+      )
+    }
+  )
+)
+
+/**
+ * @swagger
+ * /wallet/verify:
+ *   get:
+ *     summary: Verify token and get wallet info
+ *     description: Validates a session token and returns associated wallet address if valid.
+ *     tags: [Wallet]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The session token to verify.
+ *     responses:
+ *       200:
+ *         description: Token verified successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     address:
+ *                       type: string
+ *                     valid:
+ *                       type: boolean
+ *       404:
+ *         description: Token not found or expired.
+ */
+router.get(
+  '/verify',
+  validateQuery(checkConnectionSchema),
+  errorHandlerAsync(
+    async (
+      req: Request<any, Record<string, never>, Record<string, never>, { token?: string }>,
+      res: Response
+    ) => {
+      const token = req.query.token
+
+      const connection = await WalletConnectionModel.findOne({ token })
+
+      if (!connection) {
+        return res.status(404).json({
+          success: false,
+          error: 'Token not found or expired'
+        })
+      }
+
+      res.status(200).json(
+        successResponse({
+          address: connection.address,
+          valid: true
         })
       )
     }
@@ -361,14 +429,334 @@ router.get(
   validateQuery(getTokenPriceSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { symbol } = req.query as { symbol: string }
-    
+
     const priceUSD = await BlockchainService.getTokenPriceUSD(symbol)
-    
-    res.status(200).json(successResponse({ 
+
+    res.status(200).json(successResponse({
       symbol: symbol.toUpperCase(),
-      priceUSD 
+      priceUSD
     }))
   })
 )
+
+/**
+ * @swagger
+ * /wallet/csrf-token:
+ *   get:
+ *     summary: Get CSRF token
+ *     description: Returns a CSRF token for form submissions
+ *     tags: [Wallet]
+ *     responses:
+ *       200:
+ *         description: CSRF token retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     csrfToken:
+ *                       type: string
+ */
+router.get('/csrf-token', (req: any, res: any) => {
+  const config = getCSRFConfig();
+  if (!config) {
+    return res.status(500).json({
+      success: false,
+      error: 'CSRF configuration not initialized'
+    });
+  }
+
+  // Ensure cookies object exists
+  if (!req.cookies) {
+    req.cookies = {};
+  }
+
+  try {
+    // Generate CSRF token - handle first-time generation gracefully
+    const token = config.generateToken(req, res);
+
+    res.json(successResponse({
+      csrfToken: token
+    }));
+  } catch (error) {
+    // If token generation fails (usually on first call), try once more
+    try {
+      const token = config.generateToken(req, res);
+      res.json(successResponse({
+        csrfToken: token
+      }));
+    } catch (secondError) {
+      console.error('CSRF token generation failed after retry');
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate CSRF token'
+      });
+    }
+  }
+});
+
+/**
+ * @swagger
+ * /wallet/session-status:
+ *   get:
+ *     summary: Check secure session status
+ *     description: Returns current session authentication status with CSRF token
+ *     tags: [Wallet]
+ *     responses:
+ *       200:
+ *         description: Session status retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     authenticated:
+ *                       type: boolean
+ *                     address:
+ *                       type: string
+ *                     csrfToken:
+ *                       type: string
+ */
+router.get('/session-status', (req: any, res: any) => {
+  const authenticated = !!(req.session?.authenticated && req.session?.walletAddress);
+
+  // Generate CSRF token using the global config
+  let csrfToken = null;
+  try {
+    const config = getCSRFConfig();
+    if (config) {
+      // Ensure cookies object exists
+      if (!req.cookies) {
+        req.cookies = {};
+      }
+      csrfToken = config.generateToken(req, res);
+    }
+  } catch (error) {
+    console.warn('CSRF token generation failed in session-status');
+  }
+
+  res.json(successResponse({
+    authenticated,
+    address: authenticated ? req.session.walletAddress : null,
+    csrfToken
+  }));
+});
+
+/**
+ * @swagger
+ * /wallet/establish-session:
+ *   post:
+ *     summary: Establish secure session from token
+ *     description: Converts a wallet token into a secure HTTP session
+ *     tags: [Wallet]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Session established successfully
+ *       401:
+ *         description: Invalid token
+ */
+router.post(
+  '/establish-session',
+  authRateLimit, // Rate limit session establishment
+  createSessionFromToken(), // Create secure session from token
+  errorHandlerAsync(async (req: any, res: any) => {
+    // Session creation is handled by middleware
+    // Generate CSRF token for new session
+    let csrfToken = null;
+    try {
+      const config = getCSRFConfig();
+      if (config) {
+        csrfToken = config.generateToken(req, res);
+      }
+    } catch (error) {
+      console.warn('CSRF token generation failed in establish-session');
+    }
+
+    res.json(successResponse({
+      address: req.session?.walletAddress || 'Unknown',
+      authenticated: req.session?.authenticated || false,
+      csrfToken
+    }));
+  })
+);
+
+/**
+ * @swagger
+ * /wallet/logout:
+ *   post:
+ *     summary: Logout and destroy session
+ *     description: Destroys the secure HTTP session
+ *     tags: [Wallet]
+ *     responses:
+ *       200:
+ *         description: Logged out successfully
+ */
+router.post('/logout', (req: any, res: any) => {
+  req.session.destroy(() => {
+    res.json(successResponse({
+      message: 'Logged out successfully'
+    }));
+  });
+});
+
+/**
+ * @swagger
+ * /wallet/establish-session-from-transaction:
+ *   post:
+ *     summary: Establish secure session from transaction session ID
+ *     description: Converts a transaction sessionId into a secure HTTP session for website access
+ *     tags: [Wallet]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - sessionId
+ *             properties:
+ *               sessionId:
+ *                 type: string
+ *                 description: Transaction session ID from URL parameter
+ *     responses:
+ *       200:
+ *         description: Session established successfully
+ *       404:
+ *         description: Transaction session not found
+ *       400:
+ *         description: Invalid session state
+ */
+router.post(
+  '/establish-session-from-transaction',
+  authRateLimit,
+  validateBody(establishSessionFromTransactionSchema),
+  errorHandlerAsync(async (req: any, res: any) => {
+    const { sessionId } = req.body;
+
+
+    try {
+      // Get transaction session details
+      const { TransactionSessionService } = await import('../services/transactionSession.ts');
+      const sessionDetails = await TransactionSessionService.validateSessionForWebsite(sessionId);
+
+      // Get the wallet token from the session
+      const sessionToken = sessionDetails.sessionToken;
+
+      // Verify the token exists in wallet_connections and get wallet address
+      const { WalletConnectionModel } = await import('../models/Models.ts');
+      const connection = await WalletConnectionModel.findOne({ token: sessionToken });
+
+      if (!connection?.address) {
+        return res.status(404).json({
+          success: false,
+          error: 'Invalid session token or wallet connection not found'
+        });
+      }
+
+      // Create secure session (similar to establish-session endpoint)
+      if (process.env.NODE_ENV === 'test') {
+        req.session.walletAddress = connection.address;
+        req.session.authToken = sessionToken;
+        req.session.authenticated = true;
+        req.session.lastActivity = Date.now();
+      } else {
+        // Regenerate session to prevent session fixation attacks
+        await new Promise<void>((resolve, reject) => {
+          req.session.regenerate((err: any) => {
+            if (err) {
+              console.error('Session regeneration failed:', err);
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+
+        // Create secure session with new session ID
+        req.session.walletAddress = connection.address;
+        req.session.authToken = sessionToken;
+        req.session.authenticated = true;
+        req.session.lastActivity = Date.now();
+
+        await new Promise((resolve, reject) => {
+          req.session.save((err: any) => {
+            if (err) {
+              console.error('Session save failed:', err);
+              reject(err);
+            } else {
+              resolve(undefined);
+            }
+          });
+        });
+      }
+
+      // Generate CSRF token for new session
+      let csrfToken = null;
+      try {
+        const config = getCSRFConfig();
+        if (config) {
+          csrfToken = config.generateToken(req, res);
+        }
+      } catch (error) {
+        console.warn('CSRF token generation failed in establish-session-from-transaction');
+      }
+
+      res.json(successResponse({
+        authenticated: true,
+        address: connection.address,
+        csrfToken,
+        transactionDetails: {
+          sessionId: sessionDetails.sessionId,
+          transactionType: sessionDetails.transactionType,
+          expiresAt: sessionDetails.expiresAt
+        }
+      }));
+
+    } catch (error) {
+      console.error('Failed to establish session from transaction:', error);
+
+      if (error instanceof Error) {
+        if (error.message.includes('not found')) {
+          return res.status(404).json({
+            success: false,
+            error: 'Transaction session not found or expired'
+          });
+        }
+        if (error.message.includes('not pending')) {
+          return res.status(400).json({
+            success: false,
+            error: 'Transaction session is not in pending state'
+          });
+        }
+      }
+
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to establish session from transaction'
+      });
+    }
+  })
+);
 
 export { router as walletApi }

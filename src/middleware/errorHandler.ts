@@ -82,6 +82,26 @@ export const errorHandler = (
     } catch (e) {
       console.error('Failed to extract cast error details:', e)
     }
+  } else if ((err as any).code === 'EBADCSRFTOKEN' || err.message?.includes('invalid csrf token') || err.message?.includes('forbidden')) {
+    // Handle CSRF token errors from csrf-csrf library
+    statusCode = 403
+    errorCode = ErrorCode.FORBIDDEN
+    message = 'CSRF token validation failed'
+  } else if ((err as any).statusCode && (err as any).statusCode === 403) {
+    // Handle other 403 errors (including CSRF)
+    statusCode = 403
+    errorCode = ErrorCode.FORBIDDEN
+    message = err.message || 'Access forbidden'
+  } else if (err.name === 'ForbiddenError' || (err as any).status === 403) {
+    // Handle http-errors ForbiddenError from csrf-csrf library
+    statusCode = 403
+    errorCode = ErrorCode.FORBIDDEN
+    message = 'CSRF token validation failed'
+  } else if (err.name === 'PayloadTooLargeError' || (err as any).status === 413 || err.message?.includes('request entity too large')) {
+    // Handle payload size limit errors from express.json() and express.urlencoded()
+    statusCode = 413
+    errorCode = ErrorCode.BAD_REQUEST
+    message = 'Request payload too large'
   }
 
   // Return standardized error response

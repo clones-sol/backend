@@ -84,7 +84,11 @@ The backend is configured using an `.env` file. Copy the example file to get sta
 cp .env.example .env
 ```
 
-Next, open the `.env` file and provide the necessary values. Refer to the [Environment Setup section](https://docs.page/clones-ai/desktop/projects/backend#environment-setup) in the documentation for detailed instructions.
+Next, open the `.env` file and provide the necessary values. Key variables include:
+
+- `SESSION_SECRET`: A secure random string (minimum 32 characters) used for session encryption. In production, this should be stored as a secure secret (e.g., Fly.io secrets).
+
+Refer to the [Environment Setup section](https://docs.page/clones-ai/desktop/projects/backend#environment-setup) in the documentation for detailed instructions on all environment variables.
 
 ### 3. Run with Docker
 
