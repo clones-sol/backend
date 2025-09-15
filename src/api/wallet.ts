@@ -470,35 +470,34 @@ router.get('/csrf-token', (req: any, res: any) => {
       error: 'CSRF configuration not initialized'
     });
   }
+  handleCSRFTokenRequest(req, res, config);
+});
 
+// Helper function to generate CSRF token with one retry and send response
+function handleCSRFTokenRequest(req: any, res: any, config: any) {
   // Ensure cookies object exists
   if (!req.cookies) {
     req.cookies = {};
   }
-
+  let token;
   try {
-    // Generate CSRF token - handle first-time generation gracefully
-    const token = config.generateToken(req, res);
-
-    res.json(successResponse({
-      csrfToken: token
-    }));
+    token = config.generateToken(req, res);
   } catch (error) {
     // If token generation fails (usually on first call), try once more
     try {
-      const token = config.generateToken(req, res);
-      res.json(successResponse({
-        csrfToken: token
-      }));
+      token = config.generateToken(req, res);
     } catch (secondError) {
       console.error('CSRF token generation failed after retry');
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Failed to generate CSRF token'
       });
     }
   }
-});
+  res.json(successResponse({
+    csrfToken: token
+  }));
+}
 
 /**
  * @swagger
