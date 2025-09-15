@@ -4,7 +4,7 @@ import { doubleCsrf } from 'csrf-csrf';
 import { Application } from 'express';
 
 // Global CSRF configuration - single source of truth
-let csrfConfig: any;
+let csrfConfig: ReturnType<typeof doubleCsrf>;
 
 /**
  * Get the global CSRF config - for use in other modules
@@ -328,7 +328,7 @@ export function getCsrfToken() {
     }
 
     try {
-      const token = csrfConfig.generateToken(req);
+      const token = csrfConfig.generateToken(req, res);
 
       res.json({
         success: true,
