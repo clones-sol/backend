@@ -37,17 +37,17 @@ app.use((req: any, res: any, next: any) => {
   // Mock session object
   req.session = req.session || {}
   req.cookies = req.cookies || {}
-  
+
   // Handle session status endpoint
   if (req.path === '/api/v1/wallet/session-status' && req.method === 'GET') {
     const authenticated = !!(req.session?.authenticated && req.session?.walletAddress)
-    
+
     // Set security headers manually since we're bypassing normal middleware
     res.setHeader('x-content-type-options', 'nosniff')
     res.setHeader('x-frame-options', 'SAMEORIGIN')
     res.setHeader('x-xss-protection', '0')
     res.setHeader('content-security-policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: https:")
-    
+
     return res.json({
       success: true,
       data: {
@@ -57,7 +57,7 @@ app.use((req: any, res: any, next: any) => {
       }
     })
   }
-  
+
   // Handle logout endpoint
   if (req.path === '/api/v1/wallet/logout' && req.method === 'POST') {
     req.session = {}
@@ -68,16 +68,16 @@ app.use((req: any, res: any, next: any) => {
       }
     })
   }
-  
+
   // Store establish session request info for later processing after CSRF check
   if (req.path === '/api/v1/wallet/establish-session' && req.method === 'POST') {
     req._establishSessionRequest = true
   }
-  
+
   // Handle wallet connection endpoint with proper validation
   if (req.path === '/api/v1/wallet/connection' && req.method === 'GET') {
     const token = req.query.token
-    
+
     // Validate token format
     if (!token || typeof token !== 'string') {
       return res.status(400).json({
@@ -85,9 +85,9 @@ app.use((req: any, res: any, next: any) => {
         error: 'Token is required and must be a string'
       })
     }
-    
+
     const trimmedToken = token.trim()
-    
+
     // Check for empty or whitespace-only tokens
     if (trimmedToken.length === 0) {
       return res.status(400).json({
@@ -95,7 +95,7 @@ app.use((req: any, res: any, next: any) => {
         error: 'Token cannot be empty or whitespace only'
       })
     }
-    
+
     // Check for tokens with spaces or newlines
     if (token.includes(' ') || token.includes('\n') || token.includes('\t')) {
       return res.status(400).json({
@@ -103,19 +103,27 @@ app.use((req: any, res: any, next: any) => {
         error: 'Token cannot contain spaces or newlines'
       })
     }
-    
+
     if (token.length < 8 || token.length > 256) {
       return res.status(400).json({
         success: false,
         error: 'Token length must be between 8 and 256 characters'
       })
     }
-    
-    // Sanitize malicious content (remove HTML tags and dangerous strings)
-    const sanitizedToken = token.replace(/<[^>]*>/g, '').replace(/malicious/gi, '').trim()
-    
+
+    // Validate token format: allow only alphanumeric and limited safe symbols
+    const tokenFormat = /^[A-Za-z0-9_\-]+$/;
+    if (!tokenFormat.test(token)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token contains invalid characters'
+      })
+    }
+
     // Return connection status (would normally query database)
-    if (sanitizedToken === 'security-test-token-12345') {
+    if (token === 'security-test-token-12345') {
+
+
       return res.json({
         success: true,
         data: {
@@ -137,7 +145,7 @@ app.use((req: any, res: any, next: any) => {
       })
     }
   }
-  
+
   next()
 })
 
@@ -157,7 +165,7 @@ app.use((req: any, res: any, next: any) => {
   // CSRF protection for POST requests (except OPTIONS, GET, HEAD)
   if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
     const token = req.headers['x-csrf-token']
-    
+
     // Block requests without CSRF token or with invalid token
     if (!token) {
       return res.status(403).json({
@@ -165,7 +173,7 @@ app.use((req: any, res: any, next: any) => {
         error: 'CSRF token missing'
       })
     }
-    
+
     if (token === 'invalid-token') {
       return res.status(403).json({
         success: false,
@@ -173,7 +181,7 @@ app.use((req: any, res: any, next: any) => {
       })
     }
   }
-  
+
   next()
 })
 
@@ -201,10 +209,10 @@ app.use((req: any, res: any, next: any) => {
       req.session.walletAddress = '0x742d35Cc6A4A5F3d9C7a9F9F9A9F9F9F9F9F9F9F'
       req.session.authToken = token
       req.walletAddress = '0x742d35Cc6A4A5F3d9C7a9F9F9A9F9F9F9F9F9F9F'
-      
+
       // Set session cookie
       res.setHeader('Set-Cookie', 'clones.sid=mock-session-id; HttpOnly; Path=/')
-      
+
       return res.json({
         success: true,
         data: {
@@ -254,7 +262,7 @@ app.use(
         'http://127.0.0.1:3001',
         ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
       ]
-      
+
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true)
       } else {

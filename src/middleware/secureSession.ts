@@ -112,22 +112,26 @@ export function configureSecureSession(app: Application): void {
   app.use((req, res, next) => {
     // Add debugging for CSRF issues
     if (process.env.NODE_ENV !== 'production') {
-      console.log('CSRF Debug:', {
+      // Only log sensitive info if CSRF_DEBUG is explicitly enabled
+      const debugInfo: any = {
         method: req.method,
         url: req.url,
-        isExempt: csrfExceptions.includes(req.path),
-        cookies: req.cookies,
-        session: req.session ? {
+        isExempt: csrfExceptions.includes(req.path)
+      };
+      if (process.env.CSRF_DEBUG === 'true') {
+        debugInfo.cookies = req.cookies;
+        debugInfo.session = req.session ? {
           authenticated: req.session.authenticated,
           walletAddress: req.session.walletAddress
-        } : null,
-        headers: {
+        } : null;
+        debugInfo.headers = {
           'x-csrf-token': req.headers['x-csrf-token'],
           'cookie': req.headers.cookie,
           'user-agent': req.headers['user-agent'],
           'referer': req.headers['referer']
-        }
-      });
+        };
+      }
+      console.log('CSRF Debug:', debugInfo);
     }
 
     // Check if this endpoint should skip CSRF protection
@@ -138,7 +142,9 @@ export function configureSecureSession(app: Application): void {
       req.path.match(/^\/api\/v1\/wallet\/balance\/0x[a-fA-F0-9]{40}/);
 
     if (shouldSkipCSRF) {
-      console.log(`CSRF exemption applied for bootstrap endpoint: ${req.path}`);
+      if (process.env.CSRF_DEBUG === 'true') {
+        console.log(`CSRF exemption applied for bootstrap endpoint: ${req.path}`);
+      }
       return next(); // Skip CSRF protection for bootstrap endpoints
     }
 
