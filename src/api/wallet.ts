@@ -482,11 +482,11 @@ function handleCSRFTokenRequest(req: any, res: any, config: any) {
   let token;
   try {
     token = config.generateToken(req, res);
-  } catch (error) {
+  } catch (firstError) {
     // If token generation fails (usually on first call), try once more
     try {
       token = config.generateToken(req, res);
-    } catch (secondError) {
+    } catch (retryError) {
       console.error('CSRF token generation failed after retry');
       return res.status(500).json({
         success: false,
@@ -497,6 +497,27 @@ function handleCSRFTokenRequest(req: any, res: any, config: any) {
   res.json(successResponse({
     csrfToken: token
   }));
+}
+
+// Helper function to generate CSRF token with error handling
+function generateCSRFToken(req: any, res: any): string | null {
+  try {
+    const config = getCSRFConfig();
+    if (!config) {
+      console.warn('CSRF configuration not available');
+      return null;
+    }
+
+    // Ensure cookies object exists
+    if (!req.cookies) {
+      req.cookies = {};
+    }
+
+    return config.generateToken(req, res);
+  } catch (error) {
+    console.warn('CSRF token generation failed:', error);
+    return null;
+  }
 }
 
 /**
@@ -529,20 +550,8 @@ function handleCSRFTokenRequest(req: any, res: any, config: any) {
 router.get('/session-status', (req: any, res: any) => {
   const authenticated = !!(req.session?.authenticated && req.session?.walletAddress);
 
-  // Generate CSRF token using the global config
-  let csrfToken = null;
-  try {
-    const config = getCSRFConfig();
-    if (config) {
-      // Ensure cookies object exists
-      if (!req.cookies) {
-        req.cookies = {};
-      }
-      csrfToken = config.generateToken(req, res);
-    }
-  } catch (error) {
-    console.warn('CSRF token generation failed in session-status');
-  }
+  // Generate CSRF token using the helper function
+  const csrfToken = generateCSRFToken(req, res);
 
   res.json(successResponse({
     authenticated,
@@ -582,15 +591,7 @@ router.post(
   errorHandlerAsync(async (req: any, res: any) => {
     // Session creation is handled by middleware
     // Generate CSRF token for new session
-    let csrfToken = null;
-    try {
-      const config = getCSRFConfig();
-      if (config) {
-        csrfToken = config.generateToken(req, res);
-      }
-    } catch (error) {
-      console.warn('CSRF token generation failed in establish-session');
-    }
+    const csrfToken = generateCSRFToken(req, res);
 
     res.json(successResponse({
       address: req.session?.walletAddress || 'Unknown',
@@ -711,15 +712,7 @@ router.post(
       }
 
       // Generate CSRF token for new session
-      let csrfToken = null;
-      try {
-        const config = getCSRFConfig();
-        if (config) {
-          csrfToken = config.generateToken(req, res);
-        }
-      } catch (error) {
-        console.warn('CSRF token generation failed in establish-session-from-transaction');
-      }
+      const csrfToken = generateCSRFToken(req, res);
 
       res.json(successResponse({
         authenticated: true,

@@ -122,8 +122,6 @@ app.use((req: any, res: any, next: any) => {
 
     // Return connection status (would normally query database)
     if (token === 'security-test-token-12345') {
-
-
       return res.json({
         success: true,
         data: {
