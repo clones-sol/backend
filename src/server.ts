@@ -109,6 +109,11 @@ app.use('/api/v1/transaction', transactionApi)
 // Swagger API documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
 
+// Health check endpoint for Fly.io
+app.get('/', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
 // Not found handler
 app.use((_req, res, _next) => {
   res.status(404).json({ message: 'Endpoint not found' })
@@ -119,12 +124,19 @@ app.use(errorHandler)
 
 catchErrors()
 
-// Start server
-if (process.env.NODE_ENV !== 'test') {
+// Start server unless running unit tests locally (skip when NODE_ENV=test without Fly.io)
+const shouldStartServer = process.env.FLY_APP_NAME || process.env.NODE_ENV !== 'test'
+if (shouldStartServer) {
   const host = '0.0.0.0'
-  httpServer.listen(port, host, async () => {
+  console.log(`Starting server on ${host}:${port}`)
+  httpServer.listen(port, host, () => {
     console.log(`Clones backend listening on port ${port}`)
-    await connectToDatabase().catch(console.dir)
+
+    // Connect to database asynchronously - don't block server startup
+    connectToDatabase()
+      .then(() => console.log('Database connected successfully'))
+      .catch(error => console.error('Database connection failed:', error))
+
     connectToRedis()
 
     // Initialize WebSocket server after Redis connection

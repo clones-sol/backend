@@ -4,7 +4,7 @@
 #
 
 app = 'clones-backend-prod'
-primary_region = 'cdg'
+primary_region = 'lax'
 
 [env]
   NODE_ENV = "production"
@@ -22,6 +22,3 @@ primary_region = 'cdg'
   cpu_kind = 'shared'
   cpus = 1
 
-[mounts]
-  source="uploads"
-  destination="/app/uploads"

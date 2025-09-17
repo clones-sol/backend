@@ -21,7 +21,7 @@ export class ObjectStorageService {
 
     this.client = new S3Client({
       endpoint,
-      forcePathStyle: true,
+      forcePathStyle: endpoint.includes('localstack'),
       credentials: { accessKeyId, secretAccessKey },
       region
     })

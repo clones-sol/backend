@@ -1,4 +1,8 @@
-FROM node:lts
+FROM node:20.17.0-alpine
+
+# Create app user for security (even in dev)
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S backend -u 1001
 
 # Set development environment
 ENV NODE_ENV="development"
@@ -11,44 +15,19 @@ RUN chmod +x clones-quality-agent
 COPY . .
 
 # Install packages needed to build node modules
-RUN apt-get update -qq && \
-  apt-get install --no-install-recommends -y \
-  build-essential \
-  node-gyp \
-  pkg-config \
-  python-is-python3 \
+RUN apk add --no-cache \
+  build-base \
+  python3 \
+  make \
+  g++ \
   ffmpeg \
-  libavcodec-dev \
-  libavformat-dev \
-  libavutil-dev \
-  libswscale-dev
+  ffmpeg-dev
 
-# RUN apt-get update && \
-#   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-#   build-essential \
-#   python3 \
-#   ffmpeg \
-#   libcairo2-dev \
-#   libjpeg62-turbo-dev \
-#   libpng-dev \
-#   libossp-uuid-dev \
-#   libavcodec-dev \
-#   libavformat-dev \
-#   libavutil-dev \
-#   libswscale-dev \
-#   freerdp2-dev \
-#   libpango1.0-dev \
-#   libssh2-1-dev \
-#   libtelnet-dev \
-#   libwebsockets-dev \
-#   libpulse-dev \
-#   libssl-dev \
-#   libvorbis-dev \
-#   libwebp-dev && \
-#   apt-get autoremove -y
+# Change ownership and install dependencies
+RUN chown -R backend:nodejs /app
 
+USER backend
 
 RUN npm install
-# RUN npm install --global tsx
 
 EXPOSE 8001

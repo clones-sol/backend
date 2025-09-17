@@ -1,4 +1,5 @@
-# Production
+# LOCAL DEVELOPMENT ONLY
+# For test/prod deployment, use: fly deploy --config fly.test.toml or fly.prod.toml
 services:
   # Development Services
   mongodb:
@@ -14,7 +15,7 @@ services:
       - mongodb_data:/data/db
 
   localstack:
-    image: localstack/localstack
+    image: localstack/localstack:3.8.1
     container_name: localstack
     ports:
       - "4566:4566"
@@ -22,7 +23,7 @@ services:
       # - DEBUG=1
       - SERVICES=s3
       - TRIES=30
-      - BUCKET_NAMES=training-gym
+      - BUCKET_NAMES=${STORAGE_BUCKET:-training-gym}
     volumes:
       - ./localstack/init:/etc/localstack/init/ready.d
       - ./localstack:/var/lib/localstack
@@ -53,17 +54,27 @@ services:
       # training data output
       - ./public/screenshots:/app/backend/public/screenshots
     environment:
-      - DB_URI=${DB_URI}
-      - RPC_URL=https://sepolia.base.org
-      - STORAGE_ACCESS_KEY=test
-      - STORAGE_SECRET_KEY=test
-      - STORAGE_ENDPOINT=http://localstack:4566
-      - STORAGE_REGION=us-east-1
-      - STORAGE_BUCKET=training-gym
-      - CQA_PATH=/app/clones-quality-agent
+      # Database
+      - DB_URI=${DB_URI:-mongodb://admin:admin@mongodb:27017/dev?authSource=admin}
+      
+      # Blockchain
+      - RPC_URL=${RPC_URL:-https://sepolia.base.org}
+      - GRAPH_ENDPOINT=${GRAPH_ENDPOINT}
+      
+      # Object Storage (LocalStack for local dev)
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY:-test}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-test}
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT:-http://localstack:4566}
+      - STORAGE_REGION=${STORAGE_REGION:-us-east-1}
+      - STORAGE_BUCKET=${STORAGE_BUCKET:-training-gym}
+      
+      # External APIs
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - REDIS_URL=redis://redis:6379
+      
+      # Internal services
+      - CQA_PATH=/app/clones-quality-agent
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     depends_on:
       - mongodb
       - localstack
