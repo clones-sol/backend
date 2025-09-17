@@ -80,19 +80,13 @@ const options: swaggerJsdoc.Options = {
             },
         ],
     },
-    // Path to the API docs files
+    // Path to the API docs files - use source files since esbuild strips comments
     apis: [
-        path.join(__dirname, './src/api/referral.ts'),
-        path.join(__dirname, './src/api/wallet.ts'),
-        path.join(__dirname, './src/api/forge/apps.ts'),
-        path.join(__dirname, './src/api/forge/factories.ts'),
-        path.join(__dirname, './src/api/forge/gas.ts'),
-        path.join(__dirname, './src/api/forge/metadata.ts'),
-        path.join(__dirname, './src/api/forge/search.ts'),
-        path.join(__dirname, './src/api/forge/submissions.ts'),
-        path.join(__dirname, './src/api/forge/upload.ts'),
-        path.join(__dirname, './src/api/transaction.ts'),
-        path.join(__dirname, './src/api/demonstration.ts'),
+        // On Fly.io, source files are copied to /app/src after build
+        // Locally, they're relative to __dirname
+        process.env.FLY_APP_NAME
+            ? path.join(process.cwd(), 'src/api/**/*.ts')
+            : path.join(__dirname, './src/api/**/*.ts'),
     ],
 };
 

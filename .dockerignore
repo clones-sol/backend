@@ -1,2 +1,33 @@
 node_modules
 build
+
+# Environment files
+.env*
+!.env.example
+
+# Git and version control
+.git
+.gitignore
+
+# Documentation
+README.md
+ARCHITECTURE.md
+CLAUDE.md
+*.md
+
+# Development files
+.husky
+tests
+coverage
+*.log
+*.logs
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+
+# Temporary files
+tmp
+temp

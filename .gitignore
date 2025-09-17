@@ -62,3 +62,6 @@ localstack/logs
 localstack/tmp
 
 erc20-demo
+
+.serena
+CLAUDE.md

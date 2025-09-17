@@ -1,0 +1,37 @@
+# fly.toml app configuration file for the prod environment
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+app = "clones-mongodb-prod"
+  primary_region = "lax"
+
+  [build]
+    image = "mongo:7.0"
+
+  [env]
+    MONGO_INITDB_ROOT_USERNAME = "admin"
+    MONGO_INITDB_DATABASE = "clones-prod"
+
+  [[mounts]]
+    source = "mongodb_data"
+    destination = "/data/db"
+    initial_size = "10gb"
+    auto_extend_size_increment = "1GB"
+    auto_extend_size_limit = "5GB"
+    auto_extend_size_threshold = 90
+
+  [processes]
+  app = "mongod --ipv6 --bind_ip 0.0.0.0,:: --port 27017 --auth --dbpath /data/db --logappend"
+
+  [[vm]]
+    memory = "1gb"
+    cpu_kind = "shared"
+    cpus = 1
+
+  [[services]]
+    internal_port = 27017
+    protocol = "tcp"
+    processes = [ "app" ]
+
+    [[services.ports]]
+    port = 27017

@@ -7,10 +7,19 @@ let redisSubscriber: RedisClient
 const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379'
 
 const connectToRedis = () => {
+  // Skip Redis connection in test environment without REDIS_URL
+  if (process.env.NODE_ENV === 'test' && !process.env.REDIS_URL) {
+    console.log('[Redis] Skipping Redis connection in test environment')
+    return
+  }
+
   // It is recommended to use two separate connections for publishing and subscribing.
   // The subscriber connection can only perform subscription-related commands.
   if (!redisPublisher) {
-    redisPublisher = new Redis(redisUrl, { maxRetriesPerRequest: null })
+    redisPublisher = new Redis(redisUrl, { 
+      maxRetriesPerRequest: 3,
+      lazyConnect: true
+    })
     redisPublisher.on('connect', () => {
       console.log('[Redis] Publisher connected.')
     })
@@ -20,7 +29,10 @@ const connectToRedis = () => {
   }
 
   if (!redisSubscriber) {
-    redisSubscriber = new Redis(redisUrl, { maxRetriesPerRequest: null })
+    redisSubscriber = new Redis(redisUrl, { 
+      maxRetriesPerRequest: 3,
+      lazyConnect: true
+    })
     redisSubscriber.on('connect', () => {
       console.log('[Redis] Subscriber connected.')
     })

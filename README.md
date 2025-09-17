@@ -1,6 +1,6 @@
-# Backend Server
+# Clones Backend Server
 
-This is the backend server for the Clones project. It manages the database, handles API requests, and powers real-time agent operations.
+Node.js/Express backend server for the Clones AI platform that handles demo environments, forge operations, blockchain interactions, and real-time agent communications.
 
 ## Security Architecture
 
@@ -19,61 +19,104 @@ Backend-specific details are available in the **[Backend Setup Guide](https://do
 
 ## Development
 
-### Code Quality
-
-The project uses [Biome](https://biomejs.dev/) for linting, formatting, and code quality enforcement.
-
-#### Available Scripts
+### Available Scripts
 
 ```bash
-# Check code quality (lint + format)
-npm run lint
+# Development
+npm run dev              # Start development server with nodemon
+npm run build           # Build with esbuild
+npm start              # Start production server
 
-# Auto-fix issues
-npm run lint:fix
+# Type Checking
+npm run tsc            # TypeScript compilation
+npm run typecheck      # Type checking without emit
+npm run typecov        # Type coverage analysis
 
-# Apply unsafe fixes (use with caution)
-npm run lint:unsafe-fix
+# Testing
+npm test               # Run all tests
+npm run test:watch     # Watch mode
+npm run test:ui        # UI interface
+npm run test:json      # JSON reporter
 
-# Format code only
-npm run format
-
-# Check formatting without fixing
-npm run format:check
-
-# Run full quality check (typecheck + lint + tests)
-npm run quality
-
-# Auto-fix quality issues
-npm run quality:fix
+# Code Quality
+npm run lint           # Check with Biome
+npm run lint:fix       # Auto-fix issues
+npm run lint:unsafe-fix # Apply unsafe fixes
+npm run format         # Format code
+npm run format:check   # Check formatting
+npm run quality        # Full check (typecheck + lint + tests)
+npm run quality:fix    # Auto-fix quality issues
 ```
 
-#### Pre-commit Hooks
+### Code Quality & Testing
 
-Code quality checks run automatically on every commit via `lint-staged` and `husky`. This ensures consistent code quality across the project.
+- **Linter/Formatter**: [Biome](https://biomejs.dev/) with strict TypeScript rules
+- **Testing**: Vitest with MongoDB Memory Server and ioredis-mock
+- **Pre-commit**: Husky + lint-staged for automated quality checks
+- **Type Safety**: Strict TypeScript with type coverage reporting
 
-#### Configuration
+## Architecture Overview
 
-Biome configuration is in `biome.json` with strict rules for:
-- TypeScript type safety (no `any` allowed)
-- Import organization
-- Cognitive complexity limits
-- Security best practices
+### Core Stack
+- **Runtime**: Node.js 20.17.0 (Alpine) with ES modules
+- **Framework**: Express 5.x with TypeScript
+- **Database**: MongoDB 8.0.4 with Mongoose ODM
+- **Cache/Sessions**: Redis 7 with ioredis client
+- **Build**: esbuild for fast bundling
+- **Real-time**: WebSocket server for agent operations
+- **Security**: Helmet, CSRF protection, secure sessions
 
-## Quick Start
+### Key Dependencies
+- **AI/LLM**: Anthropic SDK, OpenAI SDK
+- **Blockchain**: ethers.js v6, OpenZeppelin contracts
+- **Storage**: AWS SDK S3 (LocalStack/Tigris)
+- **Validation**: Zod schemas, express-validator
+- **WebSocket**: ws library for real-time communication
 
-This guide covers the essential steps to get the backend running locally for development.
+### Deployment Environments
+
+#### 🏠 Local Development
+- **Infrastructure**: Docker Compose stack
+- **Services**: MongoDB 8.0.4, Redis 7, LocalStack S3, Backend dev server
+- **Storage**: LocalStack S3 simulation (`training-gym` bucket)
+- **Configuration**: `.env` file with local defaults
+- **Command**: `docker compose up -d`
+
+#### 🧪 Test Environment  
+- **Backend**: Fly.io app (`clones-backend-test`) - 1GB RAM, shared CPU
+- **Database**: Fly.io MongoDB (`clones-mongodb-test`) - 512MB RAM
+- **Storage**: Tigris (`clones-backend-test` bucket)
+- **Configuration**: Fly.io secrets
+- **Commands**: 
+  ```bash
+  fly deploy --config fly.test.toml
+  fly deploy --config fly.mongodb.test.toml
+  ```
+
+#### 🚀 Production Environment
+- **Backend**: Fly.io app (`clones-backend-prod`) - 1GB RAM, shared CPU
+- **Database**: Fly.io MongoDB (`clones-mongodb-prod`) - 1GB RAM
+- **Storage**: Tigris (`clones-backend-prod` bucket)  
+- **Configuration**: Fly.io secrets
+- **Commands**:
+  ```bash
+  fly deploy --config fly.prod.toml
+  fly deploy --config fly.mongodb.prod.toml
+  ```
+
+## Quick Start (Local Development)
 
 ### Prerequisites
 
-- [Docker](https://www.docker.com/get-started) installed on your system.
-- [Node.js](https://nodejs.org/) for development (if running outside Docker)
+- [Docker](https://www.docker.com/get-started) and Docker Compose
+- [Node.js 20+](https://nodejs.org/) for local development
+- [Fly CLI](https://fly.io/docs/hands-on/install-flyctl/) for deployments
 
 ### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/clones-ai/clones-backend.git
-cd backend
+cd clones-backend
 ```
 
 ### 2. Configure Environment
@@ -87,25 +130,68 @@ cp .env.example .env
 Next, open the `.env` file and provide the necessary values. Key variables include:
 
 - `SESSION_SECRET`: A secure random string (minimum 32 characters) used for session encryption. In production, this should be stored as a secure secret (e.g., Fly.io secrets).
+- **Storage Configuration**: Object storage credentials for file uploads and training data (see Object Storage section below).
 
 Refer to the [Environment Setup section](https://docs.page/clones-ai/desktop/projects/backend#environment-setup) in the documentation for detailed instructions on all environment variables.
 
-### 3. Run with Docker
+### 3. Start Development Stack
 
-The entire stack is managed with Docker Compose.
+The entire development environment runs in Docker:
 
 ```bash
-# Start all services in the background
+# Create the docker network first (if it doesn't exist)
+docker network create clones-network 2>/dev/null || true
+
+# Start all services (MongoDB, Redis, LocalStack S3, Backend)
 docker compose up -d
 
 # View backend logs
-docker compose logs -f backend
+docker compose logs -f backend-dev
 
-# Execute a command inside the backend container (e.g., a script)
-docker exec backend npm run <command>
+# Run commands inside backend container
+docker exec backend npm test
+docker exec backend npm run typecheck
 
-# Stop and remove all containers, networks, and volumes
+# Stop all services
 docker compose down
+```
+
+### 4. Verify Setup
+
+Once running, verify the setup:
+- **Backend API**: http://localhost:8001/api/v1/forge/metadata/health
+- **MongoDB**: localhost:27017 (admin/admin)
+- **Redis**: localhost:6379
+- **LocalStack S3**: localhost:4566
+
+## Production Deployment
+
+### Test Environment
+```bash
+# Deploy backend and database
+fly deploy --config fly.test.toml
+fly deploy --config fly.mongodb.test.toml
+
+# Set secrets (first time setup)
+fly secrets set SESSION_SECRET=xxx STORAGE_ACCESS_KEY=xxx -a clones-backend-test
+fly secrets set MONGO_INITDB_ROOT_PASSWORD=xxx -a clones-mongodb-test
+
+# Monitor deployment
+fly logs -a clones-backend-test
+```
+
+### Production Environment  
+```bash
+# Deploy backend and database
+fly deploy --config fly.prod.toml
+fly deploy --config fly.mongodb.prod.toml
+
+# Set production secrets
+fly secrets set SESSION_SECRET=xxx STORAGE_ACCESS_KEY=xxx -a clones-backend-prod
+fly secrets set MONGO_INITDB_ROOT_PASSWORD=xxx -a clones-mongodb-prod
+
+# Monitor production
+fly logs -a clones-backend-prod
 ```
 
 ## Transaction API
@@ -146,3 +232,47 @@ Validates transaction parameters before execution.
 - **createAndFundFactory**: ~280k gas (vs ~600k for separate transactions)
 - **fundPool**: ~120k gas
 - **claimRewards**: ~150k gas per claim
+
+## Object Storage
+
+The backend supports both local development (LocalStack) and production (Tigris) object storage for file uploads and training data.
+
+### Storage Configuration
+
+#### Local Development (LocalStack S3)
+The Docker Compose stack includes LocalStack for S3-compatible storage:
+
+```env
+STORAGE_ACCESS_KEY=test
+STORAGE_SECRET_KEY=test
+STORAGE_ENDPOINT=http://localstack:4566
+STORAGE_REGION=us-east-1
+STORAGE_BUCKET=training-gym
+```
+
+#### Production (Tigris via Fly.io)
+Test and production use Tigris object storage:
+
+```env
+STORAGE_ACCESS_KEY=your_tigris_access_key
+STORAGE_SECRET_KEY=your_tigris_secret_key
+STORAGE_ENDPOINT=https://fly.storage.dev
+STORAGE_REGION=auto
+STORAGE_BUCKET=clones-backend-test  # or clones-backend-prod
+```
+
+#### Setup Instructions
+
+1. **Create Tigris Buckets**: `clones-backend-test`, `clones-backend-prod`
+2. **Generate Access Keys**: Environment-specific with bucket permissions
+3. **Configure Fly Secrets**:
+   ```bash
+   fly secrets set STORAGE_ACCESS_KEY=xxx STORAGE_SECRET_KEY=xxx -a clones-backend-test
+   ```
+
+#### Technical Details
+
+- **Path Style**: Auto-configured (LocalStack: true, Tigris: false)
+- **File Organization**: Feature-based paths (`training-data/`, `uploads/`, `forge/`, `gym/`)
+- **Security**: Private buckets with IAM-controlled access
+- **Integration**: AWS SDK S3 client with environment-specific endpoints
