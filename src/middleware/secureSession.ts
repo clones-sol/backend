@@ -131,7 +131,7 @@ export function configureSecureSession(app: Application): void {
           'referer': req.headers['referer']
         };
       }
-      console.log('CSRF Debug:', debugInfo);
+      // console.log('CSRF Debug:', debugInfo);
     }
 
     // Check if this endpoint should skip CSRF protection

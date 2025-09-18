@@ -60,9 +60,10 @@ app.use(
       'http://localhost:3000',
       'http://localhost:5173',
       'http://localhost:8001',
-      'http://18.157.122.205',
       'https://clones-ai.com',
-      'https://clones-website-test.fly.dev',
+      'https://api-staging.clones-ai.com/',
+      'https://api.clones-ai.com/',
+      'https://clones-site-test.fly.dev',
       'https://clones-backend-test.fly.dev'
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],

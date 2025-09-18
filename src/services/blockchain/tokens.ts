@@ -28,7 +28,7 @@ export const supportedTokens: TokenConfig = {
     contractAddress: {
       development: '0x15eB86c7E54B350bf936d916Df33AEF697202E29',
       test: '0x15eB86c7E54B350bf936d916Df33AEF697202E29',
-      production: '0xToBeAdded'
+      production: '0xaadd98ad4660008c917c6fe7286bc54b2eef894d'
     }
   },
   WETH: {
