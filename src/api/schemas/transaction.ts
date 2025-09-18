@@ -5,7 +5,7 @@ export const validateTransactionSchema: ValidationSchema = {
     required: true,
     rules: [
       ValidationRules.isString(),
-      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundFactory', 'withdrawPool'])
+      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundPool', 'withdrawPool'])
     ]
   },
   sessionToken: {
@@ -43,7 +43,7 @@ export const estimateGasSchema: ValidationSchema = {
     required: true,
     rules: [
       ValidationRules.isString(),
-      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundFactory', 'withdrawPool'])
+      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundPool', 'withdrawPool'])
     ]
   },
   creator: {
@@ -69,7 +69,7 @@ export const prepareTransactionSchema: ValidationSchema = {
     required: true,
     rules: [
       ValidationRules.isString(),
-      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundFactory', 'withdrawPool'])
+      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundPool', 'withdrawPool'])
     ]
   },
   sessionToken: {

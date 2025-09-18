@@ -168,9 +168,9 @@ router.post(
         break
       }
 
-      case 'createAndFundFactory': {
+      case 'createAndFundPool': {
         if (!token || !amount) {
-          throw ApiError.badRequest('Token and amount required for createAndFundFactory')
+          throw ApiError.badRequest('Token and amount required for createAndFundPool')
         }
         // Validate token is supported
         const tokenAddressForFund = getTokenContractAddress(token)
@@ -228,7 +228,7 @@ router.post(
 
     // Additional security validation - ensure creator matches session user for creator-required operations
     if (
-      (type === 'createFactory' || type === 'createAndFundFactory' || type === 'fundPool' || type === 'withdrawPool') &&
+      (type === 'createFactory' || type === 'createAndFundPool' || type === 'fundPool' || type === 'withdrawPool') &&
       creator
     ) {
       if (creator.toLowerCase() !== authenticatedAddress.toLowerCase()) {
@@ -328,7 +328,7 @@ router.post(
           )
           break
 
-        case 'createAndFundFactory':
+        case 'createAndFundPool':
           gasLimit = BigInt(280000) // Combined operation - harder to estimate without actual execution
           break
 
@@ -478,9 +478,9 @@ router.post(
         break
       }
 
-      case 'createAndFundFactory': {
+      case 'createAndFundPool': {
         if (!token || !creator || !amount) {
-          throw ApiError.badRequest('Token, creator, and amount required for createAndFundFactory')
+          throw ApiError.badRequest('Token, creator, and amount required for createAndFundPool')
         }
 
         const tokenAddressForFund = getTokenContractAddress(token)
@@ -551,7 +551,7 @@ router.post(
     // Create a transaction session for polling
     const sessionId = uuidv4()
 
-    // For fundPool and createAndFundFactory, include token address for allowance checks
+    // For fundPool and createAndFundPool, include token address for allowance checks
     const transactionParams: TransactionParams = {
       type,
       creator,
@@ -559,7 +559,7 @@ router.post(
       amount,
       poolAddress
     }
-    if ((type === 'fundPool' || type === 'createAndFundFactory') && token) {
+    if ((type === 'fundPool' || type === 'createAndFundPool') && token) {
       const tokenContractAddress = getTokenContractAddress(token)
       transactionParams.tokenAddress = tokenContractAddress
     }

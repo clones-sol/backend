@@ -76,7 +76,7 @@ app.use(express.json())
 app.use('/api/v1/transaction', transactionApi)
 app.use(errorHandler)
 
-describe('Transaction API - createAndFundFactory', () => {
+describe('Transaction API - createAndFundPool', () => {
   const mockSessionToken = 'test-session-token'
   const mockCreatorAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
   const mockTokenSymbol = 'TEST'
@@ -117,9 +117,9 @@ describe('Transaction API - createAndFundFactory', () => {
     mockCreateFactoryService.mockReturnValue(mockFactoryService)
   })
 
-  it('should validate createAndFundFactory transaction type', async () => {
+  it('should validate createAndFundPool transaction type', async () => {
     const response = await request(app).post('/api/v1/transaction/validate-tx').send({
-      type: 'createAndFundFactory',
+      type: 'createAndFundPool',
       sessionToken: mockSessionToken,
       userAddress: mockCreatorAddress,
       creator: mockCreatorAddress,
@@ -129,11 +129,11 @@ describe('Transaction API - createAndFundFactory', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.body.data.type).toBe('createAndFundFactory')
+    expect(response.body.data.type).toBe('createAndFundPool')
     expect(response.body.data.valid).toBe(true)
   })
 
-  it('should estimate gas for createAndFundFactory', async () => {
+  it('should estimate gas for createAndFundPool', async () => {
     // Mock ethers provider for gas estimation
     vi.doMock('ethers', () => ({
       ethers: {
@@ -149,7 +149,7 @@ describe('Transaction API - createAndFundFactory', () => {
     }))
 
     const response = await request(app).post('/api/v1/transaction/estimate-gas').send({
-      type: 'createAndFundFactory',
+      type: 'createAndFundPool',
       creator: mockCreatorAddress,
       token: mockTokenSymbol,
       amount: mockAmount
@@ -159,9 +159,9 @@ describe('Transaction API - createAndFundFactory', () => {
     expect(response.body.data.gasLimit).toBe('280000')
   })
 
-  it('should prepare createAndFundFactory transaction', async () => {
+  it('should prepare createAndFundPool transaction', async () => {
     const response = await request(app).post('/api/v1/transaction/prepare-tx').send({
-      type: 'createAndFundFactory',
+      type: 'createAndFundPool',
       sessionToken: mockSessionToken,
       userAddress: mockCreatorAddress,
       creator: mockCreatorAddress,
@@ -171,12 +171,12 @@ describe('Transaction API - createAndFundFactory', () => {
 
     expect(response.status).toBe(200)
     expect(response.body.data.functionName).toBe('createAndFundPool')
-    expect(response.body.data.type).toBe('createAndFundFactory')
+    expect(response.body.data.type).toBe('createAndFundPool')
   })
 
-  it('should reject createAndFundFactory without required fields', async () => {
+  it('should reject createAndFundPool without required fields', async () => {
     const response = await request(app).post('/api/v1/transaction/prepare-tx').send({
-      type: 'createAndFundFactory',
+      type: 'createAndFundPool',
       sessionToken: mockSessionToken,
       userAddress: mockCreatorAddress,
       creator: mockCreatorAddress
@@ -185,13 +185,13 @@ describe('Transaction API - createAndFundFactory', () => {
 
     expect(response.status).toBe(400)
     expect(response.body.error.message).toBe(
-      'Token, creator, and amount required for createAndFundFactory'
+      'Token, creator, and amount required for createAndFundPool'
     )
   })
 
-  it('should reject createAndFundFactory with invalid amount', async () => {
+  it('should reject createAndFundPool with invalid amount', async () => {
     const response = await request(app).post('/api/v1/transaction/validate-tx').send({
-      type: 'createAndFundFactory',
+      type: 'createAndFundPool',
       sessionToken: mockSessionToken,
       userAddress: mockCreatorAddress,
       creator: mockCreatorAddress,
