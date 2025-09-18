@@ -201,7 +201,7 @@ fly logs -a clones-backend-prod
 The backend supports the following blockchain transaction types:
 
 - **`createFactory`** - Create a new reward pool factory (without funding)
-- **`createAndFundFactory`** - Create and fund a reward pool atomically (optimal UX)
+- **`createAndFundPool`** - Create and fund a reward pool atomically (optimal UX)
 - **`fundPool`** - Fund an existing reward pool
 - **`claimRewards`** - Claim rewards from pools
 
@@ -211,7 +211,7 @@ The backend supports the following blockchain transaction types:
 Prepares transaction data for client-side execution.
 
 **Parameters:**
-- `type` - Transaction type (`createFactory`, `createAndFundFactory`, `fundPool`, `claimRewards`)
+- `type` - Transaction type (`createFactory`, `createAndFundPool`, `fundPool`, `claimRewards`)
 - `sessionToken` - Authenticated session token
 - `creator` - Creator wallet address (for create operations)
 - `token` - Token symbol (e.g., "USDC")
@@ -229,7 +229,7 @@ Validates transaction parameters before execution.
 ### Gas Optimization
 
 - **createFactory**: ~200k gas
-- **createAndFundFactory**: ~280k gas (vs ~600k for separate transactions)
+- **createAndFundPool**: ~280k gas (vs ~600k for separate transactions)
 - **fundPool**: ~120k gas
 - **claimRewards**: ~150k gas per claim
 

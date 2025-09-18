@@ -145,7 +145,8 @@ describe('Wallet Security Tests', () => {
         .get('/api/v1/wallet/connection')
         .query({ token: maliciousToken });
 
-      expect(response.status).toBe(200);
+      // Malicious tokens should be rejected with 400 (bad request)
+      expect(response.status).toBe(400);
       expect(response.text).not.toContain('<script>');
     });
 
