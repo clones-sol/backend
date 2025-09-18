@@ -1,8 +1,4 @@
-FROM node:20.17.0-alpine
-
-# Create app user for security (even in dev)
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S backend -u 1001
+FROM node:lts
 
 # Set development environment
 ENV NODE_ENV="development"
@@ -15,18 +11,17 @@ RUN chmod +x clones-quality-agent
 COPY . .
 
 # Install packages needed to build node modules
-RUN apk add --no-cache \
-  build-base \
-  python3 \
-  make \
-  g++ \
+RUN apt-get update -qq && \
+  apt-get install --no-install-recommends -y \
+  build-essential \
+  node-gyp \
+  pkg-config \
+  python-is-python3 \
   ffmpeg \
-  ffmpeg-dev
-
-# Change ownership and install dependencies
-RUN chown -R backend:nodejs /app
-
-USER backend
+  libavcodec-dev \
+  libavformat-dev \
+  libavutil-dev \
+  libswscale-dev
 
 RUN npm install
 

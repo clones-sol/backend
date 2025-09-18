@@ -75,6 +75,13 @@ services:
       # Internal services
       - CQA_PATH=/app/clones-quality-agent
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - SESSION_SECRET=${SESSION_SECRET}
+
+      # Contracts info
+      - REWARD_POOL_FACTORY_ADDRESS=${REWARD_POOL_FACTORY_ADDRESS}
+      - CLAIM_ROUTER_ADDRESS=${CLAIM_ROUTER_ADDRESS}
+      - PUBLISHER_ADDRESS=${PUBLISHER_ADDRESS}
+
     depends_on:
       - mongodb
       - localstack
