@@ -61,8 +61,8 @@ app.use(
       'http://localhost:5173',
       'http://localhost:8001',
       'https://clones-ai.com',
-      'https://api-staging.clones-ai.com/',
-      'https://api.clones-ai.com/',
+      'https://api-staging.clones-ai.com',
+      'https://api.clones-ai.com',
       'https://clones-site-test.fly.dev',
       'https://clones-backend-test.fly.dev'
     ],
