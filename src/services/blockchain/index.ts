@@ -44,7 +44,7 @@ class BlockchainService {
       'ETH': 'ethereum',
       'WETH': 'ethereum',
       'USDC': 'usd-coin',
-      'BTC': 'bitcoin'
+      'CLONES': 'clones'
     }
 
     const coinId = tokenMappings[tokenSymbol.toUpperCase()]
