@@ -91,6 +91,7 @@ export function configureSecureSession(app: Application): void {
     // DESKTOP READ-ONLY QUERIES (no CSRF needed)
     '/api/v1/wallet/balance',        // Balance queries (GET)
     '/api/v1/wallet/connection',     // Connection status (GET)
+    '/api/v1/forge/factories', // Factory list (GET/PUT)
     '/api/v1/forge/factories/search', // Factory search (POST but read-only)
     '/api/v1/forge/factories/apps',  // Factory apps list (POST but read-only)
     '/api/v1/forge/factories/supported-tokens', // Supported tokens list (GET)
@@ -98,6 +99,7 @@ export function configureSecureSession(app: Application): void {
     '/api/v1/forge/chat',            // AI chat interactions from desktop (POST)
     '/api/v1/transaction/session',   // Transaction session info (GET)
     '/api/v1/transaction/status',    // Transaction status (GET)
+    '/api/v1/transaction/complete',    // Transaction complete (POST)
     '/api/v1/transaction/estimate-gas', // Gas estimation (POST but read-only)
     '/api/v1/transaction/prepare-tx', // Transaction preparation (POST but read-only)
     '/api/v1/transaction/finalize-factory', // Factory finalization from desktop (POST)
@@ -105,7 +107,7 @@ export function configureSecureSession(app: Application): void {
     '/api/v1/forge/upload/chunk', // Upload chunk (POST)
     '/api/v1/forge/upload/complete', // Upload complete (POST)
     '/api/v1/forge/upload/cancel', // Upload cancel (POST)
-    '/api/v1/forge/upload/status', // Upload status (GET)
+    '/api/v1/forge/upload/status' // Upload status (GET)
   ];
 
   // Apply CSRF protection to all routes except bootstrap endpoints
