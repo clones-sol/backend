@@ -20,6 +20,7 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
     ],
     grade_result: {
       type: {
+        version: String,
         summary: String,
         observations: String,
         reasoning: String,
@@ -27,7 +28,12 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
         confidence: Number,
         outcomeAchievement: Number,
         processQuality: Number,
-        efficiency: Number
+        efficiency: Number,
+        confidenceReasoning: String,
+        outcomeAchievementReasoning: String,
+        processQualityReasoning: String,
+        efficiencyReasoning: String,
+        programmaticResults: mongoose.Schema.Types.Mixed
       },
       required: false
     },
@@ -46,7 +52,9 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
         timestamp: Number
       },
       required: false
-    }
+    },
+    cqaModel: { type: String, required: false },
+    cqaEvaluationModel: { type: String, required: false }
   },
   {
     collection: 'demonstration_submissions',

@@ -82,6 +82,9 @@ services:
       - CLAIM_ROUTER_ADDRESS=${CLAIM_ROUTER_ADDRESS}
       - PUBLISHER_ADDRESS=${PUBLISHER_ADDRESS}
 
+      # Quality Agent
+      - CQA_MODEL=${CQA_MODEL}
+      - CQA_EVALUATION_MODEL=${CQA_EVALUATION_MODEL}
     depends_on:
       - mongodb
       - localstack

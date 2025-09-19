@@ -12,6 +12,7 @@ export interface DBDemonstrationSubmission {
     size?: number
   }>
   grade_result?: {
+    version?: string
     summary?: string
     observations?: string
     reasoning?: string
@@ -20,6 +21,11 @@ export interface DBDemonstrationSubmission {
     outcomeAchievement?: number
     processQuality?: number
     efficiency?: number
+    confidenceReasoning?: string
+    outcomeAchievementReasoning?: string
+    processQualityReasoning?: string
+    efficiencyReasoning?: string
+    programmaticResults?: any
   }
   grading_metrics?: any
   error?: string
@@ -34,6 +40,8 @@ export interface DBDemonstrationSubmission {
     txHash?: string
     timestamp?: number
   }
+  cqaModel?: string
+  cqaEvaluationModel?: string
   createdAt?: Date
   updatedAt?: Date
 }

@@ -76,8 +76,7 @@ export class ReferralCleanupService {
         ? referralCode.expiresAt
         : new Date()
 
-    const newExpiration = new Date(baseDate)
-    newExpiration.setDate(newExpiration.getDate() + extensionDays)
+    const newExpiration = new Date(baseDate.getTime() + extensionDays * 24 * 60 * 60 * 1000)
 
     await ReferralCodeModel.findByIdAndUpdate(referralCode._id, {
       expiresAt: newExpiration,
@@ -91,8 +90,7 @@ export class ReferralCleanupService {
    * Get referral codes expiring soon
    */
   async getExpiringSoonCodes(daysThreshold: number = 7): Promise<IReferralCode[]> {
-    const threshold = new Date()
-    threshold.setDate(threshold.getDate() + daysThreshold)
+    const threshold = new Date(new Date().getTime() + daysThreshold * 24 * 60 * 60 * 1000)
 
     return await ReferralCodeModel.find({
       expiresAt: { $lte: threshold },
@@ -104,8 +102,7 @@ export class ReferralCleanupService {
    * Clean up old referral records (optional - for data management)
    */
   async cleanupOldReferrals(daysOld: number = 365): Promise<number> {
-    const cutoffDate = new Date()
-    cutoffDate.setDate(cutoffDate.getDate() - daysOld)
+    const cutoffDate = new Date(new Date().getTime() - daysOld * 24 * 60 * 60 * 1000)
 
     const result = await ReferralModel.deleteMany({
       createdAt: { $lt: cutoffDate }
@@ -153,8 +150,7 @@ export class ReferralCleanupService {
     }
 
     // Update with new code and expiration
-    const newExpiration = new Date()
-    newExpiration.setDate(newExpiration.getDate() + 30)
+    const newExpiration = new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000)
 
     await ReferralCodeModel.findByIdAndUpdate(referralCode._id, {
       referralCode: newCode!,

@@ -97,7 +97,14 @@ export async function processNextInQueue() {
       console.log('Directory contents:', files)
 
       await new Promise<void>((resolve, reject) => {
-        const pipeline = spawn(process.env.CQA_PATH, ['-f', 'desktop', '-i', extractDir, '--grade'])
+        const args = ['-f', 'desktop', '-i', extractDir, '--grade']
+        if (process.env.CQA_MODEL) {
+          args.push('--model', process.env.CQA_MODEL)
+        }
+        if (process.env.CQA_EVALUATION_MODEL) {
+          args.push('--evaluation-model', process.env.CQA_EVALUATION_MODEL)
+        }
+        const pipeline = spawn(process.env.CQA_PATH, args)
 
         let stdout = ''
         let stderr = ''
@@ -233,9 +240,8 @@ export async function processNextInQueue() {
 
             if (previousSubmission) {
               reward = 0
-              gradeResult.reasoning = `( system: no reward given - previous submission exists with score of ${
-                previousSubmission.grade_result?.score || 0
-              } ) ${gradeResult.reasoning}`
+              gradeResult.reasoning = `( system: no reward given - previous submission exists with score of ${previousSubmission.grade_result?.score || 0
+                } ) ${gradeResult.reasoning}`
               break
             }
 
@@ -324,6 +330,8 @@ export async function processNextInQueue() {
       submission.maxReward = maxReward
       submission.clampedScore = clampedScore
       submission.onChainReward = onChainReward
+      submission.cqaModel = process.env.CQA_MODEL
+      submission.cqaEvaluationModel = process.env.CQA_EVALUATION_MODEL
       submission.status = ForgeSubmissionProcessingStatus.COMPLETED
       await submission.save()
 

@@ -131,6 +131,10 @@ Next, open the `.env` file and provide the necessary values. Key variables inclu
 
 - `SESSION_SECRET`: A secure random string (minimum 32 characters) used for session encryption. In production, this should be stored as a secure secret (e.g., Fly.io secrets).
 - **Storage Configuration**: Object storage credentials for file uploads and training data (see Object Storage section below).
+- **Clones Quality Agent (CQA) Configuration**:
+  - `CQA_PATH`: Path to the Clones Quality Agent executable.
+  - `CQA_MODEL` (optional): Model for CQA chunk evaluation (e.g., `gpt-4o-mini`).
+  - `CQA_EVALUATION_MODEL` (optional): Model for CQA final evaluation for unbiased results (e.g., `gpt-4o-2024-08-06`). Defaults to `CQA_MODEL`.
 
 Refer to the [Environment Setup section](https://docs.page/clones-ai/desktop/projects/backend#environment-setup) in the documentation for detailed instructions on all environment variables.
 
