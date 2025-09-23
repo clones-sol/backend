@@ -379,6 +379,7 @@ export async function processNextInQueue() {
             `${submission.grade_result.reasoning}`
           submission.grade_result.reasoning = reasoningMessage
           submission.onChainReward = onChainReward
+          submission.claimAuthorization = claimAuthorization
 
           // Save updated claim authorization data
           await submission.save()

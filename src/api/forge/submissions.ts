@@ -148,6 +148,7 @@ router.get(
         reward: submission.reward,
         maxReward: submission.maxReward,
         clampedScore: submission.clampedScore,
+        claimAuthorization: submission.claimAuthorization,
         cqaModel: submission.cqaModel,
         cqaEvaluationModel: submission.cqaEvaluationModel,
         createdAt: submission.createdAt,

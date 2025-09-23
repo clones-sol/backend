@@ -318,7 +318,7 @@ describe('Forge Factories API', () => {
     })
   })
 
-  describe('GET /pools/predict', () => {
+  describe('GET /pools/predict-address', () => {
     it('should predict a pool address', async () => {
       mockFactoryService.predictPoolAddress.mockResolvedValue({
         predicted: '0xPredictedAddress',
@@ -329,7 +329,8 @@ describe('Forge Factories API', () => {
       const token = 'WETH'
 
       const response = await supertest(app)
-        .get(`/api/v1/forge/factories/pools/predict?creator=${creator}&token=${token}`)
+        .post('/api/v1/forge/factories/pools/predict-address')
+        .send({ creator, token })
         .expect(200)
 
       expect(mockFactoryService.predictPoolAddress).toHaveBeenCalledWith(
