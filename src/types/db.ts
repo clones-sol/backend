@@ -1,5 +1,5 @@
 import type { Types } from 'mongoose'
-import type { ForgeSubmissionProcessingStatus } from './index.ts'
+import type { ForgeSubmissionProcessingStatus, OnChainReward } from './index.ts'
 
 export interface DBDemonstrationSubmission {
   _id?: string
@@ -32,13 +32,16 @@ export interface DBDemonstrationSubmission {
   reward?: number
   maxReward?: number
   clampedScore?: number
-  onChainReward?: {
-    tokenAddress?: string
-    poolAddress?: string
-    amount?: number
-    taskId?: string
-    txHash?: string
-    timestamp?: number
+  onChainReward?: OnChainReward
+  claimAuthorization?: {
+    account: string
+    cumulativeAmount: string
+    signature: string
+    publisherUsed: string
+    poolAddress: string
+    tokenAddress: string
+    alreadyClaimed: number
+    newClaimableAmount: number
   }
   cqaModel?: string
   cqaEvaluationModel?: string

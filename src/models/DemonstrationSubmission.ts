@@ -53,6 +53,21 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
       },
       required: false
     },
+    claimAuthorization: {
+      type: {
+        // Smart contract parameters
+        account: String,
+        cumulativeAmount: String,
+        signature: String,
+        // Additional context
+        publisherUsed: String,
+        poolAddress: String,
+        tokenAddress: String,
+        alreadyClaimed: Number,
+        newClaimableAmount: Number
+      },
+      required: false
+    },
     cqaModel: { type: String, required: false },
     cqaEvaluationModel: { type: String, required: false }
   },

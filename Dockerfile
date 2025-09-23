@@ -33,7 +33,7 @@ RUN npm prune --omit=dev
 # Final stage for app image
 FROM base
 
-ARG CQA_VERSION=2.0.2
+ARG CQA_VERSION=2.0.3
 ADD https://github.com/clones-ai/clones-quality-agent/releases/download/v${CQA_VERSION}/clones-quality-agent-linux-x64 ./clones-quality-agent
 RUN chmod +x clones-quality-agent
 

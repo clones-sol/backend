@@ -585,23 +585,26 @@ router.post(
 
 /**
  * @swagger
- * /forge/factories/pools/predict:
- *   get:
+ * /forge/factories/pools/predict-address:
+ *   post:
  *     summary: Predict reward pool address
  *     tags: [Factories]
- *     parameters:
- *       - in: query
- *         name: creator
- *         required: true
- *         schema:
- *           type: string
- *           format: hex
- *       - in: query
- *         name: token
- *         required: true
- *         schema:
- *           type: string
- *           format: hex
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - creator
+ *               - token
+ *             properties:
+ *               creator:
+ *                 type: string
+ *                 format: hex
+ *               token:
+ *                 type: string
+ *                 format: hex
  *     responses:
  *       '200':
  *         description: Pool prediction data
@@ -610,11 +613,11 @@ router.post(
  *       '500':
  *         description: Internal server error
  */
-router.get(
-  '/pools/predict',
-  validateQuery(predictPoolSchema),
+router.post(
+  '/pools/predict-address',
+  validateBody(predictPoolSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { creator, token } = req.query as unknown as PredictPoolQuery
+    const { creator, token } = req.body as PredictPoolQuery
 
     try {
       const factoryService = createFactoryService()
