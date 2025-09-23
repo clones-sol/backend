@@ -318,7 +318,7 @@ describe('Forge Factories API', () => {
     })
   })
 
-  describe('GET /pools/predict-address', () => {
+  describe('POST /pools/predict-address', () => {
     it('should predict a pool address', async () => {
       mockFactoryService.predictPoolAddress.mockResolvedValue({
         predicted: '0xPredictedAddress',

@@ -170,7 +170,6 @@ export async function processNextInQueue() {
       let maxReward
       const clampedScore = Math.max(0, Math.min(100, gradeResult.score))
       let onChainReward: OnChainReward | undefined
-      let claimAuthorization: any
       let retries = 3
 
       // Get factory details if factoryId exists
@@ -351,7 +350,7 @@ export async function processNextInQueue() {
           const tokenAddress = getTokenContractAddress(factory.token.symbol)
 
           // Generate claim authorization signature - it will handle smart contract reads internally
-          claimAuthorization = await claimAuthService.generateClaimAuthorization(
+          const claimAuthorization = await claimAuthService.generateClaimAuthorization(
             factory.poolAddress,
             submission.address,
             reward // Just pass the current reward, service will calculate cumulative
