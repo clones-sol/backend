@@ -17,8 +17,7 @@ import { getTokenContractAddress } from '../blockchain/tokens.ts'
 // Initialize claim authorization service
 let claimAuthService: ReturnType<typeof createClaimAuthService> | null = null
 try {
-  // Only initialize in production/development, not in tests
-  if (process.env.NODE_ENV !== 'test' && process.env.PUBLISHER_PRIVATE_KEY) {
+  if (process.env.PUBLISHER_PRIVATE_KEY) {
     claimAuthService = createClaimAuthService()
   }
 } catch (error) {
