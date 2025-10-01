@@ -1,6 +1,7 @@
 import express, { type Router } from 'express'
 import { forgeFactoryAppsApi } from './apps.ts'
 import { forgeChatApi } from './chat.ts'
+import demoFilesApi from './demo-files.ts'
 import { factoriesApi } from './factories.ts'
 import { forgeGasApi } from './gas.ts'
 import forgeMetadataApi from './metadata.ts'
@@ -12,6 +13,7 @@ const router: Router = express.Router()
 // Mount all the sub-routers
 // IMPORTANT: More specific routes MUST come before generic ones
 router.use('/submissions', forgeSubmissionsApi)
+router.use('/demo-files', demoFilesApi)
 router.use('/chat', forgeChatApi)
 router.use('/upload', forgeUploadApi)
 router.use('/factories/apps', forgeFactoryAppsApi)
