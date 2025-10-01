@@ -7,6 +7,15 @@ import { generalRateLimit } from '../../middleware/rateLimiter.ts'
 
 const router = express.Router()
 
+// Initialize storage service once at module level (singleton pattern)
+const storageService = new ObjectStorageService(
+  process.env.STORAGE_ACCESS_KEY!,
+  process.env.STORAGE_SECRET_KEY!,
+  process.env.STORAGE_ENDPOINT!,
+  process.env.STORAGE_REGION!,
+  process.env.STORAGE_BUCKET!
+)
+
 /**
  * @swagger
  * /forge/demo-files/{submissionId}/{filename}:
@@ -103,30 +112,6 @@ router.get('/:submissionId/:filename',
   }
 
   try {
-    // Initialize storage service
-    const storageService = new ObjectStorageService(
-      process.env.STORAGE_ACCESS_KEY!,
-      process.env.STORAGE_SECRET_KEY!,
-      process.env.STORAGE_ENDPOINT!,
-      process.env.STORAGE_REGION!,
-      process.env.STORAGE_BUCKET!
-    )
-
-    // Get the file from storage
-    const fileBuffer = await storageService.getItem({
-      name: fileInfo.storageKey
-    })
-
-    // Handle base64 encoding for MP4 files if requested
-    if (asBase64 === 'true' && filename.endsWith('-recording.mp4')) {
-      const base64Data = fileBuffer.toString('base64')
-      res.setHeader('Content-Type', 'text/plain')
-      res.setHeader('Content-Length', base64Data.length)
-      res.setHeader('Content-Disposition', `inline; filename="${filename}.txt"`)
-      res.send(base64Data)
-      return
-    }
-
     // Determine content type for demo files
     const getContentType = (filename: string): string => {
       if (filename.endsWith('-meta.json') || filename.endsWith('-sft.json')) {
@@ -141,13 +126,30 @@ router.get('/:submissionId/:filename',
       return 'application/octet-stream'
     }
 
+    // Handle base64 encoding for MP4 files if requested (requires buffering)
+    if (asBase64 === 'true' && filename.endsWith('-recording.mp4')) {
+      const fileBuffer = await storageService.getItem({
+        name: fileInfo.storageKey
+      })
+      const base64Data = fileBuffer.toString('base64')
+      res.setHeader('Content-Type', 'text/plain')
+      res.setHeader('Content-Length', base64Data.length)
+      res.setHeader('Content-Disposition', `inline; filename="${filename}.txt"`)
+      res.send(base64Data)
+      return
+    }
+
+    // For all other cases: Stream directly from storage (memory efficient)
+    const fileStream = await storageService.getItemStream({
+      name: fileInfo.storageKey
+    })
+
     // Set appropriate headers
     res.setHeader('Content-Type', getContentType(filename))
-    res.setHeader('Content-Length', fileBuffer.length)
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`)
     
-    // Send the file
-    res.send(fileBuffer)
+    // Stream the file directly (no memory buffering)
+    fileStream.pipe(res)
 
   } catch (error) {
     console.error(`[DEMO-FILES] Error retrieving file ${filename} for submission ${submissionId}:`, error)

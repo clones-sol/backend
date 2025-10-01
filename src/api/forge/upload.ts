@@ -21,8 +21,25 @@ import {
 } from '../../types/index.ts'
 import { initUploadSchema, uploadChunkSchema, uploadIdParamSchema } from '../schemas/forgeUpload.ts'
 
-// Initialize blockchain service
+// Initialize services as singletons (module-level)
 const blockchainService = new BlockchainService(process.env.RPC_URL || '')
+
+// Initialize storage service singleton - will throw if env vars missing
+let storageService: ObjectStorageService | null = null
+
+function getStorageService(): ObjectStorageService {
+  if (!storageService) {
+    const config = validateStorageConfig()
+    storageService = new ObjectStorageService(
+      config.STORAGE_ACCESS_KEY,
+      config.STORAGE_SECRET_KEY,
+      config.STORAGE_ENDPOINT,
+      config.STORAGE_REGION,
+      config.STORAGE_BUCKET
+    )
+  }
+  return storageService
+}
 
 // Helper functions to reduce complexity
 async function validateUploadComplete(session: IUploadSessionDocument) {
@@ -349,17 +366,10 @@ async function checkTaskUploadLimits(
 
 async function uploadFilesToStorage(
   requiredFiles: string[],
-  finalDir: string,
-  storageConfig: Record<string, any>
+  finalDir: string
 ): Promise<any[]> {
   console.log(`[UPLOAD] Starting object storage upload for ${requiredFiles.length} files`)
-  const storageService = new ObjectStorageService(
-    storageConfig.STORAGE_ACCESS_KEY,
-    storageConfig.STORAGE_SECRET_KEY,
-    storageConfig.STORAGE_ENDPOINT,
-    storageConfig.STORAGE_REGION,
-    storageConfig.STORAGE_BUCKET
-  )
+  const storage = getStorageService()
 
   return await Promise.all(
     requiredFiles.map(async (file) => {
@@ -371,7 +381,7 @@ async function uploadFilesToStorage(
         `[UPLOAD] Uploading ${file} (${fileStats.size} bytes) to object storage with key: ${storageKey}`
       )
 
-      await storageService.saveItem({
+      await storage.saveItem({
         file: filePath,
         name: storageKey
       })
@@ -719,8 +729,7 @@ router.post(
     const finalDir = path.join('uploads', `extract_${uuid}`)
     const requiredFiles = await moveRequiredFiles(extractDir, finalDir)
 
-    const storageConfig = validateStorageConfig()
-    const uploads = await uploadFilesToStorage(requiredFiles, finalDir, storageConfig)
+    const uploads = await uploadFilesToStorage(requiredFiles, finalDir)
     console.log(`[UPLOAD] All files uploaded to object storage successfully`)
 
     const factory = await verifyFactoryAndBalance(meta)

@@ -57,20 +57,36 @@ export class ObjectStorageService {
       throw new Error(`Object not found: ${options.name}`)
     }
     
-    // Convert ReadableStream to Buffer
-    const chunks: Uint8Array[] = []
-    const reader = (response.Body as any).getReader()
+    // Use modern AWS SDK v3 method if available
+    if ('transformToByteArray' in response.Body) {
+      return Buffer.from(await response.Body.transformToByteArray())
+    }
     
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        chunks.push(value)
-      }
-    } finally {
-      reader.releaseLock()
+    // Fallback: Handle Node.js Readable stream properly
+    const chunks: Buffer[] = []
+    const body = response.Body as NodeJS.ReadableStream
+    
+    for await (const chunk of body) {
+      // Ensure chunk is a Buffer (handle both string and Buffer types)
+      const buffer = chunk instanceof Buffer ? chunk : Buffer.from(chunk)
+      chunks.push(buffer)
     }
     
     return Buffer.concat(chunks)
+  }
+
+  async getItemStream(options: { name: string; bucket?: string }): Promise<NodeJS.ReadableStream> {
+    const command = new GetObjectCommand({
+      Bucket: options.bucket || this.bucket,
+      Key: options.name
+    })
+    
+    const response = await this.client.send(command)
+    
+    if (!response.Body) {
+      throw new Error(`Object not found: ${options.name}`)
+    }
+    
+    return response.Body as NodeJS.ReadableStream
   }
 }
