@@ -1,6 +1,7 @@
 import express, { type NextFunction, type Request, type Response } from 'express'
 import { MongoMemoryServer } from 'mongodb-memory-server'
 import mongoose from 'mongoose'
+import { Readable } from 'stream'
 import supertest from 'supertest'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { errorHandler } from '../../middleware/errorHandler.ts'
@@ -48,7 +49,8 @@ vi.mock('../../middleware/rateLimiter.ts', () => ({
 const { mockStorageService } = vi.hoisted(() => {
   return {
     mockStorageService: {
-      getItem: vi.fn()
+      getItem: vi.fn(),
+      getItemStream: vi.fn()
     }
   }
 })
@@ -61,6 +63,11 @@ vi.mock('../../services/storage/index.ts', () => ({
 const TEST_SUBMISSION_ID = 'demo_123456789'
 const TEST_FILENAME = '1640995200000-meta.json'
 const TEST_FILE_CONTENT = Buffer.from('{"test": "data"}')
+
+// Helper to create a mock readable stream from buffer
+const createMockStream = (buffer: Buffer) => {
+  return Readable.from(buffer)
+}
 
 const createTestSubmission = (overrides = {}) => ({
   _id: TEST_SUBMISSION_ID,
@@ -128,7 +135,7 @@ describe('Demo Files API', () => {
       // Setup
       const submission = createTestSubmission()
       await DemonstrationSubmission.create(submission)
-      mockStorageService.getItem.mockResolvedValue(TEST_FILE_CONTENT)
+      mockStorageService.getItemStream.mockResolvedValue(createMockStream(TEST_FILE_CONTENT))
 
       // Test
       const response = await supertest(app)
@@ -137,9 +144,9 @@ describe('Demo Files API', () => {
       // Assertions
       expect(response.status).toBe(200)
       expect(response.headers['content-type']).toBe('application/json')
-      expect(response.headers['content-length']).toBe(TEST_FILE_CONTENT.length.toString())
+      // Note: Content-Length header not set for streaming responses
       expect(response.headers['content-disposition']).toBe(`inline; filename="${TEST_FILENAME}"`)
-      expect(mockStorageService.getItem).toHaveBeenCalledWith({
+      expect(mockStorageService.getItemStream).toHaveBeenCalledWith({
         name: 'forge-races/1640995200000-meta.json'
       })
     })
@@ -147,7 +154,7 @@ describe('Demo Files API', () => {
     it('should return correct content-type for different file types', async () => {
       const submission = createTestSubmission()
       await DemonstrationSubmission.create(submission)
-      mockStorageService.getItem.mockResolvedValue(Buffer.from('{"test": "data"}'))
+      mockStorageService.getItemStream.mockResolvedValue(createMockStream(Buffer.from('{"test": "data"}')))
 
       const testCases = [
         { filename: '1640995200000-meta.json', expectedType: 'application/json' },
@@ -185,7 +192,7 @@ describe('Demo Files API', () => {
     it('should ignore asBase64 parameter for non-MP4 files', async () => {
       const submission = createTestSubmission()
       await DemonstrationSubmission.create(submission)
-      mockStorageService.getItem.mockResolvedValue(Buffer.from('{"test": "data"}'))
+      mockStorageService.getItemStream.mockResolvedValue(createMockStream(Buffer.from('{"test": "data"}')))
 
       const response = await supertest(app)
         .get(`/api/v1/forge/demo-files/${TEST_SUBMISSION_ID}/1640995200000-meta.json?asBase64=true`)
@@ -199,7 +206,7 @@ describe('Demo Files API', () => {
       await DemonstrationSubmission.create(submission)
       
       const testVideoData = Buffer.from('fake-mp4-binary-data')
-      mockStorageService.getItem.mockResolvedValue(testVideoData)
+      mockStorageService.getItemStream.mockResolvedValue(createMockStream(testVideoData))
 
       const response = await supertest(app)
         .get(`/api/v1/forge/demo-files/${TEST_SUBMISSION_ID}/1640995200000-recording.mp4?asBase64=false`)
@@ -252,7 +259,7 @@ describe('Demo Files API', () => {
     it('should return 404 when file not found in storage', async () => {
       const submission = createTestSubmission()
       await DemonstrationSubmission.create(submission)
-      mockStorageService.getItem.mockRejectedValue(new Error('Object not found: test'))
+      mockStorageService.getItemStream.mockRejectedValue(new Error('Object not found: test'))
 
       const response = await supertest(app)
         .get(`/api/v1/forge/demo-files/${TEST_SUBMISSION_ID}/${TEST_FILENAME}`)
@@ -267,7 +274,7 @@ describe('Demo Files API', () => {
     it('should return 500 for storage service errors', async () => {
       const submission = createTestSubmission()
       await DemonstrationSubmission.create(submission)
-      mockStorageService.getItem.mockRejectedValue(new Error('Network error'))
+      mockStorageService.getItemStream.mockRejectedValue(new Error('Network error'))
 
       const response = await supertest(app)
         .get(`/api/v1/forge/demo-files/${TEST_SUBMISSION_ID}/${TEST_FILENAME}`)
