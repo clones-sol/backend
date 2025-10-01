@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs'
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { PutObjectCommand, S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 
 export class ObjectStorageService {
   private client: S3Client
@@ -43,5 +43,34 @@ export class ObjectStorageService {
       Key: options.name
     })
     await this.client.send(command)
+  }
+
+  async getItem(options: { name: string; bucket?: string }): Promise<Buffer> {
+    const command = new GetObjectCommand({
+      Bucket: options.bucket || this.bucket,
+      Key: options.name
+    })
+    
+    const response = await this.client.send(command)
+    
+    if (!response.Body) {
+      throw new Error(`Object not found: ${options.name}`)
+    }
+    
+    // Convert ReadableStream to Buffer
+    const chunks: Uint8Array[] = []
+    const reader = (response.Body as any).getReader()
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+      }
+    } finally {
+      reader.releaseLock()
+    }
+    
+    return Buffer.concat(chunks)
   }
 }
