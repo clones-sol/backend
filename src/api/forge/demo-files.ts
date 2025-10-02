@@ -1,20 +1,23 @@
 import express, { type Response } from 'express'
-import { requireSecureSession } from '../../middleware/secureSession.ts'
+import { requireWalletAddress } from '../../middleware/auth.ts'
 import { DemonstrationSubmission } from '../../models/DemonstrationSubmission.ts'
 import { ObjectStorageService } from '../../services/storage/index.ts'
+import { DemoStorageService } from '../../services/demo-storage/index.ts'
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
 import { generalRateLimit } from '../../middleware/rateLimiter.ts'
 
 const router = express.Router()
 
-// Initialize storage service once at module level (singleton pattern)
-const storageService = new ObjectStorageService(
+// Initialize storage services once at module level (singleton pattern)
+const objectStorageService = new ObjectStorageService(
   process.env.STORAGE_ACCESS_KEY!,
   process.env.STORAGE_SECRET_KEY!,
   process.env.STORAGE_ENDPOINT!,
   process.env.STORAGE_REGION!,
   process.env.STORAGE_BUCKET!
 )
+
+const demoStorageService = new DemoStorageService(objectStorageService)
 
 /**
  * @swagger
@@ -73,100 +76,111 @@ const storageService = new ObjectStorageService(
  *         $ref: '#/components/responses/RateLimit'
  */
 // GET /api/v1/forge/demo-files/:submissionId/:filename
-router.get('/:submissionId/:filename', 
+router.get('/:submissionId/:filename',
   generalRateLimit, // Rate limit file downloads
-  requireSecureSession(), 
+  requireWalletAddress,
   errorHandlerAsync(async (req: any, res: Response) => {
-  const { submissionId, filename } = req.params
-  const { asBase64 } = req.query
-  const userAddress = req.walletAddress
+    const { submissionId, filename } = req.params
+    const { asBase64 } = req.query
+    const userAddress = req.walletAddress
 
-  if (!submissionId || !filename) {
-    return res.status(400).json({
-      success: false,
-      error: 'Submission ID and filename are required'
-    })
-  }
-
-  // Find the demonstration submission
-  const submission = await DemonstrationSubmission.findOne({
-    _id: submissionId,
-    address: userAddress.toLowerCase()
-  })
-
-  if (!submission) {
-    return res.status(404).json({
-      success: false,
-      error: 'Demonstration submission not found or access denied'
-    })
-  }
-
-  // Find the specific file in the submission
-  const fileInfo = submission.files?.find(f => f.file === filename)
-  
-  if (!fileInfo || !fileInfo.storageKey) {
-    return res.status(404).json({
-      success: false,
-      error: 'File not found in submission'
-    })
-  }
-
-  try {
-    // Determine content type for demo files
-    const getContentType = (filename: string): string => {
-      if (filename.endsWith('-meta.json') || filename.endsWith('-sft.json')) {
-        return 'application/json'
-      }
-      if (filename.endsWith('-recording.mp4')) {
-        return 'video/mp4'
-      }
-      if (filename.endsWith('-input_log.jsonl')) {
-        return 'application/x-ndjson'
-      }
-      return 'application/octet-stream'
-    }
-
-    // Handle base64 encoding for MP4 files if requested (requires buffering)
-    if (asBase64 === 'true' && filename.endsWith('-recording.mp4')) {
-      const fileBuffer = await storageService.getItem({
-        name: fileInfo.storageKey
+    if (!submissionId || !filename) {
+      return res.status(400).json({
+        success: false,
+        error: 'Submission ID and filename are required'
       })
-      const base64Data = fileBuffer.toString('base64')
-      res.setHeader('Content-Type', 'text/plain')
-      res.setHeader('Content-Length', base64Data.length)
-      res.setHeader('Content-Disposition', `inline; filename="${filename}.txt"`)
-      res.send(base64Data)
-      return
     }
+    console.log('Searching for submission:', submissionId)
+    console.log('User address:', userAddress)
 
-    // For all other cases: Stream directly from storage (memory efficient)
-    const fileStream = await storageService.getItemStream({
-      name: fileInfo.storageKey
+    const submission = await DemonstrationSubmission.findOne({
+      _id: submissionId,
+      address: { $regex: new RegExp(`^${userAddress.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
     })
 
-    // Set appropriate headers
-    res.setHeader('Content-Type', getContentType(filename))
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`)
-    
-    // Stream the file directly (no memory buffering)
-    fileStream.pipe(res)
+    console.log('Submission found:', !!submission)
+    if (submission && submission.demoHash) {
+      const availableFiles = await demoStorageService.listDemoFiles(submission.demoHash)
+      console.log('Available files:', availableFiles.map(f => f.filename))
+    }
 
-  } catch (error) {
-    console.error(`[DEMO-FILES] Error retrieving file ${filename} for submission ${submissionId}:`, error)
-    
-    if (error instanceof Error && error.message.includes('Object not found')) {
+    if (!submission) {
       return res.status(404).json({
         success: false,
-        error: 'File not found in storage'
+        error: 'Demonstration submission not found or access denied'
       })
     }
 
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve file'
-    })
-  }
-}))
+    if (!submission.demoHash) {
+      return res.status(404).json({
+        success: false,
+        error: 'Demo hash not found for submission'
+      })
+    }
+
+    const actualFilename = filename.startsWith(`${submissionId}-`)
+      ? filename.slice(`${submissionId}-`.length)
+      : filename
+
+    try {
+      await demoStorageService.getDemoFile(submission.demoHash, actualFilename)
+    } catch (error) {
+      return res.status(404).json({
+        success: false,
+        error: 'File not found in submission'
+      })
+    }
+
+    try {
+      // Determine content type for demo files
+      const getContentType = (filename: string): string => {
+        if (filename.endsWith('meta.json') || filename.endsWith('sft.json')) {
+          return 'application/json'
+        }
+        if (filename.endsWith('recording.mp4')) {
+          return 'video/mp4'
+        }
+        if (filename.endsWith('input_log.jsonl')) {
+          return 'application/x-ndjson'
+        }
+        return 'application/octet-stream'
+      }
+
+      if (asBase64 === 'true' && actualFilename.endsWith('recording.mp4')) {
+        const fileBuffer = await demoStorageService.getDemoFile(submission.demoHash, actualFilename)
+        const base64Data = fileBuffer.toString('base64')
+        res.setHeader('Content-Type', 'text/plain')
+        res.setHeader('Content-Length', base64Data.length)
+        res.setHeader('Content-Disposition', `inline; filename="${actualFilename}.txt"`)
+        res.send(base64Data)
+        return
+      }
+
+      const fileStream = await demoStorageService.getDemoFileStream(submission.demoHash, actualFilename)
+
+      // Set appropriate headers
+      res.setHeader('Content-Type', getContentType(actualFilename))
+      res.setHeader('Content-Disposition', `inline; filename="${actualFilename}"`)
+
+      // Stream the file directly (no memory buffering)
+      fileStream.pipe(res)
+
+    } catch (error) {
+      console.error(`[DEMO-FILES] Error retrieving file ${filename} for submission ${submissionId}:`, error)
+
+      if (error instanceof Error && error.message.includes('Object not found')) {
+        return res.status(404).json({
+          success: false,
+          error: 'File not found in storage'
+        })
+      }
+
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve file'
+      })
+    }
+  }))
 
 /**
  * @swagger
@@ -239,9 +253,114 @@ router.get('/:submissionId/:filename',
  *         $ref: '#/components/responses/RateLimit'
  */
 // GET /api/v1/forge/demo-files/:submissionId - List files for a submission
-router.get('/:submissionId', 
+router.get('/:submissionId',
   generalRateLimit, // Rate limit metadata requests
-  requireSecureSession(), 
+  requireWalletAddress,
+  errorHandlerAsync(async (req: any, res: Response) => {
+    const { submissionId } = req.params
+    const userAddress = req.walletAddress
+
+    if (!submissionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Submission ID is required'
+      })
+    }
+
+    console.log('Searching for submission:', submissionId)
+    console.log('User address:', userAddress)
+
+    const submission = await DemonstrationSubmission.findOne({
+      _id: submissionId,
+      address: { $regex: new RegExp(`^${userAddress.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+    })
+
+    console.log('Submission found:', !!submission)
+    if (submission && submission.demoHash) {
+      const availableFiles = await demoStorageService.listDemoFiles(submission.demoHash)
+      console.log('Available files:', availableFiles.map(f => f.filename))
+    }
+
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        error: 'Demonstration submission not found or access denied'
+      })
+    }
+
+    if (!submission.demoHash) {
+      return res.status(404).json({
+        success: false,
+        error: 'Demo hash not found for submission'
+      })
+    }
+
+    const files = await demoStorageService.listDemoFiles(submission.demoHash)
+    const fileList = files.map(f => ({
+      filename: f.filename,
+      size: f.size,
+      downloadUrl: `/api/v1/forge/demo-files/${submissionId}/${f.filename}`,
+      hash: f.hash
+    }))
+
+    res.json({
+      success: true,
+      data: {
+        submissionId,
+        demoHash: submission.demoHash,
+        files: fileList,
+        totalFiles: fileList.length,
+        status: submission.status,
+        createdAt: submission.createdAt,
+        integrityVerified: submission.integrityVerified
+      }
+    })
+  }))
+
+/**
+ * @swagger
+ * /forge/demo-files/{submissionId}/verify:
+ *   get:
+ *     summary: Verify integrity of demonstration files
+ *     description: Check file integrity using SHA-256 hashes
+ *     tags: [Demo Files]
+ *     security:
+ *       - sessionAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: submissionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The demonstration submission ID
+ *     responses:
+ *       200:
+ *         description: Integrity verification result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     valid:
+ *                       type: boolean
+ *                     demoHash:
+ *                       type: string
+ *                     errors:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     verifiedAt:
+ *                       type: string
+ *                       format: date-time
+ */
+router.get('/:submissionId/verify', 
+  generalRateLimit,
+  requireWalletAddress, 
   errorHandlerAsync(async (req: any, res: Response) => {
   const { submissionId } = req.params
   const userAddress = req.walletAddress
@@ -253,10 +372,9 @@ router.get('/:submissionId',
     })
   }
 
-  // Find the demonstration submission
   const submission = await DemonstrationSubmission.findOne({
     _id: submissionId,
-    address: userAddress.toLowerCase()
+    address: { $regex: new RegExp(`^${userAddress.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
   })
 
   if (!submission) {
@@ -266,23 +384,42 @@ router.get('/:submissionId',
     })
   }
 
-  // Return file list with metadata
-  const files = submission.files?.map(f => ({
-    filename: f.file,
-    size: f.size,
-    downloadUrl: `/api/v1/forge/demo-files/${submissionId}/${f.file}`
-  })) || []
+  if (!submission.demoHash) {
+    return res.status(404).json({
+      success: false,
+      error: 'Demo hash not found for submission'
+    })
+  }
 
-  res.json({
-    success: true,
-    data: {
-      submissionId,
-      files,
-      totalFiles: files.length,
-      status: submission.status,
-      createdAt: submission.createdAt
-    }
-  })
+  try {
+    const verification = await demoStorageService.verifyDemo(submission.demoHash)
+    
+    // Update verification status in database
+    await DemonstrationSubmission.updateOne(
+      { _id: submissionId },
+      { 
+        integrityVerified: verification.valid,
+        integrityLastCheck: new Date()
+      }
+    )
+
+    res.json({
+      success: true,
+      data: {
+        valid: verification.valid,
+        demoHash: submission.demoHash,
+        errors: verification.errors,
+        verifiedAt: new Date().toISOString()
+      }
+    })
+  } catch (error) {
+    console.error(`[DEMO-FILES] Error verifying demo ${submission.demoHash}:`, error)
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to verify demo integrity'
+    })
+  }
 }))
 
 export default router
