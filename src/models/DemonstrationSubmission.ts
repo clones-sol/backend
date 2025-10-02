@@ -11,13 +11,27 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
       enum: Object.values(ForgeSubmissionProcessingStatus),
       default: ForgeSubmissionProcessingStatus.PENDING
     },
-    files: [
-      {
-        file: String,
-        storageKey: String,
-        size: Number
+    demoHash: { type: String, index: true },
+    fileManifest: {
+      recording: { 
+        size: { type: Number, required: false },
+        hash: { type: String, required: false }
+      },
+      meta: { 
+        size: { type: Number, required: false },
+        hash: { type: String, required: false }
+      },
+      input_log: { 
+        size: { type: Number, required: false },
+        hash: { type: String, required: false }
+      },
+      sft: { 
+        size: { type: Number, required: false },
+        hash: { type: String, required: false }
       }
-    ],
+    },
+    integrityVerified: { type: Boolean, default: false },
+    integrityLastCheck: { type: Date },
     grade_result: {
       type: {
         version: String,

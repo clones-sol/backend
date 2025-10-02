@@ -6,11 +6,15 @@ export interface DBDemonstrationSubmission {
   address: string
   meta: any
   status?: ForgeSubmissionProcessingStatus
-  files?: Array<{
-    file?: string
-    storageKey?: string
-    size?: number
-  }>
+  demoHash?: string
+  fileManifest?: {
+    recording?: { size?: number; hash?: string }
+    meta?: { size?: number; hash?: string }
+    input_log?: { size?: number; hash?: string }
+    sft?: { size?: number; hash?: string }
+  }
+  integrityVerified?: boolean
+  integrityLastCheck?: Date
   grade_result?: {
     version?: string
     summary?: string

@@ -14,6 +14,7 @@ import { type IUploadSessionDocument, UploadSessionModel } from '../../models/Up
 import BlockchainService from '../../services/blockchain/index.ts'
 import { addToProcessingQueue, cleanupSession } from '../../services/forge/index.ts'
 import { ObjectStorageService } from '../../services/storage/index.ts'
+import { DemoStorageService, DemoFiles } from '../../services/demo-storage/index.ts'
 import {
   type DBDemonstrationSubmission,
   ForgeSubmissionProcessingStatus,
@@ -24,21 +25,22 @@ import { initUploadSchema, uploadChunkSchema, uploadIdParamSchema } from '../sch
 // Initialize services as singletons (module-level)
 const blockchainService = new BlockchainService(process.env.RPC_URL || '')
 
-// Initialize storage service singleton - will throw if env vars missing
-let storageService: ObjectStorageService | null = null
+// Initialize demo storage service singleton - will throw if env vars missing
+let demoStorageService: DemoStorageService | null = null
 
-function getStorageService(): ObjectStorageService {
-  if (!storageService) {
+function getDemoStorageService(): DemoStorageService {
+  if (!demoStorageService) {
     const config = validateStorageConfig()
-    storageService = new ObjectStorageService(
+    const objectStorage = new ObjectStorageService(
       config.STORAGE_ACCESS_KEY,
       config.STORAGE_SECRET_KEY,
       config.STORAGE_ENDPOINT,
       config.STORAGE_REGION,
       config.STORAGE_BUCKET
     )
+    demoStorageService = new DemoStorageService(objectStorage)
   }
-  return storageService
+  return demoStorageService
 }
 
 // Helper functions to reduce complexity
@@ -366,30 +368,86 @@ async function checkTaskUploadLimits(
 
 async function uploadFilesToStorage(
   requiredFiles: string[],
-  finalDir: string
-): Promise<any[]> {
-  console.log(`[UPLOAD] Starting object storage upload for ${requiredFiles.length} files`)
-  const storage = getStorageService()
+  finalDir: string,
+  submissionId: string,
+  userAddress: string
+): Promise<{ demoHash: string; fileManifest: any; integrityVerified: boolean }> {
+  console.log(`[UPLOAD] Starting demo storage upload for ${requiredFiles.length} files`)
+  const demoStorage = getDemoStorageService()
 
-  return await Promise.all(
-    requiredFiles.map(async (file) => {
-      const filePath = path.join(finalDir, file)
-      console.log(`[UPLOAD] Getting stats for file: ${filePath}`)
-      const fileStats = await stat(filePath)
-      const storageKey = `forge-races/${Date.now()}-${file}`
-      console.log(
-        `[UPLOAD] Uploading ${file} (${fileStats.size} bytes) to object storage with key: ${storageKey}`
-      )
+  const demoFiles = {} as Record<string, Buffer>
+  for (const file of requiredFiles) {
+    const filePath = path.join(finalDir, file)
+    const fileBuffer = await readFile(filePath)
+    demoFiles[file] = fileBuffer
+    console.log(`[UPLOAD] Loaded ${file} (${fileBuffer.length} bytes) into memory`)
+  }
 
-      await storage.saveItem({
-        file: filePath,
-        name: storageKey
-      })
-      console.log(`[UPLOAD] Successfully uploaded ${file} to object storage with key ${storageKey}`)
+  const typedDemoFiles: DemoFiles = {
+    'recording.mp4': demoFiles['recording.mp4'],
+    'meta.json': demoFiles['meta.json'],
+    'input_log.jsonl': demoFiles['input_log.jsonl'],
+    'sft.json': demoFiles['sft.json']
+  }
 
-      return { file, storageKey, size: fileStats.size }
-    })
+  console.log(`[UPLOAD] Storing demo files with hash-based storage`)
+  const demoHash = await demoStorage.storeDemo(
+    submissionId,
+    userAddress,
+    typedDemoFiles,
+    {
+      task: {
+        type: 'web_navigation',
+        description: 'User-submitted demonstration',
+        url: 'unknown'
+      },
+      environment: {
+        os: 'unknown',
+        browser: 'unknown',
+        screen_resolution: 'unknown'
+      }
+    }
   )
+
+  console.log(`[UPLOAD] Demo stored with hash: ${demoHash}`)
+
+  console.log(`[UPLOAD] Verifying demo integrity`)
+  const verification = await demoStorage.verifyDemo(demoHash)
+  if (!verification.valid) {
+    throw new Error(`Demo integrity verification failed: ${verification.errors.join(', ')}`)
+  }
+
+  const integrity = await demoStorage.getDemoIntegrity(demoHash)
+  if (!integrity) {
+    throw new Error('Failed to get demo integrity information')
+  }
+
+  const fileManifest = {
+    recording: {
+      size: integrity.files.find(f => f.filename === 'recording.mp4')?.size,
+      hash: integrity.files.find(f => f.filename === 'recording.mp4')?.sha256
+    },
+    meta: {
+      size: integrity.files.find(f => f.filename === 'meta.json')?.size,
+      hash: integrity.files.find(f => f.filename === 'meta.json')?.sha256
+    },
+    input_log: {
+      size: integrity.files.find(f => f.filename === 'input_log.jsonl')?.size,
+      hash: integrity.files.find(f => f.filename === 'input_log.jsonl')?.sha256
+    },
+    sft: {
+      size: integrity.files.find(f => f.filename === 'sft.json')?.size,
+      hash: integrity.files.find(f => f.filename === 'sft.json')?.sha256
+    }
+  }
+
+  console.log(`[UPLOAD] Demo integrity verified and file manifest created`)
+
+  return {
+    demoHash,
+    fileManifest,
+    integrityVerified: true
+  }
 }
 
 async function cleanupUploadFiles(
@@ -729,8 +787,8 @@ router.post(
     const finalDir = path.join('uploads', `extract_${uuid}`)
     const requiredFiles = await moveRequiredFiles(extractDir, finalDir)
 
-    const uploads = await uploadFilesToStorage(requiredFiles, finalDir)
-    console.log(`[UPLOAD] All files uploaded to object storage successfully`)
+    const { demoHash, fileManifest, integrityVerified } = await uploadFilesToStorage(requiredFiles, finalDir, uuid, address)
+    console.log(`[UPLOAD] All files uploaded to demo storage successfully`)
 
     const factory = await verifyFactoryAndBalance(meta)
 
@@ -752,7 +810,10 @@ router.post(
       address,
       meta,
       status: ForgeSubmissionProcessingStatus.PENDING,
-      files: uploads
+      demoHash,
+      fileManifest,
+      integrityVerified,
+      integrityLastCheck: new Date()
     })
     console.log(`[UPLOAD] Submission created with ID: ${submission._id}`)
 
@@ -767,7 +828,8 @@ router.post(
       successResponse({
         message: 'Upload completed successfully',
         submissionId: submission._id,
-        files: uploads
+        demoHash,
+        fileManifest
       })
     )
   })
