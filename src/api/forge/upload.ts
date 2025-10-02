@@ -391,35 +391,24 @@ async function uploadFilesToStorage(
   }
 
   console.log(`[UPLOAD] Storing demo files with hash-based storage`)
-  
+
   // Extract real metadata from meta.json
   const metaJsonContent = JSON.parse(typedDemoFiles['meta.json'].toString())
   const metadata = {
     task: {
       type: 'computer_use',
       description: metaJsonContent.quest?.content || metaJsonContent.description || 'User demonstration',
-      url: metaJsonContent.quest?.icon_url || undefined,
-      title: metaJsonContent.quest?.title || metaJsonContent.title,
-      app: metaJsonContent.quest?.app,
-      objectives: metaJsonContent.quest?.objectives
+      url: metaJsonContent.quest?.icon_url || undefined
     },
     environment: {
       os: metaJsonContent.platform || 'unknown',
       browser: 'desktop_app',
-      screen_resolution: metaJsonContent.primary_monitor 
+      screen_resolution: metaJsonContent.primary_monitor
         ? `${metaJsonContent.primary_monitor.width}x${metaJsonContent.primary_monitor.height}`
-        : 'unknown',
-      arch: metaJsonContent.arch,
-      locale: metaJsonContent.locale,
-      version: metaJsonContent.version
-    },
-    quality_metrics: {
-      duration_seconds: metaJsonContent.duration_seconds,
-      completion_status: metaJsonContent.status,
-      completion_reason: metaJsonContent.reason
+        : 'unknown'
     }
   }
-  
+
   const demoHash = await demoStorage.storeDemo(
     submissionId,
     userAddress,
