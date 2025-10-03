@@ -429,22 +429,23 @@ async function uploadFilesToStorage(
     throw new Error('Failed to get demo integrity information')
   }
 
+  const byName = Object.fromEntries(integrity.files.map(f => [f.filename, f]));
   const fileManifest = {
     recording: {
-      size: integrity.files.find(f => f.filename === 'recording.mp4')?.size,
-      hash: integrity.files.find(f => f.filename === 'recording.mp4')?.sha256
+      size: byName['recording.mp4']?.size,
+      hash: byName['recording.mp4']?.sha256
     },
     meta: {
-      size: integrity.files.find(f => f.filename === 'meta.json')?.size,
-      hash: integrity.files.find(f => f.filename === 'meta.json')?.sha256
+      size: byName['meta.json']?.size,
+      hash: byName['meta.json']?.sha256
     },
     input_log: {
-      size: integrity.files.find(f => f.filename === 'input_log.jsonl')?.size,
-      hash: integrity.files.find(f => f.filename === 'input_log.jsonl')?.sha256
+      size: byName['input_log.jsonl']?.size,
+      hash: byName['input_log.jsonl']?.sha256
     },
     sft: {
-      size: integrity.files.find(f => f.filename === 'sft.json')?.size,
-      hash: integrity.files.find(f => f.filename === 'sft.json')?.sha256
+      size: byName['sft.json']?.size,
+      hash: byName['sft.json']?.sha256
     }
   }
 

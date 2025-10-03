@@ -21,6 +21,111 @@ const demoStorageService = new DemoStorageService(objectStorageService)
 
 /**
  * @swagger
+ * /forge/demo-files/{submissionId}/verify:
+ *   get:
+ *     summary: Verify integrity of demonstration files
+ *     description: Check file integrity using SHA-256 hashes
+ *     tags: [Demo Files]
+ *     security:
+ *       - sessionAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: submissionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The demonstration submission ID
+ *     responses:
+ *       200:
+ *         description: Integrity verification result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     valid:
+ *                       type: boolean
+ *                     demoHash:
+ *                       type: string
+ *                     errors:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     verifiedAt:
+ *                       type: string
+ *                       format: date-time
+ */
+router.get('/:submissionId/verify',
+  generalRateLimit,
+  requireWalletAddress,
+  errorHandlerAsync(async (req: any, res: Response) => {
+    const { submissionId } = req.params
+    const userAddress = req.walletAddress
+
+    if (!submissionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Submission ID is required'
+      })
+    }
+
+    const submission = await DemonstrationSubmission.findOne({
+      _id: submissionId,
+      address: { $regex: new RegExp(`^${userAddress.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+    })
+
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        error: 'Demonstration submission not found or access denied'
+      })
+    }
+
+    if (!submission.demoHash) {
+      return res.status(404).json({
+        success: false,
+        error: 'Demo hash not found for submission'
+      })
+    }
+
+    try {
+      const verification = await demoStorageService.verifyDemo(submission.demoHash)
+
+      // Update verification status in database
+      await DemonstrationSubmission.updateOne(
+        { _id: submissionId },
+        {
+          integrityVerified: verification.valid,
+          integrityLastCheck: new Date()
+        }
+      )
+
+      res.json({
+        success: true,
+        data: {
+          valid: verification.valid,
+          demoHash: submission.demoHash,
+          errors: verification.errors,
+          verifiedAt: new Date().toISOString()
+        }
+      })
+    } catch (error) {
+      console.error(`[DEMO-FILES] Error verifying demo ${submission.demoHash}:`, error)
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to verify demo integrity'
+      })
+    }
+  }))
+
+/**
+ * @swagger
  * /forge/demo-files/{submissionId}/{filename}:
  *   get:
  *     summary: Download a specific demo file
@@ -41,7 +146,7 @@ const demoStorageService = new DemoStorageService(objectStorageService)
  *         schema:
  *           type: string
  *         description: The filename to download
- *         example: "1234567890-meta.json"
+ *         example: "meta.json"
  *       - in: query
  *         name: asBase64
  *         required: false
@@ -118,12 +223,8 @@ router.get('/:submissionId/:filename',
       })
     }
 
-    const actualFilename = filename.startsWith(`${submissionId}-`)
-      ? filename.slice(`${submissionId}-`.length)
-      : filename
-
     try {
-      await demoStorageService.getDemoFile(submission.demoHash, actualFilename)
+      await demoStorageService.getDemoFile(submission.demoHash, filename)
     } catch (error) {
       return res.status(404).json({
         success: false,
@@ -146,21 +247,21 @@ router.get('/:submissionId/:filename',
         return 'application/octet-stream'
       }
 
-      if (asBase64 === 'true' && actualFilename.endsWith('recording.mp4')) {
-        const fileBuffer = await demoStorageService.getDemoFile(submission.demoHash, actualFilename)
+      if (asBase64 === 'true' && filename.endsWith('recording.mp4')) {
+        const fileBuffer = await demoStorageService.getDemoFile(submission.demoHash, filename)
         const base64Data = fileBuffer.toString('base64')
         res.setHeader('Content-Type', 'text/plain')
         res.setHeader('Content-Length', base64Data.length)
-        res.setHeader('Content-Disposition', `inline; filename="${actualFilename}.txt"`)
+        res.setHeader('Content-Disposition', `inline; filename="${filename}.txt"`)
         res.send(base64Data)
         return
       }
 
-      const fileStream = await demoStorageService.getDemoFileStream(submission.demoHash, actualFilename)
+      const fileStream = await demoStorageService.getDemoFileStream(submission.demoHash, filename)
 
       // Set appropriate headers
-      res.setHeader('Content-Type', getContentType(actualFilename))
-      res.setHeader('Content-Disposition', `inline; filename="${actualFilename}"`)
+      res.setHeader('Content-Type', getContentType(filename))
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`)
 
       // Stream the file directly (no memory buffering)
       fileStream.pipe(res)
@@ -316,110 +417,5 @@ router.get('/:submissionId',
       }
     })
   }))
-
-/**
- * @swagger
- * /forge/demo-files/{submissionId}/verify:
- *   get:
- *     summary: Verify integrity of demonstration files
- *     description: Check file integrity using SHA-256 hashes
- *     tags: [Demo Files]
- *     security:
- *       - sessionAuth: []
- *     parameters:
- *       - in: path
- *         name: submissionId
- *         required: true
- *         schema:
- *           type: string
- *         description: The demonstration submission ID
- *     responses:
- *       200:
- *         description: Integrity verification result
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     valid:
- *                       type: boolean
- *                     demoHash:
- *                       type: string
- *                     errors:
- *                       type: array
- *                       items:
- *                         type: string
- *                     verifiedAt:
- *                       type: string
- *                       format: date-time
- */
-router.get('/:submissionId/verify', 
-  generalRateLimit,
-  requireWalletAddress, 
-  errorHandlerAsync(async (req: any, res: Response) => {
-  const { submissionId } = req.params
-  const userAddress = req.walletAddress
-
-  if (!submissionId) {
-    return res.status(400).json({
-      success: false,
-      error: 'Submission ID is required'
-    })
-  }
-
-  const submission = await DemonstrationSubmission.findOne({
-    _id: submissionId,
-    address: { $regex: new RegExp(`^${userAddress.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
-  })
-
-  if (!submission) {
-    return res.status(404).json({
-      success: false,
-      error: 'Demonstration submission not found or access denied'
-    })
-  }
-
-  if (!submission.demoHash) {
-    return res.status(404).json({
-      success: false,
-      error: 'Demo hash not found for submission'
-    })
-  }
-
-  try {
-    const verification = await demoStorageService.verifyDemo(submission.demoHash)
-    
-    // Update verification status in database
-    await DemonstrationSubmission.updateOne(
-      { _id: submissionId },
-      { 
-        integrityVerified: verification.valid,
-        integrityLastCheck: new Date()
-      }
-    )
-
-    res.json({
-      success: true,
-      data: {
-        valid: verification.valid,
-        demoHash: submission.demoHash,
-        errors: verification.errors,
-        verifiedAt: new Date().toISOString()
-      }
-    })
-  } catch (error) {
-    console.error(`[DEMO-FILES] Error verifying demo ${submission.demoHash}:`, error)
-    
-    res.status(500).json({
-      success: false,
-      error: 'Failed to verify demo integrity'
-    })
-  }
-}))
 
 export default router
