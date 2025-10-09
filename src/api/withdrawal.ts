@@ -115,6 +115,10 @@ router.post(
             )
         } catch (error) {
             console.error('Withdrawal validation error:', error)
+            // Re-throw ApiError as-is (preserves status codes like 403)
+            if (error instanceof ApiError) {
+                throw error
+            }
             throw ApiError.internalError(
                 `Failed to validate withdrawal: ${error instanceof Error ? error.message : 'Unknown error'}`
             )
@@ -237,6 +241,10 @@ router.get(
             )
         } catch (error) {
             console.error('Max withdrawal calculation error:', error)
+            // Re-throw ApiError as-is (preserves status codes like 403)
+            if (error instanceof ApiError) {
+                throw error
+            }
             throw ApiError.internalError(
                 `Failed to calculate max withdrawal: ${error instanceof Error ? error.message : 'Unknown error'}`
             )
