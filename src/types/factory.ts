@@ -302,8 +302,11 @@ export interface OnChainReward {
   tokenAddress: string
   poolAddress: string
   amount: number
+  grossAmount: number
+  feeAmount: number
+  netAmount: number
   submissionId: string
-  txHash: string
+  txHash: string | null
   timestamp: number
   cumulativeAmount?: number
 }

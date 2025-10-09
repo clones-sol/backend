@@ -12,6 +12,7 @@ import {
   UploadLimitType
 } from '../../types/factory.ts'
 import { createClaimAuthService } from '../blockchain/claimAuthService.ts'
+import { calculateFeeAmounts, getContractFeeConfig } from '../blockchain/contractConfigService.ts'
 import { getTokenContractAddress } from '../blockchain/tokens.ts'
 
 // Initialize claim authorization service
@@ -359,34 +360,60 @@ export async function processNextInQueue() {
             `Claim authorization generated for submission ${submissionId}, claimable: ${claimAuthorization.newClaimableAmount}, publisher: ${claimAuthorization.publisherUsed}`
           )
 
+          const feeConfig = await getContractFeeConfig(factory.poolAddress)
+          const { grossAmount, feeAmount, netAmount } = calculateFeeAmounts(
+            reward,
+            feeConfig.feeBps,
+            feeConfig.feeDenominator
+          )
+
+          const cumulativeAmountTokens = claimAuthorization.alreadyClaimed + reward
+
           onChainReward = {
             tokenAddress: tokenAddress,
             poolAddress: factory.poolAddress,
-            amount: reward, // Individual reward for this submission
+            amount: reward,
+            grossAmount: grossAmount,
+            feeAmount: feeAmount,
+            netAmount: netAmount,
             submissionId: submissionId,
-            txHash: '', // No immediate tx, farmer will claim later
+            txHash: null as string | null,
             timestamp: Date.now(),
-            cumulativeAmount: claimAuthorization.alreadyClaimed + reward // Smart contract cumulative amount
+            cumulativeAmount: parseFloat(cumulativeAmountTokens.toFixed(18))
           }
 
           // Update the grade result reasoning and on-chain reward
+          const feePercentage = (feeConfig.feeBps / feeConfig.feeDenominator * 100).toFixed(1)
           const reasoningMessage =
             `( system: claim authorization generated - farmer can claim ` +
             `${claimAuthorization.newClaimableAmount.toFixed(2)} ${factory.token.symbol} ` +
-            `[already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}, new reward: ${reward.toFixed(2)}] ) ` +
+            `[already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}, new reward: ${reward.toFixed(2)} ` +
+            `(${netAmount.toFixed(2)} after ${feePercentage}% platform fee)] ) ` +
             `${submission.grade_result.reasoning}`
           submission.grade_result.reasoning = reasoningMessage
           submission.onChainReward = onChainReward
-          submission.claimAuthorization = claimAuthorization
+
+          const authWithFee = claimAuthorization as typeof claimAuthorization & { feePercentage: number }
+          authWithFee.feePercentage = parseFloat(feePercentage)
+          submission.claimAuthorization = authWithFee
 
           // Save updated claim authorization data
           await submission.save()
         } catch (error) {
           console.error('Claim authorization generation failed:', error)
-          // Update submission to reflect the claim authorization failure
-          submission.reward = 0
-          submission.grade_result.reasoning = `( system: no reward given - claim authorization failed ) ${submission.grade_result.reasoning}`
+
+          // IMPORTANT: Keep the calculated reward - don't reset to 0 for temporary failures
+          // The user earned the reward, the authorization just needs to be retried
+          submission.grade_result.reasoning =
+            `( system: claim authorization failed - will retry on next claim attempt ) ${submission.grade_result.reasoning}`
+          submission.error = `Claim authorization failed: ${(error as Error).message}`
+
+          // Keep reward and maxReward as calculated - just mark that authorization is missing
           await submission.save()
+
+          console.log(
+            `Submission ${submissionId} completed with reward ${reward} but claim authorization failed (can be regenerated on claim)`
+          )
         }
       } else if (
         factory &&

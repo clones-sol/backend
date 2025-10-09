@@ -4,12 +4,14 @@ import mongoose from 'mongoose'
 import { authRateLimit } from '../middleware/rateLimiter.ts'
 import { v4 as uuidv4 } from 'uuid'
 import ClaimRouterABI from '../contracts/abis/ClaimRouter.json' with { type: 'json' }
+import RewardPoolImplementationABI from '../contracts/abis/RewardPoolImplementation.json' with { type: 'json' }
 import { errorHandlerAsync } from '../middleware/errorHandler.ts'
 import { ApiError, successResponse } from '../middleware/types/errors.ts'
 import { validateBody, validateQuery } from '../middleware/validator.ts'
 import { TransactionSessionModel, WalletConnectionModel } from '../models/Models.ts'
 import { createFactoryService } from '../services/blockchain/factoryTransactionService.ts'
 import { createGasEstimationService } from '../services/blockchain/gasEstimationService.ts'
+import { calculateFeeAmounts, getContractFeeConfig } from '../services/blockchain/contractConfigService.ts'
 import { getTokenContractAddress, getTokenInfo } from '../services/blockchain/tokens.ts'
 import { createFactoryWithApps } from '../services/factory/factoryDatabaseService.ts'
 import { TransactionSessionService } from '../services/transactionSession.ts'
@@ -34,7 +36,7 @@ interface PreparedTransactionData {
     address: string
     decimals: number
     symbol: string
-    amountWei: string
+    amountWei?: string
   }
   validations?: {
     approved?: boolean
@@ -47,6 +49,8 @@ interface PreparedTransactionData {
     currentBalance?: string
     currentAllowance?: string
     requiredAmount?: string
+    alreadyClaimed?: number
+    newClaimableAmount?: number
   }
 }
 
@@ -57,6 +61,7 @@ interface TransactionParams {
   amount?: string
   poolAddress?: string
   tokenAddress?: string
+  submissionId?: string
 }
 
 const router: Router = express.Router()
@@ -329,22 +334,34 @@ router.post(
           break
 
         case 'createAndFundPool':
-          gasLimit = BigInt(280000) // Combined operation - harder to estimate without actual execution
+          // Combined operation - harder to estimate without actual execution
+          // TODO: Using static estimate to avoid allowance issues
+          gasLimit = BigInt(280000)
           break
 
         case 'fundPool':
           gasLimit = await gasBreaker.execute(
             async () => {
               if (poolAddress && amount) {
-                const amountNum = AmountValidator.validateBasicAmount(amount)
-                const txData = await factoryService.prepareFundPoolTransaction(
-                  poolAddress,
-                  amountNum,
-                  creator || '0x0000000000000000000000000000000000000000'
-                )
-                const contract = new ethers.Contract(txData.contractAddress, txData.abi, provider)
-                const estimated = await contract.fund.estimateGas(...txData.args)
-                return (estimated * 120n) / 100n // 20% buffer
+                try {
+                  const amountNum = AmountValidator.validateBasicAmount(amount)
+                  const txData = await factoryService.prepareFundPoolTransaction(
+                    poolAddress,
+                    amountNum,
+                    creator || '0x0000000000000000000000000000000000000000'
+                  )
+                  const contract = new ethers.Contract(txData.contractAddress, txData.abi, provider)
+                  const estimated = await contract.fund.estimateGas(...txData.args)
+                  return (estimated * 120n) / 100n // 20% buffer
+                } catch (error) {
+                  // Expected error: User hasn't approved token yet
+                  // Return fallback gas limit instead of throwing
+                  if (error instanceof Error && error.message.includes('allowance')) {
+                    console.log('Gas estimation for fundPool failed (allowance not granted), using fallback')
+                    return BigInt(120000)
+                  }
+                  throw error // Re-throw unexpected errors
+                }
               }
               return BigInt(120000) // Fallback
             },
@@ -447,7 +464,7 @@ router.post(
   authRateLimit,
   validateBody(prepareTransactionSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { type, sessionToken, creator, token, amount, poolAddress } = req.body
+    const { type, sessionToken, creator, token, amount, poolAddress, submissionId } = req.body
 
     // Validate session token and get user address
     const connection = await WalletConnectionModel.findOne({
@@ -528,21 +545,164 @@ router.post(
         break
       }
 
-      case 'claimRewards':
+      case 'claimRewards': {
         if (!poolAddress) {
           throw ApiError.badRequest('Pool address required for claimRewards')
         }
+        if (!amount) {
+          throw ApiError.badRequest('Reward amount required for claimRewards')
+        }
 
-        // For claims, return the claim router contract info
-        // Actual claim data would be prepared separately via batch endpoints
-        transactionData = {
-          contractAddress: CONTRACT_ADDRESSES.CLAIM_ROUTER,
-          abi: CLAIM_ROUTER_ABI,
-          functionName: 'claimAll',
-          args: [], // Claims data provided separately
-          validations: { approved: true }
+        // SECURITY: Verify this submission hasn't already been claimed
+        const { DemonstrationSubmission } = await import('../models/Models.ts')
+        const amountNumber = AmountValidator.validateBasicAmount(amount)
+
+        // Get submission ID from request if provided (preferred method)
+        let submission
+        if (submissionId) {
+          // Verify submission exists and belongs to user with FRESH read from DB
+          submission = await DemonstrationSubmission.findById(submissionId)
+          if (!submission) {
+            throw ApiError.notFound(`Submission ${submissionId} not found`)
+          }
+          if (submission.address.toLowerCase() !== userAddress.toLowerCase()) {
+            throw ApiError.forbidden('Submission does not belong to authenticated user')
+          }
+        } else {
+          // Fallback: Find submission by pool, user, and amount (less precise)
+          submission = await DemonstrationSubmission.findOne({
+            address: userAddress.toLowerCase(),
+            'claimAuthorization.poolAddress': poolAddress,
+            reward: amountNumber,
+            $or: [
+              { 'onChainReward.txHash': { $exists: false } },
+              { 'onChainReward.txHash': null },
+              { 'onChainReward.txHash': '' },
+              { 'onChainReward.txHash': { $regex: /^CLAIMING_/ } } // Also include pending claims
+            ]
+          }).sort({ createdAt: -1 }) // Get most recent if multiple
+        }
+
+        if (!submission) {
+          throw ApiError.notFound('No claimable submission found for this reward')
+        }
+
+        // CRITICAL: Check if this submission has already been claimed
+        // Ignore CLAIMING_ markers - those are temporary locks, not actual on-chain claims
+        if (
+          submission.onChainReward?.txHash &&
+          !submission.onChainReward.txHash.startsWith('CLAIMING_')
+        ) {
+          throw ApiError.badRequest(
+            `This reward has already been claimed on-chain (tx: ${submission.onChainReward.txHash.substring(0, 10)}...)`
+          )
+        }
+
+        // RACE CONDITION PROTECTION: Mark submission as "claiming" to prevent concurrent claims
+        // We set a temporary marker that will be replaced with actual txHash on completion
+        const now = Date.now()
+        const claimingMarker = `CLAIMING_${now}_${userAddress.substring(0, 10)}`
+
+        // Debug: Log current state before locking
+        console.log('Attempting to lock submission:', {
+          _id: submission._id,
+          'onChainReward.txHash': submission.onChainReward?.txHash,
+          'onChainReward.txHash type': typeof submission.onChainReward?.txHash,
+          'onChainReward.txHash length': submission.onChainReward?.txHash?.length,
+          'onChainReward exists': !!submission.onChainReward,
+          'full onChainReward': submission.onChainReward
+        })
+
+        const lockResult = await DemonstrationSubmission.findOneAndUpdate(
+          {
+            _id: submission._id,
+            $or: [
+              { 'onChainReward.txHash': { $exists: false } }, // Not set
+              { 'onChainReward.txHash': null }, // Explicitly null
+              { 'onChainReward.txHash': '' }, // Empty string
+              { 'onChainReward.txHash': { $regex: /^CLAIMING_/ } } // Already has a CLAIMING_ marker (allow retry)
+            ]
+          },
+          {
+            $set: {
+              'onChainReward.txHash': claimingMarker, // Temporary marker
+              'onChainReward.timestamp': now
+            }
+          },
+          { new: true }
+        )
+        console.log('lockResult:', lockResult ? 'SUCCESS' : 'FAILED')
+        if (!lockResult) {
+          throw ApiError.conflict(
+            'This reward is currently being claimed or has already been claimed. Please check your claim status.'
+          )
+        }
+
+        console.log(`Locked submission ${submission._id} for claiming with marker: ${claimingMarker}`)
+
+        try {
+          // Import claim auth service
+          const { createClaimAuthService } = await import('../services/blockchain/claimAuthService.ts')
+          const claimAuthService = createClaimAuthService()
+
+          // Generate EIP-712 signature for claim
+          const claimAuthorization = await claimAuthService.generateClaimAuthorization(
+            poolAddress,
+            userAddress,
+            amountNumber
+          )
+
+          // Prepare transaction data for payWithSig call
+          transactionData = {
+            contractAddress: poolAddress,
+            abi: RewardPoolImplementationABI,
+            functionName: 'payWithSig',
+            args: [
+              claimAuthorization.account,
+              claimAuthorization.cumulativeAmount,
+              claimAuthorization.nonce,
+              claimAuthorization.signature
+            ],
+            validations: {
+              approved: true,
+              alreadyClaimed: claimAuthorization.alreadyClaimed,
+              newClaimableAmount: claimAuthorization.newClaimableAmount
+            },
+            tokenInfo: {
+              address: claimAuthorization.tokenAddress,
+              symbol: '',
+              decimals: 0
+            }
+          }
+        } catch (error) {
+          // CRITICAL: If signature generation fails, unlock the submission
+          console.error(`Claim authorization failed for ${submission._id}, unlocking...`, error)
+
+          await DemonstrationSubmission.findOneAndUpdate(
+            {
+              _id: submission._id,
+              'onChainReward.txHash': claimingMarker // Only unlock if it's our marker
+            },
+            {
+              $set: {
+                'onChainReward.txHash': null,
+                'onChainReward.timestamp': null
+              }
+            }
+          )
+
+          console.log(`Unlocked submission ${submission._id} after authorization failure`)
+
+          // Re-throw the error with user-friendly message
+          if (error instanceof Error && error.message.includes('timeout')) {
+            throw ApiError.serviceUnavailable(
+              'Blockchain network timeout. Please try again in a few moments.'
+            )
+          }
+          throw error
         }
         break
+      }
 
       default:
         throw ApiError.badRequest(`Unsupported transaction type: ${type}`)
@@ -562,6 +722,10 @@ router.post(
     if ((type === 'fundPool' || type === 'createAndFundPool') && token) {
       const tokenContractAddress = getTokenContractAddress(token)
       transactionParams.tokenAddress = tokenContractAddress
+    }
+    // For claimRewards, include submissionId for validation
+    if (type === 'claimRewards' && submissionId) {
+      transactionParams.submissionId = submissionId
     }
 
     const transactionSession = new TransactionSessionModel({
@@ -690,6 +854,87 @@ router.post(
     if (error) session.error = error
 
     await session.save()
+
+    // If this is a claim transaction, update the submission with txHash or clean up lock
+    if (
+      session.transactionType === 'claimRewards' &&
+      session.transactionParams?.submissionId
+    ) {
+      const { DemonstrationSubmission } = await import('../models/Models.ts')
+      const submissionId = session.transactionParams.submissionId
+
+      try {
+        if (status === 'completed' && txHash) {
+          const grossAmount = parseFloat(session.transactionParams.amount || '0')
+          const poolAddress = session.transactionParams.poolAddress || ''
+
+          const feeConfig = await getContractFeeConfig(poolAddress)
+          const { feeAmount, netAmount } = calculateFeeAmounts(
+            grossAmount,
+            feeConfig.feeBps,
+            feeConfig.feeDenominator
+          )
+
+          // SUCCESS: Replace the CLAIMING_ marker with actual txHash
+          const result = await DemonstrationSubmission.findOneAndUpdate(
+            {
+              _id: submissionId,
+              // Accept either CLAIMING_ marker or no txHash (for backwards compatibility)
+              $or: [
+                { 'onChainReward.txHash': { $regex: /^CLAIMING_/ } },
+                { 'onChainReward.txHash': { $exists: false } }
+              ]
+            },
+            {
+              $set: {
+                'onChainReward.txHash': txHash,
+                'onChainReward.timestamp': Date.now(),
+                'onChainReward.poolAddress': poolAddress,
+                'onChainReward.amount': grossAmount,
+                'onChainReward.tokenAddress':
+                  session.transactionParams.tokenAddress || '',
+                'onChainReward.grossAmount': grossAmount,
+                'onChainReward.feeAmount': feeAmount,
+                'onChainReward.netAmount': netAmount
+              }
+            },
+            { new: true }
+          )
+
+          if (!result) {
+            console.warn(
+              `Submission ${submissionId} was already claimed or not found during txHash update`
+            )
+          } else {
+            console.log(`Successfully recorded claim for submission ${submissionId}: ${txHash}`)
+          }
+        } else if (status === 'failed' || status === 'cancelled') {
+          // FAILURE: Remove the CLAIMING_ lock to allow retry
+          const result = await DemonstrationSubmission.findOneAndUpdate(
+            {
+              _id: submissionId,
+              'onChainReward.txHash': { $regex: /^CLAIMING_/ }
+            },
+            {
+              $set: {
+                'onChainReward.txHash': null, // Set to null to allow retry
+                'onChainReward.timestamp': null
+              }
+            },
+            { new: true }
+          )
+
+          if (result) {
+            console.log(
+              `Unlocked submission ${submissionId} after ${status} transaction (user can retry)`
+            )
+          }
+        }
+      } catch (updateError) {
+        // Log but don't fail the request - session was already updated
+        console.error('Failed to update submission with txHash:', updateError)
+      }
+    }
 
     res.status(200).json(
       successResponse({

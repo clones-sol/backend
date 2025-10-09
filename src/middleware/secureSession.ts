@@ -119,6 +119,10 @@ export function configureSecureSession(app: Application): void {
     '/api/v1/referral/cleanup/stats', // Extend expiration (POST)
     '/api/v1/referral/cleanup/extend-expiration', // Extend expiration (POST)
     '/api/v1/referral/cleanup/regenerate-code', // Regenerate code (POST)
+    '/api/v1/withdrawal/validate',        // Withdrawal validation (POST but read-only)
+    '/api/v1/withdrawal/pools',           // Pool health & max-withdrawal (GET)
+    '/api/v1/withdrawal/monitor/status',  // Monitor service status (GET)
+    '/api/v1/withdrawal/reputation'       // Creator reputation queries (GET)
   ];
 
   // Apply CSRF protection to all routes except bootstrap endpoints

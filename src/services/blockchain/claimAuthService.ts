@@ -76,8 +76,14 @@ class ClaimAuthService {
 
   /**
    * Query already claimed amount from the smart contract
+   * Returns both wei (bigint) and human-readable amount
    */
-  async getAlreadyClaimedAmount(poolAddress: string, userAddress: string): Promise<number> {
+  async getAlreadyClaimedAmount(poolAddress: string, userAddress: string): Promise<{
+    alreadyClaimedWei: bigint
+    alreadyClaimedTokens: number
+    decimals: number
+    tokenAddress: string
+  }> {
     try {
       const poolContract = new ethers.Contract(
         poolAddress,
@@ -95,14 +101,42 @@ class ClaimAuthService {
 
       // Get token decimals from cache
       const metadata = await tokenCache.getTokenMetadata(tokenAddress, this.provider)
-      const alreadyClaimed = parseFloat(ethers.formatUnits(alreadyClaimedWei, metadata.decimals))
+      const alreadyClaimedTokens = parseFloat(ethers.formatUnits(alreadyClaimedWei, metadata.decimals))
 
-      console.log(`User ${userAddress} already claimed: ${alreadyClaimed} tokens`)
-      return alreadyClaimed
+      console.log(`User ${userAddress} already claimed: ${alreadyClaimedTokens} tokens (${alreadyClaimedWei} wei)`)
+
+      return {
+        alreadyClaimedWei: BigInt(alreadyClaimedWei),
+        alreadyClaimedTokens,
+        decimals: metadata.decimals,
+        tokenAddress
+      }
     } catch (error) {
       console.error('Error querying already claimed amount:', error)
       throw ApiError.internalError(
         `Failed to query already claimed amount from smart contract: ${error instanceof Error ? error.message : 'Unknown error'}. Cannot authorize claim without verifying existing claims.`
+      )
+    }
+  }
+
+  /**
+   * Query current nonce for replay protection
+   */
+  async getCurrentNonce(poolAddress: string, userAddress: string): Promise<number> {
+    try {
+      const poolContract = new ethers.Contract(
+        poolAddress,
+        ['function claimNonce(address) external view returns (uint256)'],
+        this.provider
+      )
+
+      const nonce = await poolContract.claimNonce(userAddress)
+      console.log(`User ${userAddress} current nonce: ${nonce}`)
+      return Number(nonce)
+    } catch (error) {
+      console.error('Error querying nonce:', error)
+      throw ApiError.internalError(
+        `Failed to query nonce from smart contract: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
     }
   }
@@ -127,6 +161,7 @@ class ClaimAuthService {
     // Smart contract parameters
     account: string
     cumulativeAmount: string
+    nonce: number
     signature: string
     // Additional context
     publisherUsed: string
@@ -134,6 +169,7 @@ class ClaimAuthService {
     tokenAddress: string
     alreadyClaimed: number
     newClaimableAmount: number
+    feePercentage?: number
   }> {
     // Get publisher info to determine which signer to use
     const publisherInfo = await this.getPublisherInfo()
@@ -174,27 +210,41 @@ class ClaimAuthService {
       `Using publisher ${publisherUsed} for signing (grace period: ${publisherInfo.isInGracePeriod})`
     )
 
-    // Query already claimed amount from smart contract (source of truth)
-    const alreadyClaimed = await this.getAlreadyClaimedAmount(poolAddress, farmerAddress)
+    // Query already claimed amount and current nonce from smart contract (source of truth)
+    const [claimedInfo, currentNonce] = await Promise.all([
+      this.getAlreadyClaimedAmount(poolAddress, farmerAddress),
+      this.getCurrentNonce(poolAddress, farmerAddress)
+    ])
 
-    // Calculate new cumulative amount = already claimed + individual reward
-    const newCumulativeAmount = alreadyClaimed + individualReward
+    const { alreadyClaimedWei, alreadyClaimedTokens, decimals, tokenAddress } = claimedInfo
 
     // Validate individual reward
     if (individualReward <= 0) {
       throw ApiError.badRequest(`Invalid individual reward: ${individualReward}. Must be positive.`)
     }
 
+    // Convert individual reward to wei (working in wei prevents precision errors)
+    const individualRewardWei = ethers.parseUnits(individualReward.toString(), decimals)
+
+    // Calculate new cumulative amount in wei (BigInt arithmetic - no precision loss)
+    const newCumulativeAmountWei = alreadyClaimedWei + individualRewardWei
+
+    // Convert back to tokens for display/validation
+    const newCumulativeAmountTokens = parseFloat(ethers.formatUnits(newCumulativeAmountWei, decimals))
+
     // Validate new cumulative amount is greater than already claimed
-    if (newCumulativeAmount <= alreadyClaimed) {
+    if (newCumulativeAmountWei <= alreadyClaimedWei) {
       throw ApiError.badRequest(
-        `New cumulative amount (${newCumulativeAmount}) must be greater than already claimed (${alreadyClaimed})`
+        `New cumulative amount (${newCumulativeAmountTokens}) must be greater than already claimed (${alreadyClaimedTokens})`
       )
     }
 
     const newClaimableAmount = individualReward // This transaction's claimable amount
     console.log(
-      `Generating signature: alreadyClaimed=${alreadyClaimed}, individualReward=${individualReward}, newCumulative=${newCumulativeAmount}`
+      `Generating signature: alreadyClaimed=${alreadyClaimedTokens}, individualReward=${individualReward}, newCumulative=${newCumulativeAmountTokens}, nonce=${currentNonce}`
+    )
+    console.log(
+      `Wei values: alreadyClaimedWei=${alreadyClaimedWei}, individualRewardWei=${individualRewardWei}, newCumulativeWei=${newCumulativeAmountWei}`
     )
 
     // EIP-712 domain - must match RewardPoolImplementation contract
@@ -205,30 +255,23 @@ class ClaimAuthService {
       verifyingContract: poolAddress
     }
 
-    // EIP-712 types - must match RewardPoolImplementation contract
+    // EIP-712 types - must match RewardPoolImplementation contract (including nonce for replay protection)
     const types = {
       Claim: [
         { name: 'account', type: 'address' },
-        { name: 'cumulativeAmount', type: 'uint256' }
+        { name: 'cumulativeAmount', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' }
       ]
     }
 
-    // Get token decimals to format amount properly
-    const poolContract = new ethers.Contract(
-      poolAddress,
-      ['function token() external view returns (address)'],
-      this.provider
-    )
-
-    const tokenAddress = await poolContract.token()
-    const metadata = await tokenCache.getTokenMetadata(tokenAddress, this.provider)
-    console.log('Decimals:', metadata.decimals)
-    const cumulativeAmountWei = ethers.parseUnits(newCumulativeAmount.toString(), metadata.decimals)
+    // Use the precise wei value (no rounding errors)
+    const cumulativeAmountWei = newCumulativeAmountWei
     console.log('Cumulative amount wei:', cumulativeAmountWei)
 
     const message = {
       account: farmerAddress,
-      cumulativeAmount: cumulativeAmountWei
+      cumulativeAmount: cumulativeAmountWei,
+      nonce: currentNonce
     }
     console.log('Message:', message)
     // Sign the structured data with the selected publisher
@@ -238,12 +281,13 @@ class ClaimAuthService {
       // Smart contract parameters (exact format for payWithSig call)
       account: farmerAddress,
       cumulativeAmount: cumulativeAmountWei.toString(),
+      nonce: currentNonce,
       signature,
       // Additional context for frontend
       publisherUsed,
       poolAddress,
       tokenAddress,
-      alreadyClaimed,
+      alreadyClaimed: alreadyClaimedTokens,
       newClaimableAmount
     }
   }

@@ -193,6 +193,25 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "oldGasLimit",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "newGasLimit",
+        "type": "uint256"
+      }
+    ],
+    "name": "MaxGasPerClaimUpdated",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "TIMELOCK",
     "outputs": [
@@ -244,6 +263,11 @@
             "type": "uint256"
           },
           {
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
+          },
+          {
             "internalType": "bytes",
             "name": "signature",
             "type": "bytes"
@@ -284,6 +308,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "maxGasPerClaim",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -310,6 +347,19 @@
       }
     ],
     "name": "setMaxBatchSize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "newMaxGasPerClaim",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMaxGasPerClaim",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
