@@ -13,19 +13,19 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
     },
     demoHash: { type: String, index: true },
     fileManifest: {
-      recording: { 
+      recording: {
         size: { type: Number, required: false },
         hash: { type: String, required: false }
       },
-      meta: { 
+      meta: {
         size: { type: Number, required: false },
         hash: { type: String, required: false }
       },
-      input_log: { 
+      input_log: {
         size: { type: Number, required: false },
         hash: { type: String, required: false }
       },
-      sft: { 
+      sft: {
         size: { type: Number, required: false },
         hash: { type: String, required: false }
       }
@@ -61,9 +61,13 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
         tokenAddress: String,
         poolAddress: String,
         amount: Number,
+        grossAmount: Number,
+        feeAmount: Number,
+        netAmount: Number,
         taskId: String,
         txHash: String,
-        timestamp: Number
+        timestamp: Number,
+        cumulativeAmount: Number
       },
       required: false
     },
@@ -72,13 +76,15 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
         // Smart contract parameters
         account: String,
         cumulativeAmount: String,
+        nonce: Number,
         signature: String,
         // Additional context
         publisherUsed: String,
         poolAddress: String,
         tokenAddress: String,
         alreadyClaimed: Number,
-        newClaimableAmount: Number
+        newClaimableAmount: Number,
+        feePercentage: Number
       },
       required: false
     },

@@ -237,6 +237,225 @@ Validates transaction parameters before execution.
 - **fundPool**: ~120k gas
 - **claimRewards**: ~150k gas per claim
 
+## Claim Rewards Security Flow
+
+### Overview
+
+The claim rewards system uses a **dual-layer security model** where **MongoDB acts as the authorization source** and **smart contracts enforce execution rules**. This architecture ensures that only legitimately earned rewards (evaluated and approved off-chain) can be claimed on-chain.
+
+### Security Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ MongoDB: Authorization Source (Who Can Claim?)                      │
+│ ✓ Only evaluated submissions with reward > 0                        │
+│ ✓ submission.onChainReward.txHash tracks claim status              │
+│ ✓ Controls which submissions are eligible for claiming             │
+└─────────────────────────────────────────────────────────────────────┘
+                                 ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│ Smart Contract: Execution Rules (How to Claim?)                    │
+│ ✓ Verifies publisher signature (authenticates platform)            │
+│ ✓ Prevents replay attacks via cumulative pattern                   │
+│ ✓ Enforces: cumulativeAmount > alreadyClaimed[account]             │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Why Two Signature Generations?
+
+The system generates EIP-712 signatures in **two different places** for different purposes:
+
+#### 1. In `processing.ts` (After Evaluation) - **INFORMATIVE**
+
+**File**: `src/services/forge/processing.ts`
+
+```typescript
+// After CQA evaluation completes and reward is calculated
+const claimAuthorization = await claimAuthService.generateClaimAuthorization(
+  factory.poolAddress,
+  submission.address,
+  reward
+)
+
+// Stored in MongoDB: submission.claimAuthorization
+```
+
+**Purpose**: 
+- Informational/preview signature
+- Stored in MongoDB for reference
+- **Can become obsolete** if user claims other submissions (changes `nonce` and `alreadyClaimed`)
+
+**Why it exists**:
+- Provides immediate feedback to user that claim is authorized
+- Allows desktop app to show claim details without re-fetching
+- Stores historical authorization data
+
+#### 2. In `transaction.ts` (When User Claims) - **OPERATIONAL**
+
+**File**: `src/api/transaction.ts`
+
+```typescript
+// SECURITY CHECK: Verify submission hasn't been claimed
+const submission = await DemonstrationSubmission.findById(submissionId)
+
+if (submission.onChainReward?.txHash) {
+  throw ApiError.badRequest('This reward has already been claimed')
+}
+
+// Generate FRESH signature with CURRENT smart contract state
+const claimAuthorization = await claimAuthService.generateClaimAuthorization(
+  poolAddress,
+  userAddress,
+  amountNumber
+)
+```
+
+**Purpose**:
+- **Always fresh** with current smart contract state
+- Includes current `nonce` from `RewardPoolImplementation.claimNonce(user)`
+- Includes current `alreadyClaimed` for cumulative calculation
+
+**Why it's regenerated**:
+- **`nonce` changes** after each successful claim (replay protection)
+- **`alreadyClaimed` changes** as user claims rewards
+- Signature must reflect **real-time on-chain state**
+
+### Complete Security Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ STEP 1: Processing (After CQA Evaluation)                       │
+│ File: src/services/forge/processing.ts                          │
+├─────────────────────────────────────────────────────────────────┤
+│ ✓ Demo scored by CQA (e.g., 80/100)                             │
+│ ✓ Reward calculated: 8 tokens                                   │
+│ ✓ Stored in MongoDB:                                            │
+│   - submission.reward = 8                                       │
+│   - submission.claimAuthorization = { ... } (informative)       │
+│   - submission.onChainReward.txHash = null (not claimed yet)   │
+│ ✓ Status: COMPLETED (eligible for claiming)                    │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ STEP 2: User Initiates Claim                                    │
+│ Desktop App → Backend API                                       │
+├─────────────────────────────────────────────────────────────────┤
+│ ✓ User clicks "Claim Reward" in desktop                         │
+│ ✓ Desktop sends: submissionId, poolAddress, amount             │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ STEP 3: Transaction Preparation                                 │
+│ File: src/api/transaction.ts → prepare-tx endpoint             │
+├─────────────────────────────────────────────────────────────────┤
+│ SECURITY CHECKS (MongoDB):                                      │
+│ ✓ Submission exists                                             │
+│ ✓ Submission belongs to authenticated user                      │
+│ ✓ submission.onChainReward.txHash === null (not claimed)       │
+│                                                                  │
+│ FETCH CURRENT STATE (Smart Contract):                           │
+│ ✓ Read alreadyClaimed from RewardPoolImplementation            │
+│ ✓ Read claimNonce from RewardPoolImplementation                │
+│                                                                  │
+│ GENERATE FRESH SIGNATURE:                                       │
+│ ✓ newCumulativeAmount = alreadyClaimed + reward                │
+│ ✓ Sign with publisher private key                              │
+│ ✓ Include current nonce for replay protection                  │
+│                                                                  │
+│ RETURNS:                                                         │
+│ {                                                                │
+│   contractAddress: poolAddress,                                 │
+│   functionName: 'payWithSig',                                   │
+│   args: [account, cumulativeAmount, nonce, signature]          │
+│ }                                                                │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ STEP 4: Smart Contract Execution                                │
+│ Contract: RewardPoolImplementation.payWithSig()                 │
+├─────────────────────────────────────────────────────────────────┤
+│ SIGNATURE VERIFICATION:                                          │
+│ ✓ Recover signer from EIP-712 signature                         │
+│ ✓ Verify signer === publisher (from factory)                    │
+│                                                                  │
+│ REPLAY PROTECTION:                                               │
+│ ✓ Verify: cumulativeAmount > alreadyClaimed[account]           │
+│ ✓ Verify: nonce === claimNonce[account]                        │
+│                                                                  │
+│ EXECUTION:                                                       │
+│ ✓ Calculate: gross = cumulativeAmount - alreadyClaimed         │
+│ ✓ Calculate fee (10%)                                           │
+│ ✓ Transfer net to user, fee to treasury                         │
+│ ✓ Update: alreadyClaimed[account] = cumulativeAmount           │
+│ ✓ Increment: claimNonce[account]++                             │
+│                                                                  │
+│ RESULT: Transaction hash                                        │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ STEP 5: Status Update                                           │
+│ Backend updates MongoDB                                         │
+├─────────────────────────────────────────────────────────────────┤
+│ ✓ submission.onChainReward.txHash = "0x123..."                 │
+│ ✓ Future claim attempts rejected (already claimed)             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Security Properties
+
+1. **MongoDB Authorization**
+   - **Source of Truth**: Only submissions evaluated by CQA can be claimed
+   - **Double-Claim Prevention**: `onChainReward.txHash` check in `transaction.ts`
+   - **User Ownership**: Submission must belong to authenticated user
+
+2. **Smart Contract Enforcement**
+   - **Publisher Authentication**: Only platform can authorize claims (via signature)
+   - **Replay Protection**: Cumulative pattern + nonce prevents reusing signatures
+   - **Atomic Execution**: Transfer to user and treasury in single transaction
+
+3. **Why This Design?**
+   - ✅ **Scalability**: Off-chain scoring, on-chain execution
+   - ✅ **Security**: Multiple layers of validation
+   - ✅ **Gas Efficiency**: Users pay only for final claim transaction
+   - ✅ **Transparency**: All claims recorded on-chain with events
+
+### Common Questions
+
+**Q: Why not just use the signature from `processing.ts`?**
+
+A: The signature in `processing.ts` becomes stale when:
+- User claims other rewards (increments `nonce`)
+- User's `alreadyClaimed` amount increases
+- The signature must always reflect current smart contract state
+
+**Q: Why does MongoDB store a signature if it's regenerated?**
+
+A: The stored signature is for **informational purposes** only:
+- Shows user their claim is authorized
+- Provides preview of claim parameters
+- Stores historical authorization data
+
+**Q: What prevents someone from calling `transaction.ts` without a valid submission?**
+
+A: Three layers of protection:
+1. **MongoDB check**: Submission must exist with `reward > 0`
+2. **Ownership check**: Submission must belong to authenticated user
+3. **Claim status check**: `onChainReward.txHash` must be null
+
+**Q: What prevents double-claiming the same submission?**
+
+A: Two mechanisms:
+1. **MongoDB**: `submission.onChainReward.txHash` check rejects if not null
+2. **Smart Contract**: `alreadyClaimed` prevents claiming same cumulative amount twice
+
+### Related Files
+
+- **Signature Generation**: `src/services/blockchain/claimAuthService.ts`
+- **Transaction Preparation**: `src/api/transaction.ts` (line 548-627)
+- **Processing Flow**: `src/services/forge/processing.ts` (line 336-401)
+- **Claim Validation API**: `src/api/claim.ts` (pre-validation endpoint)
+- **Smart Contract ABI**: `src/contracts/abis/RewardPoolImplementation.json`
+
 ## Object Storage
 
 The backend supports both local development (LocalStack) and production (Tigris) object storage for file uploads and training data.

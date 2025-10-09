@@ -8,6 +8,7 @@ import RewardPoolImplementationABI from '../../contracts/abis/RewardPoolImplemen
 import { ApiError } from '../../middleware/types/errors.ts'
 import { CircuitBreakerManager } from '../../utils/circuitBreaker.ts'
 import { tokenCache } from '../../utils/tokenCache.js'
+import { createWithdrawalValidationService } from './withdrawalValidationService.ts'
 
 /**
  * @title FactoryService
@@ -430,6 +431,7 @@ class FactoryService {
    * @param poolAddress Address of the pool to withdraw from
    * @param amount Amount to withdraw (in human-readable units)
    * @param withdrawerAddress Address of the withdrawer (must be creator)
+   * @notice Validates withdrawal against pending farmer claims to ensure sufficient pool balance
    */
   async prepareWithdrawPoolTransaction(
     poolAddress: string,
@@ -451,6 +453,11 @@ class FactoryService {
       sufficientBalance: boolean
       currentBalance: string
       requiredAmount: string
+      safeWithdrawal: boolean
+      maxSafeWithdrawal: string
+      pendingClaims: string
+      pendingClaimsCount: number
+      warningMessage?: string
     }
   }> {
     // Validate pool address format
@@ -494,6 +501,38 @@ class FactoryService {
     const balance = await tokenContract.balanceOf(poolAddress)
     const sufficientBalance = balance >= amountWei
 
+    // Validate against pending claims
+    const validationService = createWithdrawalValidationService()
+    const withdrawalValidation = await validationService.getPoolState(poolAddress).then((poolState) =>
+      validationService.validateWithdrawal(poolState, amountWei)
+    )
+
+    // If withdrawal is not allowed, throw descriptive error
+    if (!withdrawalValidation.allowed) {
+      throw ApiError.badRequest(
+        `Withdrawal rejected: ${withdrawalValidation.reason}\n\n` +
+        `This pool has ${withdrawalValidation.poolState.allocations.length} farmer(s) ` +
+        `with ${ethers.formatEther(withdrawalValidation.poolState.totalPending)} tokens ` +
+        `in pending claims that must be protected.`
+      )
+    }
+
+    // Generate warning message if withdrawal is allowed but getting close to limit
+    let warningMessage: string | undefined
+    const utilizationAfterWithdrawal =
+      withdrawalValidation.poolState.totalPending > 0n
+        ? Number(
+          (withdrawalValidation.poolState.totalPending * 10000n) /
+          (balance - amountWei)
+        ) / 100
+        : 0
+
+    if (utilizationAfterWithdrawal > 70) {
+      warningMessage =
+        `After this withdrawal, ${utilizationAfterWithdrawal.toFixed(1)}% of the pool ` +
+        `balance will be allocated to pending claims. Consider leaving more buffer for safety.`
+    }
+
     return {
       contractAddress: poolAddress,
       abi: VAULT_ABI,
@@ -509,7 +548,12 @@ class FactoryService {
         isCreator,
         sufficientBalance,
         currentBalance: balance.toString(),
-        requiredAmount: amountWei.toString()
+        requiredAmount: amountWei.toString(),
+        safeWithdrawal: withdrawalValidation.allowed,
+        maxSafeWithdrawal: withdrawalValidation.maxWithdrawable.toString(),
+        pendingClaims: withdrawalValidation.poolState.totalPending.toString(),
+        pendingClaimsCount: withdrawalValidation.poolState.allocations.length,
+        warningMessage
       }
     }
   }

@@ -35,6 +35,10 @@ export const validateTransactionSchema: ValidationSchema = {
   timestamp: {
     required: true,
     rules: [ValidationRules.isNumber()]
+  },
+  submissionId: {
+    required: false,
+    rules: [ValidationRules.isString()]
   }
 }
 
@@ -91,6 +95,10 @@ export const prepareTransactionSchema: ValidationSchema = {
   poolAddress: {
     required: false,
     rules: [ValidationRules.isString(), ValidationRules.isEVMAddress()]
+  },
+  submissionId: {
+    required: false,
+    rules: [ValidationRules.isString()]
   }
 }
 

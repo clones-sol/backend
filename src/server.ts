@@ -14,6 +14,7 @@ import { forgeApi } from './api/forge/index.ts'
 import { referralApi } from './api/referral.ts'
 import { transactionApi } from './api/transaction.ts'
 import { walletApi } from './api/wallet.ts'
+import { withdrawalApi } from './api/withdrawal.ts'
 import { catchErrors } from './hooks/errors.ts'
 import { errorHandler } from './middleware/errorHandler.ts'
 import { connectToDatabase } from './services/database.ts'
@@ -21,6 +22,7 @@ import { connectToRedis, disconnectFromRedis } from './services/redis.ts'
 import { initializeWebSocketServer } from './services/websockets/socketManager.ts'
 import { configureSecureSession } from './middleware/secureSession.ts'
 import { generalRateLimit } from './middleware/rateLimiter.ts'
+import { startClaimLockCleanupService, stopClaimLockCleanupService } from './services/claimLockCleanupService.ts'
 
 const app = express()
 const port = parseInt(process.env.PORT || '8001', 10)
@@ -106,6 +108,7 @@ app.use('/api/v1/forge', forgeApi)
 app.use('/api/v1/wallet', walletApi)
 app.use('/api/v1/referral', referralApi)
 app.use('/api/v1/transaction', transactionApi)
+app.use('/api/v1/withdrawal', withdrawalApi)
 
 // Swagger API documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
@@ -142,12 +145,19 @@ if (shouldStartServer) {
 
     // Initialize WebSocket server after Redis connection
     initializeWebSocketServer(httpServer)
+
+    // Start claim lock cleanup service
+    startClaimLockCleanupService()
   })
 }
 
 // Graceful shutdown logic
 const handleShutdown = () => {
   console.log(`\nReceived shutdown signal. Shutting down gracefully...`)
+
+  // Stop background services first
+  stopClaimLockCleanupService()
+
   httpServer.close(() => {
     console.log('HTTP server closed.')
     mongoose.disconnect().then(() => {
