@@ -71,14 +71,23 @@ vi.mock('ethers', () => ({
         }),
         formatEther: vi.fn().mockImplementation((value) => {
             return (Number(value) / 1e18).toString()
-        })
-    }
+        }),
+        getAddress: vi.fn().mockImplementation((address) => address)
+    },
+    isAddress: vi.fn().mockImplementation((value) => {
+        if (typeof value !== 'string') return false
+        return /^0x[a-fA-F0-9]{40}$/.test(value)
+    })
 }))
 
 // Mock requireWalletAddress middleware
 vi.mock('../middleware/auth.ts', () => ({
-    requireWalletAddress: (req: any, _res: any, next: any) => {
-        req.walletAddress = req.headers['x-wallet-address'] || '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    requireWalletAddress: (req: any, res: any, next: any) => {
+        const walletAddress = req.headers['x-wallet-address']
+        if (!walletAddress) {
+            return res.status(401).json({ error: { message: 'Wallet address required', code: 'UNAUTHORIZED' } })
+        }
+        req.walletAddress = walletAddress
         next()
     }
 }))
@@ -89,9 +98,9 @@ app.use('/api/v1/withdrawal', withdrawalApi)
 app.use(errorHandler)
 
 describe('Withdrawal API', () => {
-    const mockPoolAddress = '0x1234567890123456789012345678901234567890'
-    const mockCreatorAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
-    const mockTokenAddress = '0xabcdef1234567890123456789012345678901234'
+    const mockPoolAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    const mockCreatorAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+    const mockTokenAddress = '0xAbCdEf1234567890123456789012345678901234'
 
     beforeEach(() => {
         vi.clearAllMocks()
@@ -188,7 +197,7 @@ describe('Withdrawal API', () => {
         it('should reject validation when user is not creator', async () => {
             const mockPoolState = {
                 address: mockPoolAddress,
-                creator: '0xOtherCreator123456789012345678901234567890',
+                creator: '0x3C44CdDdB6a900fa2b585dd299e03d12fa4293BC',
                 token: mockTokenAddress,
                 balance: BigInt('1000000000000000000000'),
                 totalPending: BigInt('0'),
@@ -351,7 +360,7 @@ describe('Withdrawal API', () => {
         it('should reject when user is not creator', async () => {
             const mockPoolState = {
                 address: mockPoolAddress,
-                creator: '0xOtherCreator123456789012345678901234567890',
+                creator: '0x3C44CdDdB6a900fa2b585dd299e03d12fa4293BC',
                 token: mockTokenAddress,
                 balance: BigInt('1000000000000000000000'),
                 totalPending: BigInt('0'),
