@@ -306,7 +306,7 @@ export interface OnChainReward {
   feeAmount: number
   netAmount: number
   submissionId: string
-  txHash: string | null
+  txHash?: string
   timestamp: number
   cumulativeAmount?: number
 }

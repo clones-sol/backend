@@ -602,16 +602,6 @@ router.post(
         // Use cryptographically secure UUID to prevent predictable patterns and exploitation
         const claimingMarker = `CLAIMING_${uuidv4()}`
 
-        // Debug: Log current state before locking
-        console.log('Attempting to lock submission:', {
-          _id: submission._id,
-          'onChainReward.txHash': submission.onChainReward?.txHash,
-          'onChainReward.txHash type': typeof submission.onChainReward?.txHash,
-          'onChainReward.txHash length': submission.onChainReward?.txHash?.length,
-          'onChainReward exists': !!submission.onChainReward,
-          'full onChainReward': submission.onChainReward,
-          claimingMarker
-        })
 
         const lockResult = await DemonstrationSubmission.findOneAndUpdate(
           {

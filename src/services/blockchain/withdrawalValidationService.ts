@@ -72,7 +72,7 @@ export class WithdrawalValidationService {
 
     /**
      * Get the provider instance for external use
-     * Exposed publicly to avoid bracket notation access to private property
+     * Provides access to the provider instance for external blockchain operations.
      */
     getProvider(): ethers.JsonRpcProvider {
         return this.provider
