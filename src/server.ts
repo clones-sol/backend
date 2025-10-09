@@ -53,21 +53,18 @@ app.use(helmet({
     preload: true
   }
 }))
+// Get allowed origins from environment variable
+const getAllowedOrigins = (): string[] => {
+  const corsOrigins = process.env.CORS_ALLOWED_ORIGINS
+  if (!corsOrigins) {
+    throw new Error('CORS_ALLOWED_ORIGINS environment variable must be defined')
+  }
+  return corsOrigins.split(',').map(origin => origin.trim())
+}
+
 app.use(
   cors({
-    origin: [
-      'tauri://localhost',
-      'http://tauri.localhost',
-      'http://localhost:1420',
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:8001',
-      'https://clones-ai.com',
-      'https://api-staging.clones-ai.com',
-      'https://api.clones-ai.com',
-      'https://clones-site-test.fly.dev',
-      'https://clones-backend-test.fly.dev'
-    ],
+    origin: getAllowedOrigins(),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
       'Authorization',
