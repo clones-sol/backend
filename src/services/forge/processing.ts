@@ -387,7 +387,7 @@ export async function processNextInQueue() {
             feeAmount: feeAmount,
             netAmount: netAmount,
             submissionId: submissionId,
-            txHash: null as string | null,
+            txHash: undefined,
             timestamp: Date.now(),
             cumulativeAmount: cumulativeAmountTokens
           }
@@ -416,7 +416,7 @@ export async function processNextInQueue() {
           // The user earned the reward, the authorization just needs to be retried
           submission.grade_result.reasoning =
             `( system: claim authorization failed - will retry on next claim attempt ) ${submission.grade_result.reasoning}`
-          submission.error = `Claim authorization failed: ${(error as Error).message}`
+          submission.error = `Claim authorization failed: ${error instanceof Error ? error.message : String(error)}`
 
           // Keep reward and maxReward as calculated - just mark that authorization is missing
           await submission.save()
