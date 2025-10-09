@@ -40,7 +40,7 @@ services:
 
   backend-dev:
     platform: linux/amd64
-    build: 
+    build:
       context: .
       dockerfile: ./Dockerfile.dev
     container_name: backend
@@ -54,24 +54,27 @@ services:
       # training data output
       - ./public/screenshots:/app/backend/public/screenshots
     environment:
+      # CORS Configuration
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+
       # Database
       - DB_URI=${DB_URI:-mongodb://admin:admin@mongodb:27017/dev?authSource=admin}
-      
+
       # Blockchain
       - RPC_URL=${RPC_URL:-https://sepolia.base.org}
       - GRAPH_ENDPOINT=${GRAPH_ENDPOINT}
-      
+
       # Object Storage (LocalStack for local dev)
       - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY:-test}
       - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY:-test}
       - STORAGE_ENDPOINT=${STORAGE_ENDPOINT:-http://localstack:4566}
       - STORAGE_REGION=${STORAGE_REGION:-us-east-1}
       - STORAGE_BUCKET=${STORAGE_BUCKET:-training-gym}
-      
+
       # External APIs
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      
+
       # Internal services
       - CQA_PATH=/app/clones-quality-agent
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
