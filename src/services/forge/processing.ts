@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import * as path from 'node:path'
+import { ethers } from 'ethers'
 import type mongoose from 'mongoose'
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
 import { acquireLock, releaseLock } from '../../models/ProcessingLock.ts'
@@ -11,6 +12,7 @@ import {
   type OnChainReward,
   UploadLimitType
 } from '../../types/factory.ts'
+import { tokenCache } from '../../utils/tokenCache.js'
 import { createClaimAuthService } from '../blockchain/claimAuthService.ts'
 import { calculateFeeAmounts, getContractFeeConfig } from '../blockchain/contractConfigService.ts'
 import { getTokenContractAddress } from '../blockchain/tokens.ts'
@@ -367,7 +369,15 @@ export async function processNextInQueue() {
             feeConfig.feeDenominator
           )
 
-          const cumulativeAmountTokens = claimAuthorization.alreadyClaimed + reward
+          // Get token metadata for decimal precision
+          const provider = new ethers.JsonRpcProvider(process.env.RPC_URL)
+          const metadata = await tokenCache.getTokenMetadata(tokenAddress, provider)
+
+          // Use the precise cumulativeAmount calculated in wei (BigInt) by claimAuthService
+          // This avoids floating-point precision errors from adding numbers
+          const cumulativeAmountTokens = parseFloat(
+            ethers.formatUnits(claimAuthorization.cumulativeAmount, metadata.decimals)
+          )
 
           onChainReward = {
             tokenAddress: tokenAddress,
@@ -379,7 +389,7 @@ export async function processNextInQueue() {
             submissionId: submissionId,
             txHash: null as string | null,
             timestamp: Date.now(),
-            cumulativeAmount: parseFloat(cumulativeAmountTokens.toFixed(18))
+            cumulativeAmount: cumulativeAmountTokens
           }
 
           // Update the grade result reasoning and on-chain reward

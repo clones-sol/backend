@@ -12,14 +12,17 @@ const {
     mockCreateWithdrawalValidationService,
     mockGetWithdrawalMonitorService
 } = vi.hoisted(() => {
+    const mockProvider = {
+        getContract: vi.fn()
+    }
+
     const mockValidationService = {
         getPoolState: vi.fn(),
         validateWithdrawal: vi.fn(),
         checkPoolHealth: vi.fn(),
         formatPoolStateForAPI: vi.fn(),
-        provider: {
-            getContract: vi.fn()
-        }
+        getProvider: vi.fn().mockReturnValue(mockProvider),
+        provider: mockProvider
     }
 
     const mockMonitorService = {

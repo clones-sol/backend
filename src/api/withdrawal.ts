@@ -86,7 +86,7 @@ router.post(
             const tokenContract = new ethers.Contract(
                 poolState.token,
                 ['function decimals() view returns (uint8)'],
-                validationService['provider']
+                validationService.getProvider()
             )
             const decimals = await tokenContract.decimals()
             const amountWei = ethers.parseUnits(amount, decimals)

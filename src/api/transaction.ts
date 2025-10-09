@@ -599,9 +599,8 @@ router.post(
         }
 
         // RACE CONDITION PROTECTION: Mark submission as "claiming" to prevent concurrent claims
-        // We set a temporary marker that will be replaced with actual txHash on completion
-        const now = Date.now()
-        const claimingMarker = `CLAIMING_${now}_${userAddress.substring(0, 10)}`
+        // Use cryptographically secure UUID to prevent predictable patterns and exploitation
+        const claimingMarker = `CLAIMING_${uuidv4()}`
 
         // Debug: Log current state before locking
         console.log('Attempting to lock submission:', {
@@ -610,7 +609,8 @@ router.post(
           'onChainReward.txHash type': typeof submission.onChainReward?.txHash,
           'onChainReward.txHash length': submission.onChainReward?.txHash?.length,
           'onChainReward exists': !!submission.onChainReward,
-          'full onChainReward': submission.onChainReward
+          'full onChainReward': submission.onChainReward,
+          claimingMarker
         })
 
         const lockResult = await DemonstrationSubmission.findOneAndUpdate(
@@ -626,7 +626,7 @@ router.post(
           {
             $set: {
               'onChainReward.txHash': claimingMarker, // Temporary marker
-              'onChainReward.timestamp': now
+              'onChainReward.timestamp': Date.now()
             }
           },
           { new: true }

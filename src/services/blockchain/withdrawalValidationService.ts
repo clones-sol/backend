@@ -71,6 +71,14 @@ export class WithdrawalValidationService {
     }
 
     /**
+     * Get the provider instance for external use
+     * Exposed publicly to avoid bracket notation access to private property
+     */
+    getProvider(): ethers.JsonRpcProvider {
+        return this.provider
+    }
+
+    /**
      * Calculate total pending claims for a specific pool
      * Queries database for all completed demonstrations with claim authorizations
      * that haven't been fully claimed on-chain yet
@@ -230,13 +238,16 @@ export class WithdrawalValidationService {
      * Returns validation result with max safe withdrawal amount
      */
     async validateWithdrawal(poolState: PoolState, withdrawAmount: bigint): Promise<WithdrawalValidation> {
-        // Get dynamic fee configuration from smart contract
-        const feeConfig = await getContractFeeConfig(poolState.address)
+        // Note: totalPending already contains GROSS amounts (including fees)
+        // When farmers claim, the smart contract handles fee distribution:
+        // - Pool pays: gross amount
+        // - Farmer receives: net amount (gross - fee)
+        // - Treasury receives: fee amount
+        // So we don't need to add fees again - they're already in the gross amounts
 
-        // Calculate reserve needed for pending claims + platform fees
-        const pendingWithFees = (poolState.totalPending * BigInt(feeConfig.feeBps + feeConfig.feeDenominator)) / BigInt(feeConfig.feeDenominator)
-        const safetyBuffer = (pendingWithFees * BigInt(SAFETY_BUFFER_PERCENT)) / 100n
-        const totalReserveNeeded = pendingWithFees + safetyBuffer
+        const reserveNeeded = poolState.totalPending  // Already includes fees (gross amounts)
+        const safetyBuffer = (reserveNeeded * BigInt(SAFETY_BUFFER_PERCENT)) / 100n
+        const totalReserveNeeded = reserveNeeded + safetyBuffer
 
         // Calculate maximum safe withdrawal
         const maxWithdrawable =
@@ -289,16 +300,13 @@ export class WithdrawalValidationService {
     ): Promise<{ allowed: boolean; reason?: string; poolState?: PoolState }> {
         const poolState = await this.getPoolState(poolAddress)
 
-        // Get dynamic fee configuration from smart contract
-        const feeConfig = await getContractFeeConfig(poolAddress)
-
         // Calculate what total pending would be after new allocation
+        // Note: Both totalPending and newAllocationAmount are GROSS amounts (already include fees)
         const futureTotal = poolState.totalPending + newAllocationAmount
-        const futureWithFees = (futureTotal * BigInt(feeConfig.feeBps + feeConfig.feeDenominator)) / BigInt(feeConfig.feeDenominator)
 
-        if (poolState.balance < futureWithFees) {
+        if (poolState.balance < futureTotal) {
             const balanceEth = ethers.formatEther(poolState.balance)
-            const neededEth = ethers.formatEther(futureWithFees)
+            const neededEth = ethers.formatEther(futureTotal)
             const newAllocEth = ethers.formatEther(newAllocationAmount)
 
             return {
@@ -331,11 +339,9 @@ export class WithdrawalValidationService {
             }
         }
 
-        // Get dynamic fee configuration from smart contract
-        const feeConfig = await getContractFeeConfig(poolAddress)
-
-        const pendingWithFees = (poolState.totalPending * BigInt(feeConfig.feeBps + feeConfig.feeDenominator)) / BigInt(feeConfig.feeDenominator)
-        const coverage = Number((poolState.balance * 100n) / pendingWithFees) / 100
+        // Note: totalPending already contains GROSS amounts (fees included)
+        const reserveNeeded = poolState.totalPending
+        const coverage = Number((poolState.balance * 100n) / reserveNeeded) / 100
         const utilization = Number((poolState.totalPending * 10000n) / poolState.balance) / 100
 
         // Alert: Coverage below 110% (minimum safe threshold)
@@ -349,7 +355,7 @@ export class WithdrawalValidationService {
         }
 
         // Critical: Balance can't cover pending claims
-        if (poolState.balance < pendingWithFees) {
+        if (poolState.balance < reserveNeeded) {
             alerts.push(
                 `🚨 CRITICAL: Pool balance insufficient to cover ${poolState.allocations.length} pending claim(s)!`
             )
@@ -369,7 +375,7 @@ export class WithdrawalValidationService {
                 utilization,
                 coverage,
                 pendingClaimsCount: poolState.allocations.length,
-                totalPendingWithFees: ethers.formatEther(pendingWithFees)
+                totalPendingWithFees: ethers.formatEther(reserveNeeded)
             }
         }
     }
