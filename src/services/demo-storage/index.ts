@@ -1,49 +1,49 @@
 import { ObjectStorageService } from '../storage/index.ts'
-import { 
-  DemoFiles, 
-  DemoIntegrity, 
-  FileIntegrity, 
+import {
+  DemoFiles,
+  DemoIntegrity,
+  FileIntegrity,
   DemoManifest,
-  DatasetManifest 
+  DatasetManifest
 } from './types.ts'
-import { 
-  generateDemoHash, 
-  calculateFileHash, 
-  calculateOverallHash, 
-  getDemoStoragePath 
+import {
+  generateDemoHash,
+  calculateFileHash,
+  calculateOverallHash,
+  getDemoStoragePath
 } from './hash.ts'
 
 export class DemoStorageService {
-  constructor(private objectStorage: ObjectStorageService) {}
+  constructor(private objectStorage: ObjectStorageService) { }
 
   /**
    * Store a complete demonstration with integrity verification
    */
   async storeDemo(
-    submissionId: string, 
-    userAddress: string, 
+    submissionId: string,
+    userAddress: string,
     files: DemoFiles,
     metadata?: Partial<DemoManifest>
   ): Promise<string> {
     const timestamp = Date.now()
     const demoHash = generateDemoHash(submissionId, userAddress, timestamp)
-    
+
     console.log(`[DemoStorage] Storing demo ${demoHash} for submission ${submissionId}`)
-    
+
     const fileIntegrities: FileIntegrity[] = []
-    
+
     // Store each file with integrity tracking
     for (const [filename, buffer] of Object.entries(files)) {
       const filePath = getDemoStoragePath(demoHash, filename)
       const fileHash = calculateFileHash(buffer)
-      
+
       console.log(`[DemoStorage] Storing ${filename} at ${filePath} (${buffer.length} bytes, hash: ${fileHash.substring(0, 16)}...)`)
-      
+
       await this.objectStorage.saveItem({
         name: filePath,
         file: buffer
       })
-      
+
       fileIntegrities.push({
         filename,
         sha256: fileHash,
@@ -51,13 +51,14 @@ export class DemoStorageService {
         lastModified: new Date().toISOString()
       })
     }
-    
+
     // Generate overall integrity hash
     const fileHashes = fileIntegrities.map(f => f.sha256)
     const overallHash = calculateOverallHash(fileHashes)
-    
+
     // Create integrity manifest
     const integrity: DemoIntegrity = {
+      schema_version: { major: 1, minor: 0, patch: 0 },
       demoHash,
       submissionId,
       userAddress: userAddress.toLowerCase(),
@@ -65,33 +66,34 @@ export class DemoStorageService {
       files: fileIntegrities,
       overallHash
     }
-    
+
     // Store integrity manifest
     const integrityPath = getDemoStoragePath(demoHash, 'checksums.json')
     await this.objectStorage.saveItem({
       name: integrityPath,
       file: Buffer.from(JSON.stringify(integrity, null, 2))
     })
-    
+
     // Store demo manifest if metadata provided
     if (metadata) {
       const demoManifest: DemoManifest = {
+        schema_version: { major: 1, minor: 0, patch: 0 },
         demonstration_id: demoHash,
         user_address: userAddress.toLowerCase(),
         submission_id: submissionId,
         created_at: new Date().toISOString(),
         ...metadata
       }
-      
+
       const manifestPath = getDemoStoragePath(demoHash, 'manifest.json')
       await this.objectStorage.saveItem({
         name: manifestPath,
         file: Buffer.from(JSON.stringify(demoManifest, null, 2))
       })
     }
-    
+
     console.log(`[DemoStorage] Demo ${demoHash} stored successfully with overall hash ${overallHash.substring(0, 16)}...`)
-    
+
     return demoHash
   }
 
@@ -100,7 +102,7 @@ export class DemoStorageService {
    */
   async getDemoFile(demoHash: string, filename: string): Promise<Buffer> {
     const filePath = getDemoStoragePath(demoHash, filename)
-    
+
     try {
       return await this.objectStorage.getItem({ name: filePath })
     } catch (error) {
@@ -114,7 +116,7 @@ export class DemoStorageService {
    */
   async getDemoFileStream(demoHash: string, filename: string): Promise<NodeJS.ReadableStream> {
     const filePath = getDemoStoragePath(demoHash, filename)
-    
+
     try {
       return await this.objectStorage.getItemStream({ name: filePath })
     } catch (error) {
@@ -128,27 +130,27 @@ export class DemoStorageService {
    */
   async verifyDemo(demoHash: string): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = []
-    
+
     try {
       // Load integrity manifest
       const integrityPath = getDemoStoragePath(demoHash, 'checksums.json')
       const integrityBuffer = await this.objectStorage.getItem({ name: integrityPath })
       const integrity: DemoIntegrity = JSON.parse(integrityBuffer.toString())
-      
+
       // Verify each file
       const actualFileHashes: string[] = []
-      
+
       for (const fileInfo of integrity.files) {
         try {
           const fileBuffer = await this.getDemoFile(demoHash, fileInfo.filename)
           const currentHash = calculateFileHash(fileBuffer)
-          
+
           if (currentHash !== fileInfo.sha256) {
             errors.push(`File ${fileInfo.filename} hash mismatch: expected ${fileInfo.sha256}, got ${currentHash}`)
           } else {
             actualFileHashes.push(currentHash)
           }
-          
+
           if (fileBuffer.length !== fileInfo.size) {
             errors.push(`File ${fileInfo.filename} size mismatch: expected ${fileInfo.size}, got ${fileBuffer.length}`)
           }
@@ -156,7 +158,7 @@ export class DemoStorageService {
           errors.push(`File ${fileInfo.filename} not accessible: ${error}`)
         }
       }
-      
+
       // Verify overall hash if all files are accessible
       if (actualFileHashes.length === integrity.files.length) {
         const currentOverallHash = calculateOverallHash(actualFileHashes)
@@ -164,13 +166,13 @@ export class DemoStorageService {
           errors.push(`Overall hash mismatch: expected ${integrity.overallHash}, got ${currentOverallHash}`)
         }
       }
-      
+
       return { valid: errors.length === 0, errors }
-      
+
     } catch (error) {
-      return { 
-        valid: false, 
-        errors: [`Failed to verify demo: ${error}`] 
+      return {
+        valid: false,
+        errors: [`Failed to verify demo: ${error}`]
       }
     }
   }
@@ -197,7 +199,7 @@ export class DemoStorageService {
     if (!integrity) {
       throw new Error(`Demo integrity not found: ${demoHash}`)
     }
-    
+
     return integrity.files.map(f => ({
       filename: f.filename,
       size: f.size,
@@ -221,6 +223,7 @@ export class DemoStorageService {
         recording: 'MP4 video file of screen recording',
         meta: 'JSON metadata about the demonstration',
         input_log: 'JSONL file with interaction events',
+        input_log_meta: 'JSON metadata about the input log',
         sft: 'JSON file with supervised fine-tuning annotations'
       },
       integrity: {
@@ -228,7 +231,7 @@ export class DemoStorageService {
         verified_at: new Date().toISOString()
       }
     }
-    
+
     await this.objectStorage.saveItem({
       name: 'datasets/computer-use-v1/manifest.json',
       file: Buffer.from(JSON.stringify(manifest, null, 2))

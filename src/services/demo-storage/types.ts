@@ -6,6 +6,7 @@ export interface FileIntegrity {
 }
 
 export interface DemoIntegrity {
+  schema_version: SchemaVersion
   demoHash: string
   submissionId: string
   userAddress: string
@@ -14,14 +15,30 @@ export interface DemoIntegrity {
   overallHash: string
 }
 
+export interface InputLogMeta {
+  schema_version: SchemaVersion
+  format: 'jsonl'
+  event_count: number
+  timestamp_type: 'relative' | 'absolute'
+  created_at: string
+}
+
 export interface DemoFiles {
   'recording.mp4': Buffer
   'meta.json': Buffer
   'input_log.jsonl': Buffer
+  'input_log_meta.json': Buffer
   'sft.json': Buffer
 }
 
+export interface SchemaVersion {
+  major: number   // Breaking changes
+  minor: number   // New features, backward compatible
+  patch: number   // Bug fixes
+}
+
 export interface DemoManifest {
+  schema_version: SchemaVersion
   demonstration_id: string
   user_address: string
   submission_id: string
@@ -59,6 +76,7 @@ export interface DatasetManifest {
     recording: string
     meta: string
     input_log: string
+    input_log_meta: string
     sft: string
   }
   integrity: {
