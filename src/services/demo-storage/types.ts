@@ -15,11 +15,35 @@ export interface DemoIntegrity {
   overallHash: string
 }
 
+/**
+ * Metadata for the input log file.
+ * 
+ * - `timestamp_type`: Indicates how timestamps in the input log are represented.
+ * - `'relative'`: Timestamps are measured relative to the start of the recording(e.g., seconds or milliseconds since recording began).
+ * - `'absolute'`: Timestamps are absolute, typically in Unix epoch time or ISO 8601 format.
+ * - `created_at`: The date and time when the input log was created, as an ISO 8601 string(e.g., "2023-06-01T12:34:56Z").
+ */
 export interface InputLogMeta {
+  /**
+   * Version of the schema used for this input log.
+   */
   schema_version: SchemaVersion
+  /**
+   * Format of the input log file. Currently only 'jsonl' is supported.
+   */
   format: 'jsonl'
+  /**
+   * Number of events recorded in the input log.
+   */
   event_count: number
+  /**
+   * Indicates whether timestamps in the input log are 'relative' or 'absolute'.
+   */
   timestamp_type: 'relative' | 'absolute'
+  /**
+   * ISO 8601 string representing when the input log was created.
+   * Example: "2023-06-01T12:34:56Z"
+   */
   created_at: string
 }
 
@@ -31,10 +55,20 @@ export interface DemoFiles {
   'sft.json': Buffer
 }
 
+/**
+ * Represents the semantic versioning contract for demo-related types.
+ * 
+ * Follows the Semantic Versioning specification (https://semver.org/):
+ * - `major`: Incremented for breaking changes that are not backward compatible.
+ * - `minor`: Incremented for new features that are backward compatible.
+ * - `patch`: Incremented for bug fixes and backward compatible changes.
+ * 
+ * This interface is used to track the schema version of various demo-related data structures.
+ */
 export interface SchemaVersion {
-  major: number   // Breaking changes
-  minor: number   // New features, backward compatible
-  patch: number   // Bug fixes
+  major: number
+  minor: number
+  patch: number
 }
 
 export interface DemoManifest {
