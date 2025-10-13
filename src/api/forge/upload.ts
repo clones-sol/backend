@@ -170,7 +170,7 @@ async function moveRequiredFiles(extractDir: string, finalDir: string) {
   console.log(`[UPLOAD] Creating final directory: ${finalDir}`)
   await mkdir(finalDir, { recursive: true })
 
-  const requiredFiles = ['input_log.jsonl', 'meta.json', 'recording.mp4', 'sft.json']
+  const requiredFiles = ['input_log.jsonl', 'meta.json', 'recording.mp4', 'sft.json', 'input_log_meta.json']
   console.log(`[UPLOAD] Moving required files to final directory`)
 
   for (const file of requiredFiles) {
@@ -387,7 +387,8 @@ async function uploadFilesToStorage(
     'recording.mp4': demoFiles['recording.mp4'],
     'meta.json': demoFiles['meta.json'],
     'input_log.jsonl': demoFiles['input_log.jsonl'],
-    'sft.json': demoFiles['sft.json']
+    'sft.json': demoFiles['sft.json'],
+    'input_log_meta.json': demoFiles['input_log_meta.json']
   }
 
   console.log(`[UPLOAD] Storing demo files with hash-based storage`)
