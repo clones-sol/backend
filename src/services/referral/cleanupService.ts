@@ -150,7 +150,7 @@ export class ReferralCleanupService {
     }
 
     // Update with new code and expiration
-    const newExpiration = new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000)
+    const newExpiration = new Date(new Date().getTime() + 365 * 24 * 60 * 60 * 1000)
 
     await ReferralCodeModel.findByIdAndUpdate(referralCode._id, {
       referralCode: newCode!,
