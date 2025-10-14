@@ -110,7 +110,7 @@ export function configureSecureSession(app: Application): void {
     '/api/v1/forge/upload/status', // Upload status (GET)
     '/api/v1/referral/generate-code', // Generate referral code (POST)
     '/api/v1/referral/code', // Get referral code (GET)
-    'api/v1/referral/apply-referrer-code', // Apply referrer code (POST)
+    '/api/v1/referral/apply-referrer-code', // Apply referrer code (POST)
     '/api/v1/referral/stats', // Get referral stats (GET)
     '/api/v1/referral/referred', // Get referred status (GET)
     '/api/v1/referral/cleanup/stats', // Get cleanup stats (GET)

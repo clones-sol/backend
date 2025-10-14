@@ -35,7 +35,7 @@ const { mockGenerateApps } = vi.hoisted(() => {
 })
 vi.mock('../../services/factory/factoryDatabaseService.ts', () => ({
   generateAppsForFactory: mockGenerateApps,
-  createFactoryWithApps: vi.fn().mockResolvedValue({ id: 'mock-factory-id' })
+  createFactory: vi.fn().mockResolvedValue({ id: 'mock-factory-id' })
 }))
 
 // Mock blockchain tokens service

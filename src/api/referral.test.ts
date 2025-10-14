@@ -23,7 +23,7 @@ vi.mock('../middleware/rateLimiter.ts', () => ({
 }))
 
 vi.mock('../services/blockchain/index.ts', () => ({
-  default: class MockBlockchainService {}
+  default: class MockBlockchainService { }
 }))
 
 vi.mock('../services/blockchain/referralProgram.ts', () => ({
@@ -504,7 +504,6 @@ describe('Referral API', () => {
       expect(response.body.data.referralCode.length).toBe(6)
       expect(response.body.data.referralCode).toMatch(/^[A-Z0-9]{6}$/)
       expect(response.body.data.walletAddress).toBe(TEST_WALLETS.newWallet)
-      expect(response.body.data.referralLink).toContain(response.body.data.referralCode)
     })
 
     it('should return existing code if wallet already has one', async () => {

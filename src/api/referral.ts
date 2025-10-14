@@ -63,9 +63,6 @@ const isEvmAddressRule = ValidationRules.isEVMAddress()
  *                         referralCode:
  *                           type: string
  *                           example: "ABC123"
- *                         referralLink:
- *                           type: string
- *                           example: "https://app.example.com/ref/ABC123"
  *                         walletAddress:
  *                           type: string
  *                           example: "0x12cA1c2bB28E7B8B0E1b3bB6C2f60E9a6D6d5A12"
@@ -92,12 +89,10 @@ router.post(
       throw ApiError.forbidden('You can only generate a referral code for your own wallet.')
 
     const referralCodeData = await referralService.generateReferralCode(walletAddress)
-    const referralLink = `${process.env.FRONTEND_URL}/ref/${referralCodeData.referralCode}`
     res.status(200).json(
       successResponse({
         referralCode: referralCodeData.referralCode,
         createdAt: referralCodeData.createdAt,
-        referralLink,
         walletAddress
       })
     )
@@ -134,7 +129,6 @@ router.post(
  *                       type: object
  *                       properties:
  *                         referralCode: { type: string, example: "ABC123" }
- *                         referralLink: { type: string, example: "https://app.example.com/ref/ABC123" }
  *                         walletAddress: { type: string, example: "0x12cA..." }
  *                         totalReferrals: { type: number, example: 5 }
  *                         totalRewards: { type: number, example: 150 }
@@ -170,17 +164,14 @@ router.get(
 
     const referrer = referrerInfo
       ? {
-          walletAddress: referrerInfo.walletAddress,
-          referralCode: referrerInfo.referralCode
-        }
+        walletAddress: referrerInfo.walletAddress,
+        referralCode: referrerInfo.referralCode
+      }
       : null
-
-    const referralLink = `${process.env.FRONTEND_URL}/ref/${referralCode.referralCode}`
 
     return res.status(200).json(
       successResponse({
         referralCode: referralCode.referralCode,
-        referralLink,
         walletAddress: referralCode.walletAddress,
         totalReferrals,
         totalRewards: referralCode.totalRewards,
@@ -246,14 +237,14 @@ router.post(
     const { referreeAddress, referralCode } = req.body
 
     const referrerAddress = await referralService.validateReferralCode(referralCode)
-    if (!referrerAddress) throw ApiError.badRequest('Invalid or expired referral code.')
+    if (!referrerAddress) throw ApiError.badRequest('Invalid or expired referrer code.')
 
     const referral = await referralService.createReferral(
       referrerAddress,
       referreeAddress,
       referralCode
     )
-    if (!referral._id) throw ApiError.internalError('Failed to create referral: Missing _id')
+    if (!referral._id) throw ApiError.internalError('Failed to create referrer relationship: Missing _id')
 
     return res.status(201).json(
       successResponse({
