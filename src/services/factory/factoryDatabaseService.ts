@@ -96,18 +96,29 @@ async function executeGeneration(factoryId: string, skills: string[]): Promise<v
 }
 
 /**
- * Create factory with apps generation
+ * Create factory
  */
-export async function createFactoryWithApps(
+export async function createFactory(
   poolAddress: string,
   creatorAddress: string,
   name: string,
   skills: string[],
+  apps: FactoryApp[],
   token: any,
   pricePerDemo: number
 ): Promise<any> {
   // Create factory document
   const factoryId = `factory_${poolAddress}`
+
+  // Generate IDs for apps and their tasks
+  const appsWithIds = apps.map(app => ({
+    ...app,
+    id: randomUUID(),
+    tasks: (app.tasks || []).map(task => ({
+      ...task,
+      id: randomUUID()
+    }))
+  }))
 
   const factory = new FactoryModel({
     _id: factoryId,
@@ -119,17 +130,12 @@ export async function createFactoryWithApps(
     skills,
     token,
     pricePerDemo,
-    apps: [],
+    apps: appsWithIds,
     createdAt: new Date(),
     updatedAt: new Date()
   })
 
   await factory.save()
-
-  // Generate apps
-  await generateAppsForFactory(factoryId, skills).catch((error) => {
-    console.error(`Failed to generate apps for factory ${factoryId}:`, error)
-  })
 
   return factory
 }

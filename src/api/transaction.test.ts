@@ -47,7 +47,7 @@ vi.mock('../services/blockchain/factoryTransactionService.ts', () => ({
 }))
 
 vi.mock('../services/factory/factoryDatabaseService.ts', () => ({
-  createFactoryWithApps: vi.fn()
+  createFactory: vi.fn()
 }))
 
 // Mock ethers

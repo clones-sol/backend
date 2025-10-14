@@ -13,7 +13,7 @@ import { createFactoryService } from '../services/blockchain/factoryTransactionS
 import { createGasEstimationService } from '../services/blockchain/gasEstimationService.ts'
 import { calculateFeeAmounts, getContractFeeConfig } from '../services/blockchain/contractConfigService.ts'
 import { getTokenContractAddress, getTokenInfo } from '../services/blockchain/tokens.ts'
-import { createFactoryWithApps } from '../services/factory/factoryDatabaseService.ts'
+import { createFactory } from '../services/factory/factoryDatabaseService.ts'
 import { TransactionSessionService } from '../services/transactionSession.ts'
 import { ContentFilterService } from '../services/validation/contentFilter.ts'
 import { validateAddress } from '../utils/addressValidation.js'
@@ -1083,11 +1083,12 @@ router.post(
       let factory
       try {
         const tokenInfo = getTokenInfo(tokenSymbol)
-        factory = await createFactoryWithApps(
+        factory = await createFactory(
           poolAddress,
           creatorAddress,
           sanitizedName,
           skills,
+          metadata.apps,
           {
             type: 'ERC20',
             symbol: tokenSymbol,
