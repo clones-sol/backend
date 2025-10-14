@@ -62,7 +62,7 @@ export class ReferralService {
           referralCode,
           isActive: true,
           totalRewards: 0,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 365 days from now (1 year)
         })
 
         // If we get here, the code was successfully created
