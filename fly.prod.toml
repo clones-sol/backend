@@ -34,3 +34,7 @@ primary_region = 'lax'
   cpu_kind = 'shared'
   cpus = 2
 
+[mounts]
+  source = "upload_volume"
+  destination = "/app/uploads"
+
