@@ -27,9 +27,6 @@ min_machines_running = 1
 processes = [ "app" ]
 protocol = "tcp"
 
-  [[services.ports]]
-  port = 27017
-
 [[vm]]
 cpu_kind = "shared"
 cpus = 1
