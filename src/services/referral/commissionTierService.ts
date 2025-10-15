@@ -19,7 +19,7 @@ export interface CommissionTier {
 }
 
 // Commission tiers based on $CLONES token holdings in wallet
-// Total Supply: 1,000,000,000 $CLONES - tiers based on supply pourcentage
+// Total Supply: 1,000,000,000 $CLONES - tiers based on supply percentage
 export const COMMISSION_TIERS: CommissionTier[] = [
   { minHoldingAmount: 1000000, maxHoldingAmount: 1999999, commissionBps: 100, tierName: 'Tier 1' }, // 1% - 0.1% supply (1M tokens)
   { minHoldingAmount: 2000000, maxHoldingAmount: 2999999, commissionBps: 200, tierName: 'Tier 2' }, // 2% - 0.2% supply (2M tokens)
