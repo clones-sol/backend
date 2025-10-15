@@ -9,16 +9,28 @@ primary_region = 'lax'
 [env]
   NODE_ENV = "production"
 
-[http_service]
+[processes]
+  app = "node ./build/server.js"
+
+[[services]]
   internal_port = 8001
-  force_https = true
-  auto_stop_machines = 'off'
+  protocol = "tcp"
   auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
+  auto_stop_machines = false
+  min_machines_running = 2
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["http", "tls"]
 
 [[vm]]
-  memory = '1gb'
+  memory = '2gb'
   cpu_kind = 'shared'
-  cpus = 1
+  cpus = 2
 
