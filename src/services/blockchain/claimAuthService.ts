@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 import { ApiError } from '../../middleware/types/errors.ts'
 import { validatePrivateKey } from '../../utils/addressValidation.js'
 import { tokenCache } from '../../utils/tokenCache.js'
+import { createCommissionTierService } from '../referral/commissionTierService.ts'
 
 /**
  * Service for generating EIP-712 claim authorization signatures
@@ -151,12 +152,16 @@ class ClaimAuthService {
    * @param poolAddress - Address of the reward pool contract
    * @param farmerAddress - Address of the farmer to authorize
    * @param individualReward - Individual reward amount to add to already claimed
+   * @param farmerReferrer - Optional farmer referrer address
+   * @param factoryReferrer - Optional factory creator referrer address
    * @returns Signature data ready for smart contract interaction
    */
   async generateClaimAuthorization(
     poolAddress: string,
     farmerAddress: string,
-    individualReward: number
+    individualReward: number,
+    farmerReferrer?: string,
+    factoryReferrer?: string
   ): Promise<{
     // Smart contract parameters
     account: string
@@ -170,6 +175,12 @@ class ClaimAuthService {
     alreadyClaimed: number
     newClaimableAmount: number
     feePercentage?: number
+    // Referral data
+    referrals?: Array<{
+      address: string
+      amount: number
+      type: 'farmer_referrer' | 'factory_referrer'
+    }>
   }> {
     // Get publisher info to determine which signer to use
     const publisherInfo = await this.getPublisherInfo()
@@ -240,12 +251,53 @@ class ClaimAuthService {
     }
 
     const newClaimableAmount = individualReward // This transaction's claimable amount
+
+    // Calculate referral rewards if referrers exist
+    let referrals: Array<{ address: string, amount: number, type: 'farmer_referrer' | 'factory_referrer' }> = []
+    console.log('referrals:', referrals)
+
+    console.log('farmerReferrer:', farmerReferrer)
+    console.log('factoryReferrer:', factoryReferrer)
+    if (farmerReferrer || factoryReferrer) {
+      const commissionService = createCommissionTierService()
+
+      // Use wei calculations to avoid floating point precision errors
+      const distribution = await commissionService.calculateReferralDistributionWei(
+        individualRewardWei,
+        decimals,
+        farmerReferrer,
+        factoryReferrer
+      )
+      console.log('distribution:', distribution)
+
+      // Add farmer referrer reward if exists
+      if (farmerReferrer && distribution.farmerReferrerRewardWei > 0n) {
+        const amount = parseFloat(ethers.formatUnits(distribution.farmerReferrerRewardWei, decimals))
+        referrals.push({
+          address: farmerReferrer,
+          amount: amount,
+          type: 'farmer_referrer'
+        })
+      }
+
+      // Add factory referrer reward if exists  
+      if (factoryReferrer && distribution.factoryReferrerRewardWei > 0n) {
+        const amount = parseFloat(ethers.formatUnits(distribution.factoryReferrerRewardWei, decimals))
+        referrals.push({
+          address: factoryReferrer,
+          amount: amount,
+          type: 'factory_referrer'
+        })
+      }
+    }
+
     console.log(
       `Generating signature: alreadyClaimed=${alreadyClaimedTokens}, individualReward=${individualReward}, newCumulative=${newCumulativeAmountTokens}, nonce=${currentNonce}`
     )
     console.log(
       `Wei values: alreadyClaimedWei=${alreadyClaimedWei}, individualRewardWei=${individualRewardWei}, newCumulativeWei=${newCumulativeAmountWei}`
     )
+    console.log(`Referrals:`, referrals)
 
     // EIP-712 domain - must match RewardPoolImplementation contract
     const domain = {
@@ -288,7 +340,9 @@ class ClaimAuthService {
       poolAddress,
       tokenAddress,
       alreadyClaimed: alreadyClaimedTokens,
-      newClaimableAmount
+      newClaimableAmount,
+      // Referral data for multi-recipient claims
+      referrals: referrals.length > 0 ? referrals : undefined
     }
   }
 

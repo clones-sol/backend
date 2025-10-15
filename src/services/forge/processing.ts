@@ -16,6 +16,7 @@ import { tokenCache } from '../../utils/tokenCache.js'
 import { createClaimAuthService } from '../blockchain/claimAuthService.ts'
 import { calculateFeeAmounts, getContractFeeConfig } from '../blockchain/contractConfigService.ts'
 import { getTokenContractAddress } from '../blockchain/tokens.ts'
+import { createReferralLookupService } from '../referral/referralLookupService.ts'
 
 // Initialize claim authorization service
 let claimAuthService: ReturnType<typeof createClaimAuthService> | null = null
@@ -334,6 +335,26 @@ export async function processNextInQueue() {
       submission.cqaModel = process.env.CQA_MODEL
       submission.cqaEvaluationModel = process.env.CQA_EVALUATION_MODEL
       submission.status = ForgeSubmissionProcessingStatus.COMPLETED
+      
+      // Capture referral snapshot before generating claim authorization
+      let farmerReferrer: string | undefined
+      let factoryReferrer: string | undefined
+      
+      if (factory && reward !== undefined && reward > 0) {
+        const referralLookupService = createReferralLookupService()
+        const referralInfo = await referralLookupService.getReferralInfo(
+          submission.address,
+          factoryId
+        )
+        
+        farmerReferrer = referralInfo.farmerReferrer
+        factoryReferrer = referralInfo.factoryReferrer
+        
+        // Store referral snapshot in submission
+        submission.farmerReferrerAddress = farmerReferrer
+        submission.factoryReferrerAddress = factoryReferrer
+      }
+      
       await submission.save()
 
       // Generate claim authorization signature AFTER submission is saved as COMPLETED
@@ -351,11 +372,13 @@ export async function processNextInQueue() {
         try {
           const tokenAddress = getTokenContractAddress(factory.token.symbol)
 
-          // Generate claim authorization signature - it will handle smart contract reads internally
+          // Generate claim authorization signature with referral data
           const claimAuthorization = await claimAuthService.generateClaimAuthorization(
             factory.poolAddress,
             submission.address,
-            reward // Just pass the current reward, service will calculate cumulative
+            reward, // Just pass the current reward, service will calculate cumulative
+            farmerReferrer,
+            factoryReferrer
           )
 
           console.log(
@@ -392,14 +415,23 @@ export async function processNextInQueue() {
             cumulativeAmount: cumulativeAmountTokens
           }
 
-          // Update the grade result reasoning and on-chain reward
+          // Update the grade result reasoning and on-chain reward with referral info
           const feePercentage = (feeConfig.feeBps / feeConfig.feeDenominator * 100).toFixed(1)
-          const reasoningMessage =
+          let reasoningMessage =
             `( system: claim authorization generated - farmer can claim ` +
             `${claimAuthorization.newClaimableAmount.toFixed(2)} ${factory.token.symbol} ` +
             `[already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}, new reward: ${reward.toFixed(2)} ` +
-            `(${netAmount.toFixed(2)} after ${feePercentage}% platform fee)] ) ` +
-            `${submission.grade_result.reasoning}`
+            `(${netAmount.toFixed(2)} after ${feePercentage}% platform fee)`
+            
+          // Add referral info to reasoning if referrals exist
+          if (claimAuthorization.referrals && claimAuthorization.referrals.length > 0) {
+            const referralInfo = claimAuthorization.referrals
+              .map(r => `${r.type}: ${r.amount.toFixed(4)} ${factory.token.symbol}`)
+              .join(', ')
+            reasoningMessage += `, referral rewards: ${referralInfo}`
+          }
+          
+          reasoningMessage += `] ) ${submission.grade_result.reasoning}`
           submission.grade_result.reasoning = reasoningMessage
           submission.onChainReward = onChainReward
 

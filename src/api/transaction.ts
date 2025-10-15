@@ -559,6 +559,9 @@ router.post(
 
         // Get submission ID from request if provided (preferred method)
         let submission
+        let submissionFarmerReferrer: string | undefined
+        let submissionFactoryReferrer: string | undefined
+        
         if (submissionId) {
           // Verify submission exists and belongs to user with FRESH read from DB
           submission = await DemonstrationSubmission.findById(submissionId)
@@ -568,6 +571,11 @@ router.post(
           if (submission.address.toLowerCase() !== userAddress.toLowerCase()) {
             throw ApiError.forbidden('Submission does not belong to authenticated user')
           }
+          
+          // Extract referrer addresses from submission
+          submissionFarmerReferrer = submission.farmerReferrerAddress
+          submissionFactoryReferrer = submission.factoryReferrerAddress
+          
         } else {
           // Fallback: Find submission by pool, user, and amount (less precise)
           submission = await DemonstrationSubmission.findOne({
@@ -635,24 +643,60 @@ router.post(
           const { createClaimAuthService } = await import('../services/blockchain/claimAuthService.ts')
           const claimAuthService = createClaimAuthService()
 
-          // Generate EIP-712 signature for claim
+          // Generate EIP-712 signature for claim with optional referrals
+          // Use referrers from submission (authoritative source)
           const claimAuthorization = await claimAuthService.generateClaimAuthorization(
             poolAddress,
             userAddress,
-            amountNumber
+            amountNumber,
+            submissionFarmerReferrer,
+            submissionFactoryReferrer
           )
 
-          // Prepare transaction data for payWithSig call
-          transactionData = {
-            contractAddress: poolAddress,
-            abi: RewardPoolImplementationABI,
-            functionName: 'payWithSig',
-            args: [
+          // Determine function name and args based on referral presence
+          const hasReferrals = claimAuthorization.referrals && claimAuthorization.referrals.length > 0
+          console.log('hasReferrals:', hasReferrals)
+          const functionName = hasReferrals ? 'payWithSigAndReferrals' : 'payWithSig'
+          console.log('functionName:', functionName)
+
+          let args: unknown[]
+          if (hasReferrals) {
+            // Get token decimals for referral amount conversion
+            const provider = new ethers.JsonRpcProvider(process.env.RPC_URL)
+            const { tokenCache } = await import('../utils/tokenCache.ts')
+            const metadata = await tokenCache.getTokenMetadata(claimAuthorization.tokenAddress, provider)
+            console.log('metadata:', metadata)
+
+            // Extract referral addresses and amounts from authorization
+            const referralAddresses = claimAuthorization.referrals!.map(r => r.address)
+            console.log('referralAddresses:', referralAddresses)
+            const referralAmounts = claimAuthorization.referrals!.map(r =>
+              ethers.parseUnits(r.amount.toString(), metadata.decimals).toString()
+            )
+            console.log('referralAmounts:', referralAmounts)
+            args = [
+              claimAuthorization.account,
+              claimAuthorization.cumulativeAmount,
+              claimAuthorization.nonce,
+              claimAuthorization.signature,
+              referralAddresses,
+              referralAmounts
+            ]
+          } else {
+            args = [
               claimAuthorization.account,
               claimAuthorization.cumulativeAmount,
               claimAuthorization.nonce,
               claimAuthorization.signature
-            ],
+            ]
+          }
+          console.log('args:', args)
+          // Prepare transaction data
+          transactionData = {
+            contractAddress: poolAddress,
+            abi: RewardPoolImplementationABI,
+            functionName,
+            args,
             validations: {
               approved: true,
               alreadyClaimed: claimAuthorization.alreadyClaimed,
@@ -714,8 +758,10 @@ router.post(
       transactionParams.tokenAddress = tokenContractAddress
     }
     // For claimRewards, include submissionId for validation
-    if (type === 'claimRewards' && submissionId) {
-      transactionParams.submissionId = submissionId
+    if (type === 'claimRewards') {
+      if (submissionId) {
+        transactionParams.submissionId = submissionId
+      }
     }
 
     const transactionSession = new TransactionSessionModel({
@@ -1076,6 +1122,12 @@ router.post(
         ? AmountValidator.validateBasicAmount(metadata.fundingAmount) / nbTasks
         : 1.0
 
+      // Query referrer from database using lookup service
+      const { createReferralLookupService } = await import('../services/referral/referralLookupService.ts')
+      const referralLookupService = createReferralLookupService()
+      const referrerAddress = await referralLookupService.getFarmerReferrer(creatorAddress)
+      console.log('referrerAddress', referrerAddress)
+
       // Use MongoDB transaction for atomicity
       const dbSession = await mongoose.startSession()
       dbSession.startTransaction()
@@ -1095,7 +1147,8 @@ router.post(
             address: tokenAddress.toLowerCase(),
             decimals: tokenInfo.decimals
           },
-          pricePerDemo
+          pricePerDemo,
+          referrerAddress
         )
 
         await dbSession.commitTransaction()

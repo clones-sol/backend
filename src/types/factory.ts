@@ -68,6 +68,7 @@ export interface Factory {
 
   // Ownership & permissions
   ownerAddress: string
+  referrerAddress?: string // Captured at factory creation time
 
   // Status & lifecycle
   status: FactoryStatus

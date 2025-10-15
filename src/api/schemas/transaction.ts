@@ -39,6 +39,14 @@ export const validateTransactionSchema: ValidationSchema = {
   submissionId: {
     required: false,
     rules: [ValidationRules.isString()]
+  },
+  farmerReferrer: {
+    required: false,
+    rules: [ValidationRules.isString(), ValidationRules.isEVMAddress()]
+  },
+  factoryReferrer: {
+    required: false,
+    rules: [ValidationRules.isString(), ValidationRules.isEVMAddress()]
   }
 }
 

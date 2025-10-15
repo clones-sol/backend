@@ -157,7 +157,7 @@ router.post(
  * /wallet/connection:
  *   get:
  *     summary: Check connection status
- *     description: Checks the connection status for a given token.
+ *     description: Checks the connection status for a given token and returns tier information.
  *     tags: [Wallet]
  *     parameters:
  *       - in: query
@@ -168,7 +168,53 @@ router.post(
  *         description: The connection token.
  *     responses:
  *       200:
- *         description: Connection status retrieved successfully.
+ *         description: Connection status retrieved successfully with tier information.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     connected:
+ *                       type: boolean
+ *                     address:
+ *                       type: string
+ *                     referralCode:
+ *                       type: string
+ *                       nullable: true
+ *                     referrer:
+ *                       type: object
+ *                       nullable: true
+ *                     tier:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         tierCode:
+ *                           type: string
+ *                           description: Simple tier code (T1, T2, etc.)
+ *                         tierName:
+ *                           type: string
+ *                           description: Full tier name (Tier 1, Tier 2, etc.)
+ *                         commissionPercentage:
+ *                           type: number
+ *                           description: Commission percentage (1-5%)
+ *                         clonesBalance:
+ *                           type: number
+ *                           description: Current CLONES token balance
+ *                         minHolding:
+ *                           type: number
+ *                           description: Minimum tokens for current tier
+ *                         maxHolding:
+ *                           type: number
+ *                           nullable: true
+ *                           description: Maximum tokens for current tier
+ *                         nextTierMinHolding:
+ *                           type: number
+ *                           description: Minimum tokens needed for next tier
  */
 router.get(
   '/connection',
@@ -186,12 +232,23 @@ router.get(
         walletAddress: string
         referralCode: string | null
       } | null = null
+      let tierInfo: {
+        tierCode: string
+        tierName: string
+        commissionPercentage: number
+        clonesBalance: number
+        minHolding: number
+        maxHolding: number | null
+        nextTierMinHolding?: number
+      } | null = null
 
       if (connection?.address) {
+        // Get referral info and tier info in parallel
         const [referralCodeInfo, referrerInfo] = await Promise.all([
           referralService.getReferralCode(connection.address),
           referralService.getReferrer(connection.address)
         ])
+        
         referralCode = referralCodeInfo?.referralCode || null
         if (referrerInfo?.walletAddress) {
           const referrerCodeInfo = await referralService.getReferralCode(referrerInfo.walletAddress)
@@ -200,6 +257,16 @@ router.get(
             referralCode: referrerCodeInfo?.referralCode || null
           }
         }
+
+        // Get tier information
+        try {
+          const { createCommissionTierService } = await import('../services/referral/commissionTierService.ts')
+          const commissionService = createCommissionTierService()
+          tierInfo = await commissionService.getUserTierInfo(connection.address)
+        } catch (error) {
+          console.error('Failed to fetch tier info:', error)
+          // Don't fail the request, just log the error
+        }
       }
 
       res.status(200).json(
@@ -207,7 +274,8 @@ router.get(
           connected: !!connection,
           address: connection?.address,
           referralCode,
-          referrer
+          referrer,
+          tier: tierInfo
         })
       )
     }

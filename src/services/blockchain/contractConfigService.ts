@@ -45,8 +45,19 @@ export async function getContractFeeConfig(poolAddress: string): Promise<Contrac
 }
 
 export function calculateFeeAmounts(grossAmount: number, feeBps: number, feeDenominator: number) {
-    const feeAmount = (grossAmount * feeBps) / feeDenominator
-    const netAmount = grossAmount - feeAmount
+    // Convert to BigInt avec 18 decimals de precision
+    const PRECISION = 10n ** 18n
+    const grossAmountBig = BigInt(Math.round(grossAmount * Number(PRECISION)))
+    const feeBpsBig = BigInt(feeBps)
+    const feeDenominatorBig = BigInt(feeDenominator)
+
+    // Calculs en BigInt
+    const feeAmountBig = (grossAmountBig * feeBpsBig) / feeDenominatorBig
+    const netAmountBig = grossAmountBig - feeAmountBig
+
+    // Conversion vers number
+    const feeAmount = Number(feeAmountBig) / Number(PRECISION)
+    const netAmount = Number(netAmountBig) / Number(PRECISION)
 
     return {
         grossAmount: parseFloat(grossAmount.toFixed(18)),
