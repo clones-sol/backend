@@ -105,7 +105,8 @@ export async function createFactory(
   skills: string[],
   apps: FactoryApp[],
   token: any,
-  pricePerDemo: number
+  pricePerDemo: number,
+  referrerAddress?: string
 ): Promise<any> {
   // Create factory document
   const factoryId = `factory_${poolAddress}`
@@ -126,6 +127,7 @@ export async function createFactory(
     name,
     description: `Factory for ${name}`,
     ownerAddress: creatorAddress,
+    referrerAddress, // Capture referrer at creation time
     status: 'paused',
     skills,
     token,

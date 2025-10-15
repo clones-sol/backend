@@ -40,13 +40,23 @@ export interface DBDemonstrationSubmission {
   claimAuthorization?: {
     account: string
     cumulativeAmount: string
+    nonce: number
     signature: string
     publisherUsed: string
     poolAddress: string
     tokenAddress: string
     alreadyClaimed: number
     newClaimableAmount: number
+    feePercentage: number
+    referrals?: Array<{
+      address: string
+      amount: number
+      type: 'farmer_referrer' | 'factory_referrer'
+    }>
   }
+  // Referral snapshot data
+  farmerReferrerAddress?: string
+  factoryReferrerAddress?: string
   cqaModel?: string
   cqaEvaluationModel?: string
   createdAt?: Date

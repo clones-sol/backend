@@ -84,10 +84,20 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
         tokenAddress: String,
         alreadyClaimed: Number,
         newClaimableAmount: Number,
-        feePercentage: Number
+        feePercentage: Number,
+        // Referral data for multi-recipient payouts
+        referrals: [{
+          address: String,
+          amount: Number,
+          type: { type: String, enum: ['farmer_referrer', 'factory_referrer'] }
+        }]
       },
       required: false
     },
+    
+    // Referral snapshot - captured at submission processing time
+    farmerReferrerAddress: { type: String, required: false },
+    factoryReferrerAddress: { type: String, required: false },
     cqaModel: { type: String, required: false },
     cqaEvaluationModel: { type: String, required: false }
   },

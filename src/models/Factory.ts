@@ -150,6 +150,13 @@ const factorySchema = new Schema<IFactoryDocument>(
       lowercase: true,
       index: true
     },
+    
+    // Referral tracking - captured at factory creation time
+    referrerAddress: {
+      type: String,
+      lowercase: true,
+      index: true
+    },
 
     // Status & lifecycle
     status: {
