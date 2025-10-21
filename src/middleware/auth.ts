@@ -40,6 +40,7 @@ export async function requireWalletAddress(
       }
     }
 
+
     const connection = await WalletConnectionModel.findOne({ token })
     if (!connection) {
       if (req.originalUrl.includes('v1')) {
