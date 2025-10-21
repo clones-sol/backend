@@ -38,7 +38,7 @@ ADD https://releases.clones-ai.com/cqa/clones-quality-agent-linux-x64-package-v$
 RUN mkdir ./cqa && \
     tar -xzf cqa-package.tar.gz -C ./cqa && \
     chmod +x ./cqa/clones-quality-agent-linux-x64-v${CQA_VERSION} && \
-    ln -s ./cqa/clones-quality-agent-linux-x64-v${CQA_VERSION} ./clones-quality-agent && \
+    ln -s cqa/clones-quality-agent-linux-x64-v${CQA_VERSION} clones-quality-agent && \
     rm cqa-package.tar.gz
 
 # Install runtime dependencies

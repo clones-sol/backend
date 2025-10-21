@@ -56,12 +56,7 @@ export const CQAHealthResponseSchema = z.object({
     openaiKey: z.string(),
     timestamp: z.string()
   }).optional(),
-  error: z.string().optional(),
-  health: z.object({
-    cqaPath: z.string(),
-    openaiKey: z.string(),
-    timestamp: z.string()
-  }).optional()
+  error: z.string().optional()
 })
 
 export type RecordingProcessRequest = z.infer<typeof RecordingProcessRequestSchema>

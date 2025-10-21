@@ -223,9 +223,8 @@ router.post(
     recordingId: { required: true, rules: [ValidationRules.isString()] }
   }),
   upload.array('files'),
-  errorHandlerAsync(async (req: Request, res: Response) => {
+  errorHandlerAsync(async (req: any, res: Response) => {
     const { recordingId } = req.params
-    // @ts-expect-error - Get walletAddress from the request object
     const walletAddress = req.walletAddress
     const files = req.files as Express.Multer.File[]
     console.log('[CQA] Files:', files)
