@@ -52,8 +52,7 @@ export const RecordingProcessResponseSchema = z.object({
 export const CQAHealthResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
-    cqaPath: z.string(),
-    openaiKey: z.string(),
+    status: z.literal('healthy'),
     timestamp: z.string()
   }).optional(),
   error: z.string().optional()
