@@ -295,31 +295,35 @@ router.post(
  *   get:
  *     summary: Check CQA service health
  *     tags: [Recordings]
+ *     security:
+ *       - walletAuth: []
  *     responses:
  *       '200':
  *         description: Service is healthy
+ *       '401':
+ *         description: Authentication required
  *       '503':
  *         description: Service unavailable
  */
 router.get(
   '/health',
+  requireWalletAddress,
   errorHandlerAsync(async (_req: Request, res: Response) => {
-    const health = {
-      cqaPath: process.env.CQA_PATH || 'not configured',
-      openaiKey: process.env.OPENAI_API_KEY ? 'configured' : 'not configured',
-      timestamp: new Date().toISOString()
-    }
+    const isConfigured = !!(process.env.CQA_PATH && process.env.OPENAI_API_KEY)
 
-    if (!process.env.CQA_PATH || !process.env.OPENAI_API_KEY) {
+    if (!isConfigured) {
       res.status(503).json({
         success: false,
         error: 'CQA service not properly configured',
-        health
+        timestamp: new Date().toISOString()
       })
       return
     }
 
-    res.status(200).json(successResponse(health))
+    res.status(200).json(successResponse({
+      status: 'healthy',
+      timestamp: new Date().toISOString()
+    }))
   })
 )
 
