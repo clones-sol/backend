@@ -5,6 +5,7 @@ import demoFilesApi from './demo-files.ts'
 import { factoriesApi } from './factories.ts'
 import { forgeGasApi } from './gas.ts'
 import forgeMetadataApi from './metadata.ts'
+import { forgeRecordingsApi } from './recordings.ts'
 import { forgeSubmissionsApi } from './submissions.ts'
 import { forgeUploadApi } from './upload.ts'
 
@@ -12,6 +13,7 @@ const router: Router = express.Router()
 
 // Mount all the sub-routers
 // IMPORTANT: More specific routes MUST come before generic ones
+router.use('/recordings', forgeRecordingsApi)
 router.use('/submissions', forgeSubmissionsApi)
 router.use('/demo-files', demoFilesApi)
 router.use('/chat', forgeChatApi)

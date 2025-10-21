@@ -100,14 +100,17 @@ export async function processNextInQueue() {
       console.log('Directory contents:', files)
 
       await new Promise<void>((resolve, reject) => {
-        const args = ['-f', 'desktop', '-i', extractDir, '--grade']
+        const absoluteExtractDir = path.resolve(extractDir)
+        const args = ['-f', 'desktop', '-i', absoluteExtractDir, '--grade']
         if (process.env.CQA_MODEL) {
           args.push('--model', process.env.CQA_MODEL)
         }
         if (process.env.CQA_EVALUATION_MODEL) {
           args.push('--evaluation-model', process.env.CQA_EVALUATION_MODEL)
         }
-        const pipeline = spawn(process.env.CQA_PATH, args)
+        const pipeline = spawn(process.env.CQA_PATH, args, {
+          cwd: '/app/cqa' // Run CQA from the directory with node_modules
+        })
 
         let stdout = ''
         let stderr = ''

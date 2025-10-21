@@ -33,9 +33,13 @@ RUN npm prune --omit=dev
 # Final stage for app image
 FROM base
 
-ARG CQA_VERSION=2.0.12
-ADD https://github.com/clones-ai/clones-quality-agent/releases/download/v${CQA_VERSION}/clones-quality-agent-linux-x64 ./clones-quality-agent
-RUN chmod +x clones-quality-agent
+ARG CQA_VERSION=2.0.28
+ADD https://releases.clones-ai.com/cqa/clones-quality-agent-linux-x64-package-v${CQA_VERSION}.tar.gz ./cqa-package.tar.gz
+RUN mkdir ./cqa && \
+    tar -xzf cqa-package.tar.gz -C ./cqa && \
+    chmod +x ./cqa/clones-quality-agent-linux-x64-v${CQA_VERSION} && \
+    ln -s ./cqa/clones-quality-agent-linux-x64-v${CQA_VERSION} ./clones-quality-agent && \
+    rm cqa-package.tar.gz
 
 # Install runtime dependencies
 RUN apt-get update -qq && \
