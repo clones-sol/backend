@@ -62,6 +62,46 @@ async function validateUploadComplete(session: IUploadSessionDocument) {
   }
 }
 
+// Utility function to retry file operations with exponential backoff
+async function retryFileOperation<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  maxRetries: number = 3,
+  baseDelay: number = 100
+): Promise<T> {
+  let lastError: Error | null = null
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation()
+    } catch (error) {
+      lastError = error as Error
+      
+      // Only retry on specific file system errors
+      if (error instanceof Error && 'code' in error) {
+        const shouldRetry = error.code === 'ENOENT' || 
+                           error.code === 'EBUSY' || 
+                           error.code === 'EMFILE' ||
+                           error.code === 'ENFILE'
+        
+        if (!shouldRetry || attempt === maxRetries) {
+          console.error(`[UPLOAD] ${operationName} failed after ${attempt} attempts:`, error)
+          throw error
+        }
+        
+        const delay = baseDelay * Math.pow(2, attempt - 1)
+        console.warn(`[UPLOAD] ${operationName} failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms:`, error.message)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      } else {
+        // Non-retryable error
+        throw error
+      }
+    }
+  }
+  
+  throw lastError || new Error(`${operationName} failed after ${maxRetries} attempts`)
+}
+
 async function combineChunks(session: IUploadSessionDocument, finalFilePath: string) {
   console.log(`[UPLOAD] All chunks received, combining into final file`)
   console.log(`[UPLOAD] Final file path: ${finalFilePath}`)
@@ -71,10 +111,20 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
   )
   console.log(`[UPLOAD] Sorted ${sortedChunks.length} chunks for combining`)
 
+  // Verify all chunk files exist before starting combination
+  console.log(`[UPLOAD] Verifying all chunk files exist before combination`)
+  for (const chunk of sortedChunks) {
+    await retryFileOperation(
+      () => stat(chunk.path),
+      `Verify chunk ${chunk.chunkIndex} exists`
+    )
+    console.log(`[UPLOAD] Verified chunk ${chunk.chunkIndex} exists at ${chunk.path}`)
+  }
+
   const writeStream = createWriteStream(finalFilePath)
   console.log(`[UPLOAD] Created write stream for final file`)
 
-  // Write chunks sequentially
+  // Write chunks sequentially with enhanced error handling and retry logic
   console.log(`[UPLOAD] Starting to write chunks sequentially`)
   for (let i = 0; i < sortedChunks.length; i++) {
     const chunk = sortedChunks[i]
@@ -82,6 +132,13 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
       `[UPLOAD] Writing chunk ${i + 1}/${sortedChunks.length} (index: ${chunk.chunkIndex
       }, size: ${chunk.size} bytes)`
     )
+    
+    // Double-check file existence right before reading with retry
+    await retryFileOperation(
+      () => stat(chunk.path),
+      `Pre-read verification for chunk ${chunk.chunkIndex}`
+    )
+
     await new Promise<void>((resolve, reject) => {
       const readStream = createReadStream(chunk.path)
 
@@ -98,6 +155,9 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
       readStream
         .on('error', (err: Error) => {
           console.error(`[UPLOAD] Error reading chunk ${chunk.chunkIndex}:`, err)
+          if ('code' in err && err.code === 'ENOENT') {
+            console.error(`[UPLOAD] RACE CONDITION DETECTED: Chunk file ${chunk.path} was deleted during read operation`)
+          }
           writeStream.removeListener('drain', handleDrain)
           reject(err)
         })
@@ -129,6 +189,17 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
       reject(err)
     })
   })
+
+  // Verify the final file was created successfully with retry
+  const finalFileStats = await retryFileOperation(
+    () => stat(finalFilePath),
+    `Verify final file creation`
+  )
+  console.log(`[UPLOAD] Final file created successfully, size: ${finalFileStats.size} bytes`)
+  
+  if (finalFileStats.size === 0) {
+    throw new Error(`Final file ${finalFilePath} is empty after combination`)
+  }
 }
 
 async function extractZipFile(finalFilePath: string, extractDir: string) {
@@ -463,9 +534,26 @@ async function cleanupUploadFiles(
   session: IUploadSessionDocument,
   finalFilePath: string
 ): Promise<void> {
-  console.log(`[UPLOAD] Cleaning up session files`)
+  console.log(`[UPLOAD] Starting cleanup process for session ${session.id}`)
+  
+  // First, verify the final file exists and is valid before cleaning up chunks
+  try {
+    const finalFileStats = await stat(finalFilePath)
+    console.log(`[UPLOAD] Final file verified before cleanup, size: ${finalFileStats.size} bytes`)
+    
+    if (finalFileStats.size === 0) {
+      console.error(`[UPLOAD] WARNING: Final file is empty, this may indicate a problem`)
+      throw new Error(`Final file ${finalFilePath} is empty`)
+    }
+  } catch (error) {
+    console.error(`[UPLOAD] CRITICAL: Final file not found before cleanup: ${finalFilePath}`)
+    throw new Error(`Cannot cleanup chunks - final file does not exist: ${finalFilePath}`)
+  }
+
+  // Only proceed with chunk cleanup after confirming final file is valid
+  console.log(`[UPLOAD] Final file confirmed valid, proceeding with chunk cleanup`)
   await cleanupSession(session)
-  console.log(`[UPLOAD] Session files cleaned up`)
+  console.log(`[UPLOAD] Session chunk files cleaned up`)
 
   console.log(`[UPLOAD] Removing session from active sessions`)
   await UploadSessionModel.findByIdAndDelete(session.id)
@@ -474,6 +562,8 @@ async function cleanupUploadFiles(
   await unlink(finalFilePath).catch((err: Error) => {
     console.error(`[UPLOAD] Error deleting temporary ZIP file:`, err)
   })
+  
+  console.log(`[UPLOAD] Cleanup process completed for session ${session.id}`)
 }
 
 /**
@@ -769,51 +859,77 @@ router.post(
   requireWalletAddress,
   requireUploadSession,
   errorHandlerAsync(async (req: Request, res: Response) => {
-    console.log(`[UPLOAD] Starting complete process for upload ${req.params.uploadId}`)
+    const startTime = Date.now()
+    const uploadId = req.params.uploadId
+    const correlationId = `${uploadId}-${startTime}`
+    
+    console.log(`[UPLOAD:${correlationId}] Starting complete process for upload ${uploadId}`)
 
     await mkdir('uploads', { recursive: true }).catch((err) => {
-      console.error('[UPLOAD] Error ensuring uploads directory exists:', err)
+      console.error(`[UPLOAD:${correlationId}] Error ensuring uploads directory exists:`, err)
     })
 
     // @ts-expect-error - Get session from the request object
     const session: IUploadSessionDocument = req.uploadSession
     // @ts-expect-error - Get walletAddress from the request object
     const address = req.walletAddress
+    
     console.log(
-      `[UPLOAD] Processing upload for address: ${address}, chunks: ${session.receivedChunks.size}/${session.totalChunks}`
+      `[UPLOAD:${correlationId}] Processing upload for address: ${address}, chunks: ${session.receivedChunks.size}/${session.totalChunks}`
     )
+    console.log(`[UPLOAD:${correlationId}] Session created: ${session.createdAt}, last updated: ${session.lastUpdated}`)
 
+    // Mark session as processing to prevent TTL cleanup
+    session.isProcessing = true
+    await session.save()
+    console.log(`[UPLOAD:${correlationId}] Session marked as processing to prevent TTL cleanup`)
+
+    const step1Start = Date.now()
     await validateUploadComplete(session)
+    console.log(`[UPLOAD:${correlationId}] Step 1 - Validation completed in ${Date.now() - step1Start}ms`)
 
+    const step2Start = Date.now()
     const finalFilePath = path.join('uploads', `complete_${session.id}.zip`)
+    console.log(`[UPLOAD:${correlationId}] Step 2 - Starting chunk combination to ${finalFilePath}`)
     await combineChunks(session, finalFilePath)
+    console.log(`[UPLOAD:${correlationId}] Step 2 - Chunk combination completed in ${Date.now() - step2Start}ms`)
 
+    const step3Start = Date.now()
     const extractDir = path.join('uploads', `extract_${session.id}`)
+    console.log(`[UPLOAD:${correlationId}] Step 3 - Starting ZIP extraction to ${extractDir}`)
     await extractZipFile(finalFilePath, extractDir)
+    console.log(`[UPLOAD:${correlationId}] Step 3 - ZIP extraction completed in ${Date.now() - step3Start}ms`)
 
+    const step4Start = Date.now()
     const { meta, uuid } = await processMetadata(extractDir, address)
+    console.log(`[UPLOAD:${correlationId}] Step 4 - Metadata processing completed in ${Date.now() - step4Start}ms, UUID: ${uuid}`)
 
+    const step5Start = Date.now()
     const finalDir = path.join('uploads', `extract_${uuid}`)
     const requiredFiles = await moveRequiredFiles(extractDir, finalDir)
+    console.log(`[UPLOAD:${correlationId}] Step 5 - File movement completed in ${Date.now() - step5Start}ms`)
 
+    const step6Start = Date.now()
     const { demoHash, fileManifest, integrityVerified } = await uploadFilesToStorage(requiredFiles, finalDir, uuid, address)
-    console.log(`[UPLOAD] All files uploaded to demo storage successfully`)
+    console.log(`[UPLOAD:${correlationId}] Step 6 - Storage upload completed in ${Date.now() - step6Start}ms`)
 
+    const step7Start = Date.now()
     const factory = await verifyFactoryAndBalance(meta)
-
     await checkFactoryUploadLimits(factory)
     await checkTaskUploadLimits(meta, factory)
+    console.log(`[UPLOAD:${correlationId}] Step 7 - Factory validation completed in ${Date.now() - step7Start}ms`)
 
-    console.log(`[UPLOAD] Checking for existing submission with ID: ${uuid}`)
+    const step8Start = Date.now()
+    console.log(`[UPLOAD:${correlationId}] Step 8 - Checking for existing submission with ID: ${uuid}`)
     const tempSub = await DemonstrationSubmission.findById(uuid)
     if (tempSub) {
-      console.log(`[UPLOAD] Submission already exists with ID: ${uuid}`)
+      console.log(`[UPLOAD:${correlationId}] Submission already exists with ID: ${uuid}`)
       throw ApiError.conflict('Submission data already uploaded', {
         submissionId: uuid
       })
     }
 
-    console.log(`[UPLOAD] Creating new submission record in database`)
+    console.log(`[UPLOAD:${correlationId}] Creating new submission record in database`)
     const submission = await DemonstrationSubmission.create({
       _id: uuid,
       address,
@@ -824,21 +940,34 @@ router.post(
       integrityVerified,
       integrityLastCheck: new Date()
     })
-    console.log(`[UPLOAD] Submission created with ID: ${submission._id}`)
+    console.log(`[UPLOAD:${correlationId}] Submission created with ID: ${submission._id}`)
 
-    console.log(`[UPLOAD] Adding submission to processing queue`)
+    console.log(`[UPLOAD:${correlationId}] Adding submission to processing queue`)
     addToProcessingQueue(uuid)
-    console.log(`[UPLOAD] Submission added to processing queue`)
+    console.log(`[UPLOAD:${correlationId}] Submission added to processing queue`)
+    console.log(`[UPLOAD:${correlationId}] Step 8 - Database operations completed in ${Date.now() - step8Start}ms`)
 
+    const step9Start = Date.now()
+    console.log(`[UPLOAD:${correlationId}] Step 9 - Starting cleanup process`)
+    
+    // Mark session as no longer processing before cleanup
+    session.isProcessing = false
+    await session.save()
+    console.log(`[UPLOAD:${correlationId}] Session marked as no longer processing`)
+    
     await cleanupUploadFiles(session, finalFilePath)
+    console.log(`[UPLOAD:${correlationId}] Step 9 - Cleanup completed in ${Date.now() - step9Start}ms`)
 
-    console.log(`[UPLOAD] Upload complete process finished successfully for ID: ${uuid}`)
+    const totalTime = Date.now() - startTime
+    console.log(`[UPLOAD:${correlationId}] Upload complete process finished successfully for ID: ${uuid} (Total time: ${totalTime}ms)`)
+    
     res.json(
       successResponse({
         message: 'Upload completed successfully',
         submissionId: submission._id,
         demoHash,
-        fileManifest
+        fileManifest,
+        processingTime: totalTime
       })
     )
   })

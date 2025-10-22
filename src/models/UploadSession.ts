@@ -8,6 +8,7 @@ export interface IUploadSessionDocument
   _id: string // Mongoose uses _id
   receivedChunks: Map<string, UploadChunk> // Mongoose Map requires string keys
   updatedAt: Date
+  isProcessing?: boolean // Prevent TTL cleanup during active processing
 }
 
 const chunkSchema = new Schema<UploadChunk>(
@@ -33,7 +34,8 @@ const uploadSessionSchema = new Schema<IUploadSessionDocument>(
     metadata: { type: Schema.Types.Mixed, required: true },
     tempDir: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
+    updatedAt: { type: Date, default: Date.now },
+    isProcessing: { type: Boolean, default: false } // Prevent TTL cleanup during processing
   },
   {
     _id: false, // We are providing our own _id
@@ -49,6 +51,22 @@ const uploadSessionSchema = new Schema<IUploadSessionDocument>(
     collection: 'upload_sessions'
   }
 )
+
+// Add middleware to log when sessions are deleted (including TTL cleanup)
+uploadSessionSchema.pre('deleteOne', function() {
+  console.log(`[TTL-CLEANUP] UploadSession deleteOne triggered at ${new Date().toISOString()} for filter:`, this.getFilter())
+})
+
+uploadSessionSchema.pre('deleteMany', function() {
+  console.log(`[TTL-CLEANUP] UploadSession deleteMany triggered at ${new Date().toISOString()} for filter:`, this.getFilter())
+})
+
+uploadSessionSchema.pre('findOneAndDelete', async function() {
+  const doc = await this.model.findOne(this.getFilter())
+  if (doc) {
+    console.log(`[TTL-CLEANUP] UploadSession findOneAndDelete triggered at ${new Date().toISOString()}. Session ID: ${doc._id}, isProcessing: ${doc.isProcessing}`)
+  }
+})
 
 // Create a virtual 'id' property that gets the '_id'
 uploadSessionSchema.virtual('id').get(function () {

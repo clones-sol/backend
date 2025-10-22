@@ -613,7 +613,7 @@ describe('Referral API', () => {
         .send(referralData)
         .expect(400)
 
-      expect(response.body.error.message).toContain('Invalid or expired referral code.')
+      expect(response.body.error.message).toContain('Invalid or expired referrer code.')
     })
 
     it('should fail with 400 when user tries to refer themselves', async () => {
