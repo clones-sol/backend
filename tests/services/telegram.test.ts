@@ -103,7 +103,7 @@ describe('Telegram Service', () => {
       const validTemplates = [
         '🎇 Boom! Factory',
         '💎 Factory',
-        '🔥 Test Factory',
+        '🔥 \'Test Factory\'',
         '🛠️ A new Factory'
       ]
       const isValidTemplate = validTemplates.some(template => sentMessage.includes(template))

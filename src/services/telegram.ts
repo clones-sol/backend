@@ -42,23 +42,23 @@ class TelegramService {
     return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&')
   }
 
-  private getRandomActivationMessage(factoryName: string): string {
+  private getRandomActivationMessage(): string {
     const templates = [
       // Option 1 — Style hype/epic
-      `🎇 Boom! Factory '${factoryName}' is live!
-The Forge has just unlocked a new playground for human expertise. Contributors: dive in, record your skills, and turn your actions into valuable AI training data — and rewards await! 🚀`,
+      `🎇 Boom! Factory FACTORY_NAME_PLACEHOLDER is live!
+The Forge has just unlocked a new playground for human expertise\\. Contributors: dive in, record your skills, and turn your actions into valuable AI training data — and rewards await! 🚀`,
 
       // Option 2 — Style action/reward
-      `💎 Factory '${factoryName}' just opened!
-Every click counts. Every workflow you demonstrate builds tradeable, revenue-generating datasets. Start earning $CLONES/$ETH/$USDC while shaping the future of AI! 💥`,
+      `💎 Factory FACTORY_NAME_PLACEHOLDER just opened!
+Every click counts\\. Every workflow you demonstrate builds tradeable, revenue\\-generating datasets\\. Start earning $CLONES/$ETH/$USDC while shaping the future of AI! 💥`,
 
       // Option 3 — Style exclusive/network
-      `🔥 ${factoryName} is now active!
-Early contributors get the first chance to shape a dataset that will be tokenized and monetized. Don't miss your spot in this next-gen AI economy. 💸✨`,
+      `🔥 FACTORY_NAME_PLACEHOLDER is now active!
+Early contributors get the first chance to shape a dataset that will be tokenized and monetized\\. Don't miss your spot in this next\\-gen AI economy\\. 💸✨`,
 
       // Option 4 — Style storytelling
-      `🛠️ A new Factory '${factoryName}' has just come online!
-Your skills + your clicks = AI that actually does stuff. Record, earn, and watch your expertise turn into real, liquid value. The Forge is waiting. 🔥`
+      `🛠️ A new Factory FACTORY_NAME_PLACEHOLDER has just come online!
+Your skills \\+ your clicks \\= AI that actually does stuff\\. Record, earn, and watch your expertise turn into real, liquid value\\. The Forge is waiting\\. 🔥`
     ]
 
     const randomIndex = Math.floor(Math.random() * templates.length)
@@ -66,8 +66,11 @@ Your skills + your clicks = AI that actually does stuff. Record, earn, and watch
   }
 
   private formatFactoryActivationMessage(notification: FactoryActivationNotification): string {
-    const factoryName = this.escapeMarkdown(notification.factoryName)
-    return this.getRandomActivationMessage(factoryName)
+    const escapedFactoryName = this.escapeMarkdown(notification.factoryName)
+    const template = this.getRandomActivationMessage()
+    
+    // Replace placeholder with escaped factory name wrapped in single quotes
+    return template.replace('FACTORY_NAME_PLACEHOLDER', `'${escapedFactoryName}'`)
   }
 
   async sendFactoryActivationNotification(notification: FactoryActivationNotification): Promise<boolean> {
