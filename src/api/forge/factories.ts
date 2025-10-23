@@ -13,6 +13,7 @@ import { createFactoryService } from '../../services/blockchain/factoryTransacti
 import BlockchainService from '../../services/blockchain/index.ts'
 import { getTokenContractAddress, supportedTokens } from '../../services/blockchain/tokens.ts'
 import { getFactoryDemonstrationCount, getFactoriesDemonstrationCounts } from '../../utils/factoryStats.ts'
+import telegramService from '../../services/telegram.js'
 import {
   type Factory,
   type FactorySearchCriteria,
@@ -527,6 +528,9 @@ router.put(
       throw ApiError.forbidden('Not authorized to update this factory')
     }
 
+    // Store original status to detect activation
+    const originalStatus = factory.status
+
     // Validate balance only when transitioning from paused to active
     if (req.body.status === FactoryStatus.active && factory.status === FactoryStatus.paused) {
       const balance = await blockchainService.getTokenBalance(factory.token.address, ownerAddress)
@@ -542,8 +546,18 @@ router.put(
     if (req.body.status !== undefined) factory.status = req.body.status
     if (req.body.pricePerDemo !== undefined) factory.pricePerDemo = req.body.pricePerDemo
 
-
     await factory.save()
+
+    // Send Telegram notification if factory was activated
+    if (originalStatus === FactoryStatus.paused && factory.status === FactoryStatus.active) {
+      telegramService.sendFactoryActivationNotification({
+        factoryId: factory._id.toString(),
+        factoryName: factory.name,
+        ownerAddress: factory.ownerAddress
+      }).catch(error => {
+        console.error('Failed to send factory activation notification:', error)
+      })
+    }
 
     const updatedFactory = await FactoryModel.findById(id)
     res.json(successResponse(updatedFactory?.toJSON()))
