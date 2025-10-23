@@ -1,6 +1,7 @@
 import express, { type Response } from 'express'
 import { requireWalletAddress } from '../../middleware/auth.ts'
 import { DemonstrationSubmission } from '../../models/DemonstrationSubmission.ts'
+import { FactoryModel } from '../../models/Factory.ts'
 import { ObjectStorageService } from '../../services/storage/index.ts'
 import { DemoStorageService } from '../../services/demo-storage/index.ts'
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
@@ -18,6 +19,55 @@ const objectStorageService = new ObjectStorageService(
 )
 
 const demoStorageService = new DemoStorageService(objectStorageService)
+
+/**
+ * Check if user has access to a submission (either as owner or factory creator)
+ */
+async function hasAccessToSubmission(submissionId: string, userAddress: string) {
+  // First, find the submission
+  const submission = await DemonstrationSubmission.findOne({ _id: submissionId })
+  if (!submission) {
+    return { hasAccess: false, submission: null }
+  }
+
+  // Check if user is the owner (farmer)
+  const isOwner = submission.address?.toLowerCase() === userAddress.toLowerCase()
+  if (isOwner) {
+    return { hasAccess: true, submission, accessType: 'owner' }
+  }
+
+  // Check if user is the factory creator via meta.quest.pool_id
+  const poolId = submission.meta?.quest?.pool_id || submission.onChainReward?.poolAddress
+  if (poolId) {
+    console.log('Checking factory creator access:')
+    console.log('  Pool ID:', poolId)
+    console.log('  User Address:', userAddress)
+    
+    const factory = await FactoryModel.findOne({
+      _id: poolId,
+      ownerAddress: userAddress.toLowerCase()
+    })
+    
+    console.log('  Factory found:', !!factory)
+    if (factory) {
+      console.log('  Factory owner:', factory.ownerAddress)
+      return { hasAccess: true, submission, accessType: 'factory_creator' }
+    }
+    
+    // Additional debug: try to find any factory with this pool_id to see what exists
+    const anyFactory = await FactoryModel.findOne({
+      _id: poolId
+    })
+    console.log('  Any factory with this pool found:', !!anyFactory)
+    if (anyFactory) {
+      console.log('  Found factory owner:', anyFactory.ownerAddress)
+      console.log('  User address (original):', userAddress)
+      console.log('  User address (lowercase):', userAddress.toLowerCase())
+    }
+  }
+
+  return { hasAccess: false, submission }
+}
 
 /**
  * @swagger
@@ -74,17 +124,16 @@ router.get('/:submissionId/verify',
       })
     }
 
-    const submission = await DemonstrationSubmission.findOne({
-      _id: submissionId,
-      address: { $regex: new RegExp(`^${userAddress.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
-    })
-
-    if (!submission) {
+    const accessCheck = await hasAccessToSubmission(submissionId, userAddress)
+    
+    if (!accessCheck.hasAccess || !accessCheck.submission) {
       return res.status(404).json({
         success: false,
         error: 'Demonstration submission not found or access denied'
       })
     }
+
+    const submission = accessCheck.submission
 
     if (!submission.demoHash) {
       return res.status(404).json({
@@ -198,22 +247,31 @@ router.get('/:submissionId/:filename',
     console.log('Searching for submission:', submissionId)
     console.log('User address:', userAddress)
 
-    const submission = await DemonstrationSubmission.findOne({
-      _id: submissionId,
-      address: { $regex: new RegExp(`^${userAddress.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+    const accessCheck = await hasAccessToSubmission(submissionId, userAddress)
+    
+    console.log('Access check result:', {
+      hasAccess: accessCheck.hasAccess,
+      accessType: accessCheck.accessType,
+      submissionFound: !!accessCheck.submission
     })
+
+    if (accessCheck.hasAccess && accessCheck.accessType) {
+      console.log(`User ${userAddress} accessing submission ${submissionId} as ${accessCheck.accessType}`)
+    }
+
+    if (!accessCheck.hasAccess || !accessCheck.submission) {
+      return res.status(404).json({
+        success: false,
+        error: 'Demonstration submission not found or access denied'
+      })
+    }
+
+    const submission = accessCheck.submission
 
     console.log('Submission found:', !!submission)
     if (submission && submission.demoHash) {
       const availableFiles = await demoStorageService.listDemoFiles(submission.demoHash)
       console.log('Available files:', availableFiles.map(f => f.filename))
-    }
-
-    if (!submission) {
-      return res.status(404).json({
-        success: false,
-        error: 'Demonstration submission not found or access denied'
-      })
     }
 
     if (!submission.demoHash) {
@@ -371,22 +429,31 @@ router.get('/:submissionId',
     console.log('Searching for submission:', submissionId)
     console.log('User address:', userAddress)
 
-    const submission = await DemonstrationSubmission.findOne({
-      _id: submissionId,
-      address: { $regex: new RegExp(`^${userAddress.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+    const accessCheck = await hasAccessToSubmission(submissionId, userAddress)
+    
+    console.log('Access check result:', {
+      hasAccess: accessCheck.hasAccess,
+      accessType: accessCheck.accessType,
+      submissionFound: !!accessCheck.submission
     })
+
+    if (accessCheck.hasAccess && accessCheck.accessType) {
+      console.log(`User ${userAddress} accessing submission ${submissionId} as ${accessCheck.accessType}`)
+    }
+
+    if (!accessCheck.hasAccess || !accessCheck.submission) {
+      return res.status(404).json({
+        success: false,
+        error: 'Demonstration submission not found or access denied'
+      })
+    }
+
+    const submission = accessCheck.submission
 
     console.log('Submission found:', !!submission)
     if (submission && submission.demoHash) {
       const availableFiles = await demoStorageService.listDemoFiles(submission.demoHash)
       console.log('Available files:', availableFiles.map(f => f.filename))
-    }
-
-    if (!submission) {
-      return res.status(404).json({
-        success: false,
-        error: 'Demonstration submission not found or access denied'
-      })
     }
 
     if (!submission.demoHash) {

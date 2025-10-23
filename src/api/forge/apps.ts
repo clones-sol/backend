@@ -295,6 +295,7 @@ function calculateTaskLimits(
   return taskCheck
 }
 
+// TODO: unused function
 async function _processTasksWithLimitInfo(app: Record<string, any>, _submissions: any[]) {
   return Promise.all(
     app.tasks.map(async (task: FactoryTask) => {

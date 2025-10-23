@@ -50,7 +50,7 @@ async function getTokenPricesUSD(tokenSymbols: string[]): Promise<Map<string, nu
     try {
       const price = await BlockchainService.getTokenPriceUSD(symbol)
       priceMap.set(symbol, price)
-      console.log(`💱 ${symbol}: $${price}`)
+      console.log(`${symbol}: $${price}`)
     } catch (error) {
       priceMap.set(symbol, 0)
     }

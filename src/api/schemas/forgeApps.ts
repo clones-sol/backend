@@ -26,7 +26,7 @@ export const updateFactoryAppsSchema: ValidationSchema = {
               if (typeof task !== 'object' || task === null) return false
               if (typeof task.prompt !== 'string' || task.prompt.length < 1 || task.prompt.length > 2000) return false
               if (task.uploadLimit !== undefined && task.uploadLimit !== null && (typeof task.uploadLimit !== 'number' || task.uploadLimit < 1)) return false
-              if (task.rewardLimit !== undefined && task.rewardLimit !== null && (typeof task.rewardLimit !== 'number' || task.rewardLimit < 1)) return false
+              if (task.rewardLimit !== undefined && task.rewardLimit !== null && (typeof task.rewardLimit !== 'number' || task.rewardLimit <= 0)) return false
               return true
             })
           })
