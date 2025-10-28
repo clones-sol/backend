@@ -25,48 +25,41 @@ class BlockchainService {
 
   /** Fetch ETH price in USD from CoinGecko */
   static async getEthPriceInUSD(): Promise<number> {
-    const fallback = 3000
     try {
-      const r = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd'
-      )
-      const data = await r.json()
-      return data?.ethereum?.usd ?? fallback
+      return await this.getTokenPriceUSD('ETH')
     } catch (e) {
       console.error('Error fetching ETH price:', e)
-      return fallback
+      return 3000 // fallback
     }
   }
 
   /** Fetch token price in USD from CoinGecko */
   static async getTokenPriceUSD(tokenSymbol: string): Promise<number> {
-    const tokenMappings: { [key: string]: string } = {
-      'ETH': 'ethereum',
-      'WETH': 'ethereum',
-      'USDC': 'usd-coin',
-      'CLONES': 'clones'
-    }
-
-    const coinId = tokenMappings[tokenSymbol.toUpperCase()]
-
-    if (!coinId) {
+    const supportedTokens = ['ETH', 'WETH', 'USDC', 'CLONES']
+    
+    if (!supportedTokens.includes(tokenSymbol.toUpperCase())) {
       throw new Error(`Token ${tokenSymbol} is not supported for price fetching`)
     }
 
     try {
-      const r = await fetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`
-      )
+      const apiUrl = process.env.PRICE_USD_API_URL || 'http://localhost:8080'
+      const headers: Record<string, string> = {}
+      
+      if (process.env.NODE_ENV === 'production' && process.env.PRICE_USD_API_KEY) {
+        headers['X-API-Key'] = process.env.PRICE_USD_API_KEY
+      }
+      
+      const r = await fetch(`${apiUrl}/price/${tokenSymbol.toUpperCase()}`, { headers })
 
       if (!r.ok) {
-        throw new Error(`CoinGecko API returned status ${r.status}`)
+        throw new Error(`Price USD API returned status ${r.status}`)
       }
 
-      const data = await r.json()
-      const price = data?.[coinId]?.usd
+      const priceText = await r.text()
+      const price = parseFloat(priceText)
 
-      if (price === undefined || price === null) {
-        throw new Error(`Price not available for ${tokenSymbol}`)
+      if (isNaN(price)) {
+        throw new Error(`Invalid price format from Price USD API for ${tokenSymbol}`)
       }
 
       return price
