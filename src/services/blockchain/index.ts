@@ -23,7 +23,7 @@ class BlockchainService {
     }
   }
 
-  /** Fetch ETH price in USD from CoinGecko */
+  /** Fetch ETH price in USD from the custom Price USD API */
   static async getEthPriceInUSD(): Promise<number> {
     try {
       return await this.getTokenPriceUSD('ETH')
@@ -33,10 +33,10 @@ class BlockchainService {
     }
   }
 
-  /** Fetch token price in USD from CoinGecko */
+  /** Fetch token price in USD from the custom Price USD API */
   static async getTokenPriceUSD(tokenSymbol: string): Promise<number> {
     const supportedTokens = ['ETH', 'WETH', 'USDC', 'CLONES']
-    
+
     if (!supportedTokens.includes(tokenSymbol.toUpperCase())) {
       throw new Error(`Token ${tokenSymbol} is not supported for price fetching`)
     }
@@ -44,11 +44,11 @@ class BlockchainService {
     try {
       const apiUrl = process.env.PRICE_USD_API_URL || 'http://localhost:8080'
       const headers: Record<string, string> = {}
-      
-      if (process.env.NODE_ENV === 'production' && process.env.PRICE_USD_API_KEY) {
+
+      if (process.env.PRICE_USD_API_KEY) {
         headers['X-API-Key'] = process.env.PRICE_USD_API_KEY
       }
-      
+
       const r = await fetch(`${apiUrl}/price/${tokenSymbol.toUpperCase()}`, { headers })
 
       if (!r.ok) {
