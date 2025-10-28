@@ -89,6 +89,10 @@ services:
       # Quality Agent
       - CQA_MODEL=${CQA_MODEL}
       - CQA_EVALUATION_MODEL=${CQA_EVALUATION_MODEL}
+
+      # Price USD API
+      - PRICE_USD_API_URL=${PRICE_USD_API_URL:-http://host.docker.internal:8080}
+      - PRICE_USD_API_KEY=${PRICE_USD_API_KEY}
     depends_on:
       - mongodb
       - localstack
