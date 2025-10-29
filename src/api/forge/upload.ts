@@ -101,11 +101,12 @@ async function retryFileOperation<T>(
       let shouldRetry = false
 
       if (isAwsError) {
-        // AWS SDK errors - retry on NoSuchKey (missing object) or transient errors
+        // AWS SDK errors - retry only on transient errors, not permanent failures
         const errorName = (error as any).name
-        shouldRetry = errorName === 'NoSuchKey' ||
-          errorName === 'RequestTimeout' ||
-          errorName === 'ServiceUnavailable'
+        shouldRetry = errorName === 'RequestTimeout' ||
+          errorName === 'ServiceUnavailable' ||
+          errorName === 'ThrottlingException' ||
+          errorName === 'ProvisionedThroughputExceededException'
       } else if (isFilesystemError) {
         // Filesystem errors
         const errorCode = (error as any).code
@@ -700,28 +701,39 @@ router.post(
       throw ApiError.badRequest('No chunk uploaded')
     }
 
+    // Get object storage service for cleanup operations
+    const objectStorage = getObjectStorageService()
+
     // @ts-expect-error - Get session from the request object
     const session: IUploadSessionDocument = req.uploadSession
     const chunkIndex = Number(req.body.chunkIndex)
     const checksum = req.body.checksum
 
     if (Number.isNaN(chunkIndex) || chunkIndex < 0 || chunkIndex >= session.totalChunks) {
+      // Clean up uploaded chunk from Tigris before throwing error
+      await objectStorage.deleteItem({ name: req.file.path })
       throw ApiError.badRequest('Invalid chunk index')
     }
 
     if (!checksum) {
+      // Clean up uploaded chunk from Tigris before throwing error
+      await objectStorage.deleteItem({ name: req.file.path })
       throw ApiError.badRequest('Checksum is required')
     }
 
     // Verify checksum - use buffer from Tigris upload (file is already in Tigris, not local filesystem)
     const fileBuffer = req.file.buffer as Buffer
     if (!fileBuffer) {
+      // Clean up uploaded chunk from Tigris before throwing error
+      await objectStorage.deleteItem({ name: req.file.path })
       throw ApiError.badRequest('File buffer not available')
     }
 
     const calculatedChecksum = createHash('sha256').update(fileBuffer).digest('hex')
 
     if (calculatedChecksum !== checksum) {
+      // Clean up uploaded chunk from Tigris before throwing error
+      await objectStorage.deleteItem({ name: req.file.path })
       throw ApiError.badRequest('Checksum verification failed', {
         expected: checksum,
         calculated: calculatedChecksum
@@ -873,10 +885,6 @@ router.post(
     const correlationId = `${uploadId}-${startTime}`
 
     console.log(`[UPLOAD:${correlationId}] Starting complete process for upload ${uploadId}`)
-
-    await mkdir(getUploadsPath('chunks'), { recursive: true }).catch((err) => {
-      console.error(`[UPLOAD:${correlationId}] Error ensuring uploads directory exists:`, err)
-    })
 
     // @ts-expect-error - Get session from the request object
     const session: IUploadSessionDocument = req.uploadSession
