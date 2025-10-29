@@ -2,6 +2,13 @@ import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { copyFile, mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import * as path from 'node:path'
+
+// Utility function to get the correct uploads path based on environment
+const getUploadsPath = (...pathSegments: string[]) => {
+  // Use /app/uploads only on Fly.io (detected by FLY_APP_NAME env var)
+  const basePath = process.env.FLY_APP_NAME ? '/app/uploads' : 'uploads'
+  return path.join(basePath, ...pathSegments)
+}
 import express, { type NextFunction, type Request, type Response, type Router } from 'express'
 import multer from 'multer'
 import { Extract } from 'unzipper'
@@ -14,6 +21,7 @@ import { type IUploadSessionDocument, UploadSessionModel } from '../../models/Up
 import BlockchainService from '../../services/blockchain/index.ts'
 import { addToProcessingQueue, cleanupSession } from '../../services/forge/index.ts'
 import { ObjectStorageService } from '../../services/storage/index.ts'
+import { createTigrisStorage } from '../../services/storage/TigrisMulterStorage.ts'
 import { DemoStorageService, DemoFiles } from '../../services/demo-storage/index.ts'
 import {
   type DBDemonstrationSubmission,
@@ -70,25 +78,25 @@ async function retryFileOperation<T>(
   baseDelay: number = 100
 ): Promise<T> {
   let lastError: Error | null = null
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await operation()
     } catch (error) {
       lastError = error as Error
-      
+
       // Only retry on specific file system errors
       if (error instanceof Error && 'code' in error) {
-        const shouldRetry = error.code === 'ENOENT' || 
-                           error.code === 'EBUSY' || 
-                           error.code === 'EMFILE' ||
-                           error.code === 'ENFILE'
-        
+        const shouldRetry = error.code === 'ENOENT' ||
+          error.code === 'EBUSY' ||
+          error.code === 'EMFILE' ||
+          error.code === 'ENFILE'
+
         if (!shouldRetry || attempt === maxRetries) {
           console.error(`[UPLOAD] ${operationName} failed after ${attempt} attempts:`, error)
           throw error
         }
-        
+
         const delay = baseDelay * Math.pow(2, attempt - 1)
         console.warn(`[UPLOAD] ${operationName} failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms:`, error.message)
         await new Promise(resolve => setTimeout(resolve, delay))
@@ -98,7 +106,7 @@ async function retryFileOperation<T>(
       }
     }
   }
-  
+
   throw lastError || new Error(`${operationName} failed after ${maxRetries} attempts`)
 }
 
@@ -111,69 +119,87 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
   )
   console.log(`[UPLOAD] Sorted ${sortedChunks.length} chunks for combining`)
 
-  // Verify all chunk files exist before starting combination
-  console.log(`[UPLOAD] Verifying all chunk files exist before combination`)
+  // Get object storage service for reading chunks from Tigris
+  const demoStorage = getDemoStorageService()
+  const objectStorage = (demoStorage as any).objectStorage as ObjectStorageService
+
+  // Verify all chunk files exist in Tigris before starting combination
+  console.log(`[UPLOAD] Verifying all chunk files exist in Tigris before combination`)
   for (const chunk of sortedChunks) {
     await retryFileOperation(
-      () => stat(chunk.path),
-      `Verify chunk ${chunk.chunkIndex} exists`
+      async () => {
+        try {
+          await objectStorage.getItem({ name: chunk.path })
+          return { size: chunk.size } // Return fake stats object
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('Object not found')) {
+            const enoentError = new Error(`ENOENT: no such file or directory, stat '${chunk.path}'`) as Error & { code: string }
+            enoentError.code = 'ENOENT'
+            throw enoentError
+          }
+          throw error
+        }
+      },
+      `Verify chunk ${chunk.chunkIndex} exists in Tigris`
     )
-    console.log(`[UPLOAD] Verified chunk ${chunk.chunkIndex} exists at ${chunk.path}`)
+    console.log(`[UPLOAD] Verified chunk ${chunk.chunkIndex} exists in Tigris at ${chunk.path}`)
   }
 
   const writeStream = createWriteStream(finalFilePath)
   console.log(`[UPLOAD] Created write stream for final file`)
 
   // Write chunks sequentially with enhanced error handling and retry logic
-  console.log(`[UPLOAD] Starting to write chunks sequentially`)
+  console.log(`[UPLOAD] Starting to write chunks sequentially from Tigris`)
   for (let i = 0; i < sortedChunks.length; i++) {
     const chunk = sortedChunks[i]
     console.log(
       `[UPLOAD] Writing chunk ${i + 1}/${sortedChunks.length} (index: ${chunk.chunkIndex
       }, size: ${chunk.size} bytes)`
     )
-    
-    // Double-check file existence right before reading with retry
+
+    // Double-check file existence in Tigris right before reading with retry
     await retryFileOperation(
-      () => stat(chunk.path),
-      `Pre-read verification for chunk ${chunk.chunkIndex}`
+      async () => {
+        try {
+          await objectStorage.getItem({ name: chunk.path })
+          return { size: chunk.size }
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('Object not found')) {
+            const enoentError = new Error(`ENOENT: no such file or directory, stat '${chunk.path}'`) as Error & { code: string }
+            enoentError.code = 'ENOENT'
+            throw enoentError
+          }
+          throw error
+        }
+      },
+      `Pre-read verification for chunk ${chunk.chunkIndex} in Tigris`
     )
 
-    await new Promise<void>((resolve, reject) => {
-      const readStream = createReadStream(chunk.path)
+    // Read chunk from Tigris and write to local file
+    try {
+      const chunkBuffer = await objectStorage.getItem({ name: chunk.path })
+      console.log(`[UPLOAD] Downloaded chunk ${chunk.chunkIndex} from Tigris (${chunkBuffer.length} bytes)`)
 
-      // Handle backpressure
-      let draining = false
-
-      const handleDrain = () => {
-        draining = false
-        readStream.resume()
-      }
-
-      writeStream.on('drain', handleDrain)
-
-      readStream
-        .on('error', (err: Error) => {
-          console.error(`[UPLOAD] Error reading chunk ${chunk.chunkIndex}:`, err)
-          if ('code' in err && err.code === 'ENOENT') {
-            console.error(`[UPLOAD] RACE CONDITION DETECTED: Chunk file ${chunk.path} was deleted during read operation`)
-          }
-          writeStream.removeListener('drain', handleDrain)
-          reject(err)
-        })
-        .on('data', (chunk) => {
-          // If writeStream returns false, it's experiencing backpressure
-          if (!writeStream.write(chunk) && !draining) {
-            draining = true
-            readStream.pause() // Pause reading until drain
-          }
-        })
-        .on('end', () => {
-          console.log(`[UPLOAD] Finished reading chunk ${chunk.chunkIndex}`)
-          writeStream.removeListener('drain', handleDrain)
+      // Write chunk buffer to stream
+      await new Promise<void>((resolve, reject) => {
+        if (!writeStream.write(chunkBuffer)) {
+          // Handle backpressure
+          writeStream.once('drain', resolve)
+        } else {
           resolve()
-        })
-    })
+        }
+
+        writeStream.once('error', reject)
+      })
+
+      console.log(`[UPLOAD] Finished writing chunk ${chunk.chunkIndex}`)
+    } catch (error) {
+      console.error(`[UPLOAD] Error reading chunk ${chunk.chunkIndex} from Tigris:`, error)
+      if (error instanceof Error && error.message.includes('Object not found')) {
+        console.error(`[UPLOAD] RACE CONDITION DETECTED: Chunk file ${chunk.path} was deleted from Tigris during read operation`)
+      }
+      throw error
+    }
   }
 
   // Close the write stream
@@ -196,7 +222,7 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
     `Verify final file creation`
   )
   console.log(`[UPLOAD] Final file created successfully, size: ${finalFileStats.size} bytes`)
-  
+
   if (finalFileStats.size === 0) {
     throw new Error(`Final file ${finalFilePath} is empty after combination`)
   }
@@ -291,13 +317,26 @@ function validateStorageConfig() {
   }
 }
 
-// Configure multer for handling chunk uploads
-const upload = multer({
-  dest: 'uploads/chunks/',
-  limits: {
-    fileSize: 100 * 1024 * 1024 // 100MB limit per chunk
-  }
-})
+// Configure multer for handling chunk uploads with Tigris storage
+const getUploadMiddleware = () => {
+  const config = validateStorageConfig()
+  const objectStorage = new ObjectStorageService(
+    config.STORAGE_ACCESS_KEY,
+    config.STORAGE_SECRET_KEY,
+    config.STORAGE_ENDPOINT,
+    config.STORAGE_REGION,
+    config.STORAGE_BUCKET
+  )
+
+  return multer({
+    storage: createTigrisStorage(objectStorage),
+    limits: {
+      fileSize: 100 * 1024 * 1024 // 100MB limit per chunk
+    }
+  })
+}
+
+const upload = getUploadMiddleware()
 
 // Store active upload sessions - DEPRECATED in favor of MongoDB storage
 // const activeSessions = new Map<string, UploadSession>();
@@ -535,12 +574,12 @@ async function cleanupUploadFiles(
   finalFilePath: string
 ): Promise<void> {
   console.log(`[UPLOAD] Starting cleanup process for session ${session.id}`)
-  
+
   // First, verify the final file exists and is valid before cleaning up chunks
   try {
     const finalFileStats = await stat(finalFilePath)
     console.log(`[UPLOAD] Final file verified before cleanup, size: ${finalFileStats.size} bytes`)
-    
+
     if (finalFileStats.size === 0) {
       console.error(`[UPLOAD] WARNING: Final file is empty, this may indicate a problem`)
       throw new Error(`Final file ${finalFilePath} is empty`)
@@ -562,7 +601,7 @@ async function cleanupUploadFiles(
   await unlink(finalFilePath).catch((err: Error) => {
     console.error(`[UPLOAD] Error deleting temporary ZIP file:`, err)
   })
-  
+
   console.log(`[UPLOAD] Cleanup process completed for session ${session.id}`)
 }
 
@@ -617,7 +656,7 @@ router.post(
       .digest('hex')
 
     // Create temp directory for this upload
-    const tempDir = path.join('uploads', `temp_${uploadId}`)
+    const tempDir = getUploadsPath(`temp_${uploadId}`)
     await mkdir(tempDir, { recursive: true })
 
     // Store metadata in the temp directory
@@ -698,21 +737,22 @@ router.post(
     const checksum = req.body.checksum
 
     if (Number.isNaN(chunkIndex) || chunkIndex < 0 || chunkIndex >= session.totalChunks) {
-      await unlink(req.file.path).catch(() => { })
       throw ApiError.badRequest('Invalid chunk index')
     }
 
     if (!checksum) {
-      await unlink(req.file.path).catch(() => { })
       throw ApiError.badRequest('Checksum is required')
     }
 
-    // Verify checksum
-    const fileBuffer = await readFile(req.file.path)
+    // Verify checksum - use buffer from Tigris upload (file is already in Tigris, not local filesystem)
+    const fileBuffer = req.file.buffer as Buffer
+    if (!fileBuffer) {
+      throw ApiError.badRequest('File buffer not available')
+    }
+
     const calculatedChecksum = createHash('sha256').update(fileBuffer).digest('hex')
 
     if (calculatedChecksum !== checksum) {
-      await unlink(req.file.path).catch(() => { })
       throw ApiError.badRequest('Checksum verification failed', {
         expected: checksum,
         calculated: calculatedChecksum
@@ -862,10 +902,10 @@ router.post(
     const startTime = Date.now()
     const uploadId = req.params.uploadId
     const correlationId = `${uploadId}-${startTime}`
-    
+
     console.log(`[UPLOAD:${correlationId}] Starting complete process for upload ${uploadId}`)
 
-    await mkdir('uploads', { recursive: true }).catch((err) => {
+    await mkdir(getUploadsPath('chunks'), { recursive: true }).catch((err) => {
       console.error(`[UPLOAD:${correlationId}] Error ensuring uploads directory exists:`, err)
     })
 
@@ -873,7 +913,7 @@ router.post(
     const session: IUploadSessionDocument = req.uploadSession
     // @ts-expect-error - Get walletAddress from the request object
     const address = req.walletAddress
-    
+
     console.log(
       `[UPLOAD:${correlationId}] Processing upload for address: ${address}, chunks: ${session.receivedChunks.size}/${session.totalChunks}`
     )
@@ -889,13 +929,13 @@ router.post(
     console.log(`[UPLOAD:${correlationId}] Step 1 - Validation completed in ${Date.now() - step1Start}ms`)
 
     const step2Start = Date.now()
-    const finalFilePath = path.join('uploads', `complete_${session.id}.zip`)
+    const finalFilePath = getUploadsPath(`complete_${session.id}.zip`)
     console.log(`[UPLOAD:${correlationId}] Step 2 - Starting chunk combination to ${finalFilePath}`)
     await combineChunks(session, finalFilePath)
     console.log(`[UPLOAD:${correlationId}] Step 2 - Chunk combination completed in ${Date.now() - step2Start}ms`)
 
     const step3Start = Date.now()
-    const extractDir = path.join('uploads', `extract_${session.id}`)
+    const extractDir = getUploadsPath(`extract_${session.id}`)
     console.log(`[UPLOAD:${correlationId}] Step 3 - Starting ZIP extraction to ${extractDir}`)
     await extractZipFile(finalFilePath, extractDir)
     console.log(`[UPLOAD:${correlationId}] Step 3 - ZIP extraction completed in ${Date.now() - step3Start}ms`)
@@ -905,7 +945,7 @@ router.post(
     console.log(`[UPLOAD:${correlationId}] Step 4 - Metadata processing completed in ${Date.now() - step4Start}ms, UUID: ${uuid}`)
 
     const step5Start = Date.now()
-    const finalDir = path.join('uploads', `extract_${uuid}`)
+    const finalDir = getUploadsPath(`extract_${uuid}`)
     const requiredFiles = await moveRequiredFiles(extractDir, finalDir)
     console.log(`[UPLOAD:${correlationId}] Step 5 - File movement completed in ${Date.now() - step5Start}ms`)
 
@@ -949,18 +989,18 @@ router.post(
 
     const step9Start = Date.now()
     console.log(`[UPLOAD:${correlationId}] Step 9 - Starting cleanup process`)
-    
+
     // Mark session as no longer processing before cleanup
     session.isProcessing = false
     await session.save()
     console.log(`[UPLOAD:${correlationId}] Session marked as no longer processing`)
-    
+
     await cleanupUploadFiles(session, finalFilePath)
     console.log(`[UPLOAD:${correlationId}] Step 9 - Cleanup completed in ${Date.now() - step9Start}ms`)
 
     const totalTime = Date.now() - startTime
     console.log(`[UPLOAD:${correlationId}] Upload complete process finished successfully for ID: ${uuid} (Total time: ${totalTime}ms)`)
-    
+
     res.json(
       successResponse({
         message: 'Upload completed successfully',

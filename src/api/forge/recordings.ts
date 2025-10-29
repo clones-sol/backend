@@ -2,6 +2,13 @@ import express, { type Request, type Response, type Router } from 'express'
 import multer from 'multer'
 import { promises as fs } from 'node:fs'
 import * as path from 'node:path'
+
+// Utility function to get the correct uploads path based on environment
+const getUploadsPath = (...pathSegments: string[]) => {
+  // Use /app/uploads only on Fly.io (detected by FLY_APP_NAME env var)
+  const basePath = process.env.FLY_APP_NAME ? '/app/uploads' : 'uploads'
+  return path.join(basePath, ...pathSegments)
+}
 import { spawn } from 'node:child_process'
 import { requireWalletAddress } from '../../middleware/auth.ts'
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
@@ -12,7 +19,7 @@ const router: Router = express.Router()
 
 // Configure multer for handling file uploads
 const upload = multer({
-  dest: 'uploads/recordings/',
+  dest: getUploadsPath('recordings'),
   limits: {
     fileSize: 100 * 1024 * 1024, // 100MB limit
     files: 4 // Exactly 4 files expected
@@ -240,7 +247,7 @@ router.post(
     console.log(`[CQA] Received ${files.length} files: ${files.map(f => f.originalname).join(', ')}`)
 
     // Create dedicated directory for this recording
-    const recordingDir = path.join('uploads', 'recordings', recordingId)
+    const recordingDir = getUploadsPath('recordings', recordingId)
     await fs.mkdir(recordingDir, { recursive: true })
 
     try {

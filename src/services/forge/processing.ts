@@ -1,6 +1,13 @@
 import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import * as path from 'node:path'
+
+// Utility function to get the correct uploads path based on environment
+const getUploadsPath = (...pathSegments: string[]) => {
+  // Use /app/uploads only on Fly.io (detected by FLY_APP_NAME env var)
+  const basePath = process.env.FLY_APP_NAME ? '/app/uploads' : 'uploads'
+  return path.join(basePath, ...pathSegments)
+}
 import { ethers } from 'ethers'
 import type mongoose from 'mongoose'
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
@@ -88,7 +95,7 @@ export async function processNextInQueue() {
     await submission.save()
 
     // Run Clones Quality Agent
-    const extractDir = path.join('uploads', `extract_${submissionId}`)
+    const extractDir = getUploadsPath(`extract_${submissionId}`)
     console.log('Running Clones Quality Agent for directory:', extractDir)
     try {
       // Check if directory exists
@@ -338,26 +345,26 @@ export async function processNextInQueue() {
       submission.cqaModel = process.env.CQA_MODEL
       submission.cqaEvaluationModel = process.env.CQA_EVALUATION_MODEL
       submission.status = ForgeSubmissionProcessingStatus.COMPLETED
-      
+
       // Capture referral snapshot before generating claim authorization
       let farmerReferrer: string | undefined
       let factoryReferrer: string | undefined
-      
+
       if (factory && reward !== undefined && reward > 0) {
         const referralLookupService = createReferralLookupService()
         const referralInfo = await referralLookupService.getReferralInfo(
           submission.address,
           factoryId
         )
-        
+
         farmerReferrer = referralInfo.farmerReferrer
         factoryReferrer = referralInfo.factoryReferrer
-        
+
         // Store referral snapshot in submission
         submission.farmerReferrerAddress = farmerReferrer
         submission.factoryReferrerAddress = factoryReferrer
       }
-      
+
       await submission.save()
 
       // Generate claim authorization signature AFTER submission is saved as COMPLETED
@@ -425,7 +432,7 @@ export async function processNextInQueue() {
             `${claimAuthorization.newClaimableAmount.toFixed(2)} ${factory.token.symbol} ` +
             `[already claimed: ${claimAuthorization.alreadyClaimed.toFixed(2)}, new reward: ${reward.toFixed(2)} ` +
             `(${netAmount.toFixed(2)} after ${feePercentage}% platform fee)`
-            
+
           // Add referral info to reasoning if referrals exist
           if (claimAuthorization.referrals && claimAuthorization.referrals.length > 0) {
             const referralInfo = claimAuthorization.referrals
@@ -433,7 +440,7 @@ export async function processNextInQueue() {
               .join(', ')
             reasoningMessage += `, referral rewards: ${referralInfo}`
           }
-          
+
           reasoningMessage += `] ) ${submission.grade_result.reasoning}`
           submission.grade_result.reasoning = reasoningMessage
           submission.onChainReward = onChainReward
