@@ -93,6 +93,11 @@ services:
       # Price USD API
       - PRICE_USD_API_URL=${PRICE_USD_API_URL:-http://host.docker.internal:8080}
       - PRICE_USD_API_KEY=${PRICE_USD_API_KEY}
+
+      # Telegram
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
     depends_on:
       - mongodb
       - localstack
