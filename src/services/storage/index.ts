@@ -50,28 +50,28 @@ export class ObjectStorageService {
       Bucket: options.bucket || this.bucket,
       Key: options.name
     })
-    
+
     const response = await this.client.send(command)
-    
+
     if (!response.Body) {
       throw new Error(`Object not found: ${options.name}`)
     }
-    
+
     // Use modern AWS SDK v3 method if available
     if ('transformToByteArray' in response.Body) {
       return Buffer.from(await response.Body.transformToByteArray())
     }
-    
+
     // Fallback: Handle Node.js Readable stream properly
     const chunks: Buffer[] = []
     const body = response.Body as NodeJS.ReadableStream
-    
+
     for await (const chunk of body) {
       // Ensure chunk is a Buffer (handle both string and Buffer types)
       const buffer = chunk instanceof Buffer ? chunk : Buffer.from(chunk)
       chunks.push(buffer)
     }
-    
+
     return Buffer.concat(chunks)
   }
 
@@ -80,13 +80,13 @@ export class ObjectStorageService {
       Bucket: options.bucket || this.bucket,
       Key: options.name
     })
-    
+
     const response = await this.client.send(command)
-    
+
     if (!response.Body) {
       throw new Error(`Object not found: ${options.name}`)
     }
-    
+
     return response.Body as NodeJS.ReadableStream
   }
 
@@ -95,7 +95,7 @@ export class ObjectStorageService {
       Bucket: options.bucket || this.bucket,
       Key: options.name
     })
-    
+
     await this.client.send(command)
   }
 }

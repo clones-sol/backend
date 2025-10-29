@@ -33,19 +33,27 @@ import { initUploadSchema, uploadChunkSchema, uploadIdParamSchema } from '../sch
 // Initialize services as singletons (module-level)
 const blockchainService = new BlockchainService(process.env.RPC_URL || '')
 
-// Initialize demo storage service singleton - will throw if env vars missing
+// Initialize storage services as singletons - will throw if env vars missing
 let demoStorageService: DemoStorageService | null = null
+let objectStorageService: ObjectStorageService | null = null
 
-function getDemoStorageService(): DemoStorageService {
-  if (!demoStorageService) {
+function getObjectStorageService(): ObjectStorageService {
+  if (!objectStorageService) {
     const config = validateStorageConfig()
-    const objectStorage = new ObjectStorageService(
+    objectStorageService = new ObjectStorageService(
       config.STORAGE_ACCESS_KEY,
       config.STORAGE_SECRET_KEY,
       config.STORAGE_ENDPOINT,
       config.STORAGE_REGION,
       config.STORAGE_BUCKET
     )
+  }
+  return objectStorageService
+}
+
+function getDemoStorageService(): DemoStorageService {
+  if (!demoStorageService) {
+    const objectStorage = getObjectStorageService()
     demoStorageService = new DemoStorageService(objectStorage)
   }
   return demoStorageService
@@ -85,25 +93,37 @@ async function retryFileOperation<T>(
     } catch (error) {
       lastError = error as Error
 
-      // Only retry on specific file system errors
-      if (error instanceof Error && 'code' in error) {
-        const shouldRetry = error.code === 'ENOENT' ||
-          error.code === 'EBUSY' ||
-          error.code === 'EMFILE' ||
-          error.code === 'ENFILE'
+      // Check if this is a retryable error
+      // AWS SDK errors have a 'name' property, filesystem errors have a 'code' property
+      const isAwsError = error instanceof Error && 'name' in error
+      const isFilesystemError = error instanceof Error && 'code' in error
 
-        if (!shouldRetry || attempt === maxRetries) {
-          console.error(`[UPLOAD] ${operationName} failed after ${attempt} attempts:`, error)
-          throw error
-        }
+      let shouldRetry = false
 
-        const delay = baseDelay * Math.pow(2, attempt - 1)
-        console.warn(`[UPLOAD] ${operationName} failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms:`, error.message)
-        await new Promise(resolve => setTimeout(resolve, delay))
-      } else {
-        // Non-retryable error
+      if (isAwsError) {
+        // AWS SDK errors - retry on NoSuchKey (missing object) or transient errors
+        const errorName = (error as any).name
+        shouldRetry = errorName === 'NoSuchKey' ||
+          errorName === 'RequestTimeout' ||
+          errorName === 'ServiceUnavailable'
+      } else if (isFilesystemError) {
+        // Filesystem errors
+        const errorCode = (error as any).code
+        shouldRetry = errorCode === 'ENOENT' ||
+          errorCode === 'EBUSY' ||
+          errorCode === 'EMFILE' ||
+          errorCode === 'ENFILE'
+      }
+
+      if (!shouldRetry || attempt === maxRetries) {
+        console.error(`[UPLOAD] ${operationName} failed after ${attempt} attempts:`, error)
         throw error
       }
+
+      const delay = baseDelay * Math.pow(2, attempt - 1)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.warn(`[UPLOAD] ${operationName} failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms:`, errorMessage)
+      await new Promise(resolve => setTimeout(resolve, delay))
     }
   }
 
@@ -120,86 +140,42 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
   console.log(`[UPLOAD] Sorted ${sortedChunks.length} chunks for combining`)
 
   // Get object storage service for reading chunks from Tigris
-  const demoStorage = getDemoStorageService()
-  const objectStorage = (demoStorage as any).objectStorage as ObjectStorageService
-
-  // Verify all chunk files exist in Tigris before starting combination
-  console.log(`[UPLOAD] Verifying all chunk files exist in Tigris before combination`)
-  for (const chunk of sortedChunks) {
-    await retryFileOperation(
-      async () => {
-        try {
-          await objectStorage.getItem({ name: chunk.path })
-          return { size: chunk.size } // Return fake stats object
-        } catch (error) {
-          if (error instanceof Error && error.message.includes('Object not found')) {
-            const enoentError = new Error(`ENOENT: no such file or directory, stat '${chunk.path}'`) as Error & { code: string }
-            enoentError.code = 'ENOENT'
-            throw enoentError
-          }
-          throw error
-        }
-      },
-      `Verify chunk ${chunk.chunkIndex} exists in Tigris`
-    )
-    console.log(`[UPLOAD] Verified chunk ${chunk.chunkIndex} exists in Tigris at ${chunk.path}`)
-  }
+  const objectStorage = getObjectStorageService()
 
   const writeStream = createWriteStream(finalFilePath)
   console.log(`[UPLOAD] Created write stream for final file`)
 
-  // Write chunks sequentially with enhanced error handling and retry logic
+  // Write chunks sequentially with retry logic
   console.log(`[UPLOAD] Starting to write chunks sequentially from Tigris`)
   for (let i = 0; i < sortedChunks.length; i++) {
     const chunk = sortedChunks[i]
     console.log(
-      `[UPLOAD] Writing chunk ${i + 1}/${sortedChunks.length} (index: ${chunk.chunkIndex
-      }, size: ${chunk.size} bytes)`
+      `[UPLOAD] Writing chunk ${i + 1}/${sortedChunks.length} (index: ${chunk.chunkIndex}, size: ${chunk.size} bytes)`
     )
 
-    // Double-check file existence in Tigris right before reading with retry
-    await retryFileOperation(
+    // Download chunk from Tigris with retry logic
+    const chunkBuffer = await retryFileOperation(
       async () => {
-        try {
-          await objectStorage.getItem({ name: chunk.path })
-          return { size: chunk.size }
-        } catch (error) {
-          if (error instanceof Error && error.message.includes('Object not found')) {
-            const enoentError = new Error(`ENOENT: no such file or directory, stat '${chunk.path}'`) as Error & { code: string }
-            enoentError.code = 'ENOENT'
-            throw enoentError
-          }
-          throw error
-        }
+        const buffer = await objectStorage.getItem({ name: chunk.path })
+        console.log(`[UPLOAD] Downloaded chunk ${chunk.chunkIndex} from Tigris (${buffer.length} bytes)`)
+        return buffer
       },
-      `Pre-read verification for chunk ${chunk.chunkIndex} in Tigris`
+      `Download chunk ${chunk.chunkIndex} from Tigris`
     )
 
-    // Read chunk from Tigris and write to local file
-    try {
-      const chunkBuffer = await objectStorage.getItem({ name: chunk.path })
-      console.log(`[UPLOAD] Downloaded chunk ${chunk.chunkIndex} from Tigris (${chunkBuffer.length} bytes)`)
-
-      // Write chunk buffer to stream
-      await new Promise<void>((resolve, reject) => {
-        if (!writeStream.write(chunkBuffer)) {
-          // Handle backpressure
-          writeStream.once('drain', resolve)
-        } else {
-          resolve()
-        }
-
-        writeStream.once('error', reject)
-      })
-
-      console.log(`[UPLOAD] Finished writing chunk ${chunk.chunkIndex}`)
-    } catch (error) {
-      console.error(`[UPLOAD] Error reading chunk ${chunk.chunkIndex} from Tigris:`, error)
-      if (error instanceof Error && error.message.includes('Object not found')) {
-        console.error(`[UPLOAD] RACE CONDITION DETECTED: Chunk file ${chunk.path} was deleted from Tigris during read operation`)
+    // Write chunk buffer to stream
+    await new Promise<void>((resolve, reject) => {
+      if (!writeStream.write(chunkBuffer)) {
+        // Handle backpressure
+        writeStream.once('drain', resolve)
+      } else {
+        resolve()
       }
-      throw error
-    }
+
+      writeStream.once('error', reject)
+    })
+
+    console.log(`[UPLOAD] Finished writing chunk ${chunk.chunkIndex}`)
   }
 
   // Close the write stream
@@ -319,14 +295,7 @@ function validateStorageConfig() {
 
 // Configure multer for handling chunk uploads with Tigris storage
 const getUploadMiddleware = () => {
-  const config = validateStorageConfig()
-  const objectStorage = new ObjectStorageService(
-    config.STORAGE_ACCESS_KEY,
-    config.STORAGE_SECRET_KEY,
-    config.STORAGE_ENDPOINT,
-    config.STORAGE_REGION,
-    config.STORAGE_BUCKET
-  )
+  const objectStorage = getObjectStorageService()
 
   return multer({
     storage: createTigrisStorage(objectStorage),
