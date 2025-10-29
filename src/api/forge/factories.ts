@@ -17,6 +17,7 @@ import {
   type Factory,
   type FactorySearchCriteria,
   type FactorySearchResult,
+  type FactoryWithDemonstrations,
   FactoryStatus,
 } from '../../types/factory.ts'
 import {
@@ -214,18 +215,18 @@ router.post(
       .skip(offset)
       .limit(limit)
       .sort(sort)
-      .lean<Factory[]>()
 
     const total = await FactoryModel.countDocuments(query)
 
     // Add demonstration counts to factories
     const factoryIds = factories.map(f => (f as any)._id.toString())
     const demonstrationCounts = await getFactoriesDemonstrationCounts(factoryIds)
-    
+
     const factoriesWithDemonstrations = factories.map(factory => ({
-      ...factory,
+      ...factory.toJSON(),
+      id: (factory as any)._id.toString(),
       demonstrations: demonstrationCounts.get((factory as any)._id.toString()) ?? 0
-    }))
+    })) as FactoryWithDemonstrations[]
 
     const result: FactorySearchResult = {
       factories: factoriesWithDemonstrations,
@@ -287,18 +288,18 @@ router.get(
       .skip(offset)
       .limit(limit)
       .sort({ createdAt: -1 })
-      .lean<Factory[]>()
 
     const total = await FactoryModel.countDocuments(query)
 
     // Add demonstration counts to factories
     const factoryIds = factories.map(f => (f as any)._id.toString())
     const demonstrationCounts = await getFactoriesDemonstrationCounts(factoryIds)
-    
+
     const factoriesWithDemonstrations = factories.map(factory => ({
-      ...factory,
+      ...factory.toJSON(),
+      id: (factory as any)._id.toString(),
       demonstrations: demonstrationCounts.get((factory as any)._id.toString()) ?? 0
-    }))
+    })) as FactoryWithDemonstrations[]
 
     const result: FactorySearchResult = {
       factories: factoriesWithDemonstrations,
@@ -339,7 +340,39 @@ router.get(
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { id } = req.params
 
-    const factory = await FactoryModel.findById(id).lean<Factory>()
+    console.log('🔍 BEFORE DB CALL - ID:', id)
+    const factory = await FactoryModel.findById(id)
+    console.log('🔍 Raw factory from DB:', {
+      _id: factory?._id,
+      pricePerDemo: factory?.pricePerDemo,
+      typeof_pricePerDemo: typeof factory?.pricePerDemo,
+      timestamp: new Date().toISOString()
+    })
+
+    // Debug MongoDB corruption
+    console.log('🔍 MongoDB collection name:', FactoryModel.collection.collectionName)
+    console.log('🔍 MongoDB database name:', FactoryModel.collection.dbName)
+
+    // Check ALL documents with this ID across all possible states
+    const allDocs = await FactoryModel.collection.find({ _id: id } as any).toArray()
+    console.log('🔍 ALL documents found:', allDocs.length)
+    allDocs.forEach((doc, index) => {
+      console.log(`🔍 Document ${index}:`, {
+        _id: doc._id,
+        pricePerDemo: doc.pricePerDemo,
+        typeof_pricePerDemo: typeof doc.pricePerDemo,
+        raw_pricePerDemo: JSON.stringify(doc.pricePerDemo)
+      })
+    })
+
+    // Raw aggregation to bypass any potential schema issues
+    const rawAgg = await FactoryModel.collection.aggregate([
+      { $match: { _id: id } },
+      { $project: { _id: 1, pricePerDemo: 1, raw_pricePerDemo: { $toString: "$pricePerDemo" } } }
+    ]).toArray()
+    console.log('🔍 RAW aggregation result:', rawAgg)
+
+    console.log('🔍 Factory.toJSON():', factory?.toJSON?.())
 
     if (!factory) {
       throw ApiError.notFound('Factory not found')
@@ -352,7 +385,7 @@ router.get(
 
     res.json(
       successResponse({
-        ...factory,
+        ...factory.toJSON(),
         balance,
         demonstrations
       })
@@ -512,8 +545,8 @@ router.put(
 
     await factory.save()
 
-    const updatedFactory = await FactoryModel.findById(id).lean<Factory>()
-    res.json(successResponse(updatedFactory))
+    const updatedFactory = await FactoryModel.findById(id)
+    res.json(successResponse(updatedFactory?.toJSON()))
   })
 )
 

@@ -779,8 +779,8 @@ router.put(
     await factory.save()
 
     // Return updated factory
-    const updatedFactory = await FactoryModel.findById(id).lean<Factory>()
-    res.json(successResponse(updatedFactory))
+    const updatedFactory = await FactoryModel.findById(id)
+    res.json(successResponse(updatedFactory?.toJSON()))
   })
 )
 

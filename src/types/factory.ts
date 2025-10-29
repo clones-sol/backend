@@ -95,6 +95,10 @@ export interface Factory {
   searchText: string // Computed search string
 }
 
+export interface FactoryWithDemonstrations extends Factory {
+  demonstrations: number
+}
+
 // Factory creation input
 export interface CreateFactoryRequest {
   name: string
@@ -138,7 +142,7 @@ export interface FactorySearchCriteria {
 
 // Factory search result
 export interface FactorySearchResult {
-  factories: Factory[]
+  factories: FactoryWithDemonstrations[]
   total: number
   limit: number
   offset: number
