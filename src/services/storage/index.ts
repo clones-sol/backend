@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs'
-import { PutObjectCommand, S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import { PutObjectCommand, S3Client, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 
 export class ObjectStorageService {
   private client: S3Client
@@ -88,5 +88,14 @@ export class ObjectStorageService {
     }
     
     return response.Body as NodeJS.ReadableStream
+  }
+
+  async deleteItem(options: { name: string; bucket?: string }): Promise<void> {
+    const command = new DeleteObjectCommand({
+      Bucket: options.bucket || this.bucket,
+      Key: options.name
+    })
+    
+    await this.client.send(command)
   }
 }
