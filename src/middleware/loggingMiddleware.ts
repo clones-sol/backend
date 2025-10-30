@@ -139,22 +139,20 @@ export function traceContextMiddleware(req: Request, res: Response, next: NextFu
       spanId: finalSpanId
     }
 
-    // Run the rest of the request in trace context
-    logContext.run(context, () => {
-      // Create scoped logger for this request with HTTP labels for Grafana
-      req.log = logger.childWithPinoCompat({
-        requestId: String(req.id),
-        correlationId: finalCorrelationId,
-        traceId: finalTraceId,
-        spanId: finalSpanId,
-        // HTTP labels for Grafana filtering
-        method: req.method,
-        route: req.route?.path || req.path || 'unknown',
-        userAgent: req.headers['user-agent']?.slice(0, 100) // Truncate for readability
-      })
-
-      next()
+    // Create scoped logger for this request with HTTP labels for Grafana
+    req.log = logger.childWithPinoCompat({
+      requestId: String(req.id),
+      correlationId: finalCorrelationId,
+      traceId: finalTraceId,
+      spanId: finalSpanId,
+      // HTTP labels for Grafana filtering
+      method: req.method,
+      route: req.route?.path || req.path || 'unknown',
+      userAgent: req.headers['user-agent']?.slice(0, 100) // Truncate for readability
     })
+
+    // Run the rest of the request in trace context
+    logContext.run(context, next)
 
   } catch (error) {
     // If trace context setup fails, continue without it
@@ -165,23 +163,120 @@ export function traceContextMiddleware(req: Request, res: Response, next: NextFu
   }
 }
 
+// Centralized sensitive field definitions
+const SENSITIVE_FIELDS = [
+  'authorization',
+  'cookie', 
+  'set-cookie',
+  'x-api-key',
+  'x-auth-token',
+  'x-access-token',
+  'x-session-token',
+  'token',
+  'accessToken',
+  'access_token',
+  'refreshToken',
+  'refresh_token',
+  'password',
+  'privateKey',
+  'private_key',
+  'secretKey',
+  'secret_key',
+  'apiKey',
+  'api_key',
+  'mnemonic',
+  'seedPhrase',
+  'signature',
+  'privateKeys'
+]
+
 /**
- * Enhanced error logging middleware
+ * Sanitize headers by removing sensitive authentication data
+ */
+function sanitizeHeaders(headers: Record<string, any>): Record<string, any> {
+  const sensitiveHeaders = SENSITIVE_FIELDS.filter(field => 
+    ['authorization', 'cookie', 'set-cookie', 'x-api-key', 'x-auth-token', 'x-access-token', 'x-session-token'].includes(field)
+  )
+  
+  const sanitized = { ...headers }
+  sensitiveHeaders.forEach(header => {
+    if (sanitized[header]) {
+      sanitized[header] = '[REDACTED]'
+    }
+  })
+  
+  return sanitized
+}
+
+/**
+ * Sanitize request body by removing sensitive fields and limiting size
+ */
+function sanitizeBody(body: any, maxSize: number = 1000): any {
+  if (!body || typeof body !== 'object') {
+    return body
+  }
+
+  const sensitiveBodyFields = SENSITIVE_FIELDS.filter(field => 
+    !['authorization', 'cookie', 'set-cookie'].includes(field)
+  )
+
+  const sanitized = { ...body }
+  sensitiveBodyFields.forEach(field => {
+    if (sanitized[field]) {
+      sanitized[field] = '[REDACTED]'
+    }
+  })
+
+  // Limit body size to prevent log flooding
+  const stringified = JSON.stringify(sanitized)
+  if (stringified.length > maxSize) {
+    return {
+      ...sanitized,
+      _truncated: true,
+      _originalSize: stringified.length,
+      _maxSize: maxSize
+    }
+  }
+
+  return sanitized
+}
+
+/**
+ * Check if the request is to a sensitive endpoint
+ */
+function isSensitiveEndpoint(url: string): boolean {
+  const sensitivePatterns = [
+    '/auth/',
+    '/login',
+    '/register',
+    '/password',
+    '/token',
+    '/wallet/connect',
+    '/wallet/sign'
+  ]
+  
+  return sensitivePatterns.some(pattern => url.includes(pattern))
+}
+
+/**
+ * Enhanced error logging middleware with sensitive data protection
  */
 export function errorLoggingMiddleware(
   err: Error,
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): void {
-  // Log error with full context
+  const isSensitive = isSensitiveEndpoint(req.url)
+  
+  // Log error with sanitized context
   req.log.error({
     err,
     req: {
       method: req.method,
       url: req.url,
-      headers: req.headers,
-      body: req.body,
+      headers: sanitizeHeaders(req.headers),
+      body: isSensitive ? '[REDACTED - SENSITIVE ENDPOINT]' : sanitizeBody(req.body),
       params: req.params,
       query: req.query
     },
@@ -189,6 +284,9 @@ export function errorLoggingMiddleware(
       userId: (req as any).userId,
       walletAddress: (req as any).walletAddress,
       sessionId: (req as any).sessionId
+    },
+    security: {
+      sensitiveEndpoint: isSensitive
     }
   }, `Request failed: ${err.message}`)
 
@@ -236,7 +334,7 @@ export function requestTimingMiddleware(req: Request, res: Response, next: NextF
 /**
  * User context middleware (to be called after authentication)
  */
-export function userContextMiddleware(req: Request, res: Response, next: NextFunction): void {
+export function userContextMiddleware(req: Request, _res: Response, next: NextFunction): void {
   // Extract user information from authenticated request
   const userId = (req as any).userId
   const walletAddress = (req as any).walletAddress
@@ -252,17 +350,15 @@ export function userContextMiddleware(req: Request, res: Response, next: NextFun
       sessionId
     }
 
-    // Run remaining middleware with updated context
-    logContext.run(updatedContext, () => {
-      // Update request logger with user context
-      req.log = req.log.child({
-        userId,
-        walletAddress,
-        sessionId
-      })
-
-      next()
+    // Update request logger with user context
+    req.log = req.log.child({
+      userId,
+      walletAddress,
+      sessionId
     })
+
+    // Run remaining middleware with updated context
+    logContext.run(updatedContext, next)
   } else {
     next()
   }
