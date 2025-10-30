@@ -52,16 +52,16 @@ export function runWithLogContext<T>(context: LogContext, fn: () => T): T {
 function getLogLevel(): LogLevel {
   const level = process.env.LOG_LEVEL?.toLowerCase() as LogLevel
   const validLevels: LogLevel[] = ['fatal', 'error', 'warn', 'info', 'debug', 'trace']
-  
+
   if (level && validLevels.includes(level)) {
     return level
   }
-  
+
   // Default log levels by environment
   switch (process.env.NODE_ENV) {
     case 'production':
       return 'info'
-    case 'test': 
+    case 'test':
       return 'warn'
     case 'development':
     default:
@@ -77,12 +77,12 @@ function shouldUsePrettyPrint(): boolean {
   if (process.env.NODE_ENV === 'production') {
     return false
   }
-  
+
   // Respect explicit setting
   if (process.env.LOG_PRETTY !== undefined) {
     return process.env.LOG_PRETTY === 'true'
   }
-  
+
   // Default: pretty print in development
   return process.env.NODE_ENV === 'development'
 }
@@ -95,7 +95,7 @@ function createRedactConfig() {
     paths: [
       // Sensitive authentication data
       'password',
-      'privateKey', 
+      'privateKey',
       'private_key',
       'secretKey',
       'secret_key',
@@ -106,14 +106,14 @@ function createRedactConfig() {
       'refreshToken',
       'sessionSecret',
       'csrfToken',
-      
+
       // Request/response sensitive data
       'req.headers.authorization',
       'req.headers.cookie',
       'req.body.password',
       'req.body.privateKey',
       'res.headers["set-cookie"]',
-      
+
       // Blockchain sensitive data
       'mnemonic',
       'seedPhrase',
@@ -146,7 +146,7 @@ function createSerializers() {
   return {
     req: (req: any) => {
       if (!req) return req
-      
+
       return {
         id: req.id,
         method: req.method,
@@ -163,10 +163,10 @@ function createSerializers() {
         remotePort: req.remotePort
       }
     },
-    
+
     res: (res: any) => {
       if (!res) return res
-      
+
       return {
         statusCode: res.statusCode,
         headers: {
@@ -176,10 +176,10 @@ function createSerializers() {
         }
       }
     },
-    
+
     err: (err: any) => {
       if (!err) return err
-      
+
       return {
         type: err.constructor?.name,
         message: err.message,
@@ -199,9 +199,8 @@ function createSerializers() {
  * Create transport configuration
  */
 function createTransport() {
-  const isProduction = process.env.NODE_ENV === 'production'
   const usePrettyPrint = shouldUsePrettyPrint()
-  
+
   if (!usePrettyPrint) {
     // Production: JSON to stdout
     return {
@@ -211,7 +210,7 @@ function createTransport() {
       }
     }
   }
-  
+
   // Development: Pretty print
   return {
     target: 'pino-pretty',
@@ -361,7 +360,7 @@ export function createScopedLogger(scope: string, bindings?: Record<string, any>
 }
 
 export function createRequestLogger(requestId: string, correlationId?: string): ContextLogger {
-  return logger.child({ 
+  return logger.child({
     requestId,
     correlationId: correlationId || requestId,
     scope: 'request'
@@ -369,10 +368,10 @@ export function createRequestLogger(requestId: string, correlationId?: string): 
 }
 
 export function createServiceLogger(serviceName: string, bindings?: Record<string, any>): ContextLogger {
-  return logger.child({ 
+  return logger.child({
     service: serviceName,
     scope: 'service',
-    ...bindings 
+    ...bindings
   })
 }
 
