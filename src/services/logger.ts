@@ -125,15 +125,27 @@ function createRedactConfig() {
 }
 
 /**
+ * Get structured base labels for Grafana filtering and observability
+ * Single source of truth for all base labels
+ */
+function getBaseLabels() {
+  return {
+    service: process.env.SERVICE_NAME || 'clones-backend',
+    environment: process.env.NODE_ENV || 'development', 
+    version: process.env.npm_package_version || '1.0.0',
+    instance: process.env.FLY_ALLOC_ID || process.env.HOSTNAME || 'local'
+  }
+}
+
+/**
  * Create mixin for global fields added to every log
  */
 function createMixin() {
   return function mixin() {
     const context = getCurrentLogContext()
+    const baseLabels = getBaseLabels()
     return {
-      service: process.env.SERVICE_NAME || 'clones-backend',
-      version: process.env.npm_package_version || '1.0.0',
-      environment: process.env.NODE_ENV || 'development',
+      ...baseLabels,
       ...context
     }
   }
@@ -196,18 +208,6 @@ function createSerializers() {
 }
 
 /**
- * Get structured base labels for Grafana filtering and observability
- */
-function getBaseLabels() {
-  return {
-    service: process.env.SERVICE_NAME || 'clones-backend',
-    environment: process.env.NODE_ENV || 'development', 
-    version: process.env.npm_package_version || '1.0.0',
-    instance: process.env.FLY_ALLOC_ID || process.env.HOSTNAME || 'local'
-  }
-}
-
-/**
  * Create transport configuration
  */
 function createTransport() {
@@ -255,7 +255,7 @@ const baseLogger = createBaseLogger()
 /**
  * Enhanced logger with context-aware methods
  */
-class ContextLogger {
+export class ContextLogger {
   private pino: pino.Logger
 
   constructor(pinoInstance: pino.Logger) {
@@ -263,10 +263,49 @@ class ContextLogger {
   }
 
   /**
+   * Get level property for pino-http compatibility
+   */
+  get level() {
+    return this.pino.level
+  }
+
+  /**
+   * Get silent property for pino-http compatibility
+   */
+  get silent() {
+    return this.pino.silent
+  }
+
+  /**
+   * Get msgPrefix property for pino-http compatibility
+   */
+  get msgPrefix() {
+    return (this.pino as any).msgPrefix
+  }
+
+  /**
    * Create a child logger with additional context
    */
   child(bindings: Record<string, any>): ContextLogger {
     return new ContextLogger(this.pino.child(bindings))
+  }
+
+  /**
+   * Create a child logger that's compatible with pino-http
+   */
+  childWithPinoCompat(bindings: Record<string, any>): ContextLogger & pino.Logger {
+    const childLogger = new ContextLogger(this.pino.child(bindings))
+    // Create a proxy that combines both interfaces
+    return new Proxy(childLogger, {
+      get(target, prop) {
+        // If the property exists on ContextLogger, use it
+        if (prop in target) {
+          return (target as any)[prop]
+        }
+        // Otherwise delegate to the underlying Pino instance
+        return (target as any).pino[prop]
+      }
+    }) as ContextLogger & pino.Logger
   }
 
   /**
@@ -284,7 +323,15 @@ class ContextLogger {
       this.pino[level](objOrMsg, ...args)
     } else if (msg === undefined) {
       // Handle case where only object is passed (like console.log(obj))
-      this.pino[level]({ data: objOrMsg }, 'Logged object')
+      // Create a more descriptive message based on the object type and context
+      const context = getCurrentLogContext()
+      const objectType = objOrMsg?.constructor?.name || typeof objOrMsg
+      const scope = context.requestId ? `[req:${context.requestId.slice(-8)}]` : 
+                   context.correlationId ? `[corr:${context.correlationId.slice(-8)}]` : 
+                   '[no-context]'
+      
+      const message = `${scope} Logged ${objectType} without explicit message`
+      this.pino[level]({ data: objOrMsg }, message)
     } else {
       this.pino[level](objOrMsg, msg, ...args)
     }
