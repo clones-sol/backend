@@ -190,16 +190,18 @@ const SENSITIVE_FIELDS = [
   'privateKeys'
 ]
 
+// Pre-computed arrays for performance optimization
+const SENSITIVE_HEADER_FIELDS = ['authorization', 'cookie', 'set-cookie', 'x-api-key', 'x-auth-token', 'x-access-token', 'x-session-token']
+const SENSITIVE_BODY_FIELDS = SENSITIVE_FIELDS.filter(field => 
+  !SENSITIVE_HEADER_FIELDS.includes(field)
+)
+
 /**
  * Sanitize headers by removing sensitive authentication data
  */
 function sanitizeHeaders(headers: Record<string, any>): Record<string, any> {
-  const sensitiveHeaders = SENSITIVE_FIELDS.filter(field => 
-    ['authorization', 'cookie', 'set-cookie', 'x-api-key', 'x-auth-token', 'x-access-token', 'x-session-token'].includes(field)
-  )
-  
   const sanitized = { ...headers }
-  sensitiveHeaders.forEach(header => {
+  SENSITIVE_HEADER_FIELDS.forEach(header => {
     if (sanitized[header]) {
       sanitized[header] = '[REDACTED]'
     }
@@ -216,25 +218,28 @@ function sanitizeBody(body: any, maxSize: number = 1000): any {
     return body
   }
 
-  const sensitiveBodyFields = SENSITIVE_FIELDS.filter(field => 
-    !['authorization', 'cookie', 'set-cookie'].includes(field)
-  )
-
   const sanitized = { ...body }
-  sensitiveBodyFields.forEach(field => {
+  SENSITIVE_BODY_FIELDS.forEach(field => {
     if (sanitized[field]) {
       sanitized[field] = '[REDACTED]'
     }
   })
 
-  // Limit body size to prevent log flooding
+  // Limit body size to prevent log flooding with proper truncation
   const stringified = JSON.stringify(sanitized)
   if (stringified.length > maxSize) {
-    return {
-      ...sanitized,
-      _truncated: true,
-      _originalSize: stringified.length,
-      _maxSize: maxSize
+    const truncated = stringified.substring(0, maxSize)
+    try {
+      // Try to parse truncated JSON, fallback to safe truncation if invalid
+      return JSON.parse(truncated)
+    } catch {
+      // If truncated JSON is invalid, return safe truncation info
+      return {
+        _truncated: true,
+        _originalSize: stringified.length,
+        _maxSize: maxSize,
+        _preview: truncated.substring(0, Math.min(200, maxSize))
+      }
     }
   }
 
