@@ -8,6 +8,9 @@ primary_region = 'lax'
 
 [env]
   NODE_ENV = "test"
+  LOG_LEVEL = "info"
+  SERVICE_NAME = "clones-backend"
+  LOG_PRETTY = "false"
 
 [processes]
   app = "node ./build/server.js"

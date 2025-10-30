@@ -225,14 +225,68 @@ With these identifiers, you can easily filter logs for a specific request and se
 
 #### Production Mode
 - **Format**: Structured JSON for log aggregation
-- **Level**: `info` (filters debug logs for performance)
+- **Level**: `warn` (filters info/debug logs for performance)
 - **Output**: JSON logs suitable for Grafana/Loki ingestion
+
+**Example Production Log:**
+```json
+{
+  "level": "info",
+  "time": "2025-10-30T17:19:08.123Z",
+  "service": "clones-backend",
+  "environment": "production",
+  "version": "1.0.0",
+  "instance": "unique-fly-machine-id",
+  "correlationId": "af2222ae-51c9-46bc-872f-0738cf1fd313",
+  "requestId": "579ebcef-1ad8-4cb2-823a-96f8100edb6a",
+  "traceId": "fd89d19b096f23e3d4055f93a8a699c1",
+  "spanId": "4ba75139112690d5",
+  "method": "POST",
+  "route": "/api/v1/forge",
+  "status": 200,
+  "statusClass": "2xx",
+  "duration": 245,
+  "msg": "Request completed in 245ms"
+}
+```
 
 #### Environment Variables
 ```bash
 LOG_LEVEL=debug           # Minimum log level (debug, info, warn, error)
 SERVICE_NAME=clones-backend  # Service identifier for logs
 LOG_PRETTY=true           # Enable pretty printing in development
+```
+
+#### Structured Labels for Observability
+
+All logs include structured labels for Grafana filtering and monitoring:
+
+**Base Labels (Global):**
+- `service`: Service name (from `SERVICE_NAME` env var)
+- `environment`: Current environment (`NODE_ENV`)
+- `version`: Application version (`npm_package_version`)
+- `instance`: Fly.io allocation ID (`FLY_ALLOC_ID`) or hostname
+
+**HTTP Labels (Per Request):**
+- `method`: HTTP method (GET, POST, etc.)
+- `route`: API route path (e.g., `/api/v1/forge`)
+- `status`: HTTP status code (200, 404, 500)
+- `statusClass`: Status class (2xx, 4xx, 5xx) for easy filtering
+- `userAgent`: Client user agent (truncated for readability)
+
+**Example Grafana Queries:**
+```bash
+# All 4xx errors in production
+{service="clones-backend",environment="production",statusClass="4xx"}
+
+# All requests to forge endpoints
+{service="clones-backend",route=~"/api/v1/forge.*"}
+
+# Slow requests across all services
+{service="clones-backend",performance.slow=true}
+
+# Errors from specific instance
+{service="clones-backend",level="error",instance="unique-id"}
 ```
 
 ### Automatic Request Logging
@@ -243,6 +297,42 @@ Every HTTP request is automatically logged with:
 - Performance metrics (duration, slow/very slow flags)
 - User context (user ID, wallet address, session)
 - Correlation and trace identifiers
+
+### Platform Integration
+
+#### Fly.io Optimization
+
+The logging system is optimized for Fly.io deployment:
+
+**Stdout-Only Logging:**
+- Production logs output directly to stdout (no file management)
+- Fly.io handles log rotation, retention, and aggregation automatically
+- No local file storage reduces memory usage and simplifies deployment
+
+**JSON Structured Output:**
+- Production logs in JSON format for automatic parsing
+- Compatible with Fly.io's log forwarding to external systems
+- Grafana/Loki ingestion ready with structured fields
+
+**Multi-Instance Correlation:**
+- Each Fly.io machine gets unique `instance` label (`FLY_ALLOC_ID`)
+- Trace requests across multiple backend instances
+- Simplified debugging in scaled deployments
+
+**Environment-Specific Configuration:**
+```bash
+# Development (fly.dev.toml - if exists)
+LOG_LEVEL=debug
+LOG_PRETTY=true
+
+# Test Environment (fly.test.toml)
+LOG_LEVEL=info  
+LOG_PRETTY=false
+
+# Production (fly.prod.toml)
+LOG_LEVEL=warn
+LOG_PRETTY=false
+```
 
 ### Code Quality Enforcement
 
