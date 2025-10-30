@@ -122,16 +122,16 @@ export async function processNextInQueue() {
 
         let stdout = ''
         let stderr = ''
-        let stdoutBuffer = ''
-        let stderrBuffer = ''
+        let stdoutLineBuffer = ''
+        let stderrLineBuffer = ''
 
         pipeline.stdout.on('data', (data) => {
           stdout += data
-          stdoutBuffer += data.toString()
+          stdoutLineBuffer += data.toString()
           
           // Log complete lines as they come
-          const lines = stdoutBuffer.split('\n')
-          stdoutBuffer = lines.pop() || '' // Keep incomplete line in buffer
+          const lines = stdoutLineBuffer.split('\n')
+          stdoutLineBuffer = lines.pop() || '' // Keep incomplete line in buffer
           
           lines.forEach(line => {
             if (line.trim()) {
@@ -142,11 +142,11 @@ export async function processNextInQueue() {
 
         pipeline.stderr.on('data', (data) => {
           stderr += data
-          stderrBuffer += data.toString()
+          stderrLineBuffer += data.toString()
           
           // Log complete lines as they come
-          const lines = stderrBuffer.split('\n')
-          stderrBuffer = lines.pop() || '' // Keep incomplete line in buffer
+          const lines = stderrLineBuffer.split('\n')
+          stderrLineBuffer = lines.pop() || '' // Keep incomplete line in buffer
           
           lines.forEach(line => {
             if (line.trim()) {
@@ -157,11 +157,11 @@ export async function processNextInQueue() {
 
         pipeline.on('close', (code: number) => {
           // Log any remaining buffer content
-          if (stdoutBuffer.trim()) {
-            logger.info({ cqaOutput: 'stdout', line: stdoutBuffer.trim() }, 'CQA stdout (final)')
+          if (stdoutLineBuffer.trim()) {
+            logger.info({ cqaOutput: 'stdout', line: stdoutLineBuffer.trim() }, 'CQA stdout (final)')
           }
-          if (stderrBuffer.trim()) {
-            logger.warn({ cqaOutput: 'stderr', line: stderrBuffer.trim() }, 'CQA stderr (final)')
+          if (stderrLineBuffer.trim()) {
+            logger.warn({ cqaOutput: 'stderr', line: stderrLineBuffer.trim() }, 'CQA stderr (final)')
           }
           
           if (code === 0) {

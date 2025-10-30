@@ -223,7 +223,7 @@ function createTransport() {
     target: 'pino-pretty',
     options: {
       colorize: true,
-      translateTime: 'HH:MM:ss Z',
+      translateTime: 'HH:mm:ss Z',
       ignore: 'pid,hostname,service,version,environment,instance'
     }
   }
@@ -326,8 +326,10 @@ export class ContextLogger {
       // Create a more descriptive message based on the object type and context
       const context = getCurrentLogContext()
       const objectType = objOrMsg?.constructor?.name || typeof objOrMsg
-      const scope = context.requestId ? `[req:${context.requestId.slice(-8)}]` : 
-                   context.correlationId ? `[corr:${context.correlationId.slice(-8)}]` : 
+      const scope = context.requestId && context.requestId.length >= 8 ? `[req:${context.requestId.slice(-8)}]` : 
+                   context.requestId ? `[req:${context.requestId}]` :
+                   context.correlationId && context.correlationId.length >= 8 ? `[corr:${context.correlationId.slice(-8)}]` : 
+                   context.correlationId ? `[corr:${context.correlationId}]` :
                    '[no-context]'
       
       const message = `${scope} Logged ${objectType} without explicit message`
