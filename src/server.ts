@@ -23,6 +23,8 @@ import { initializeWebSocketServer } from './services/websockets/socketManager.t
 import { configureSecureSession } from './middleware/secureSession.ts'
 import { generalRateLimit } from './middleware/rateLimiter.ts'
 import { startClaimLockCleanupService, stopClaimLockCleanupService } from './services/claimLockCleanupService.ts'
+import { logger } from './services/logger.ts'
+import { createLoggingMiddleware, errorLoggingMiddleware, userContextMiddleware } from './middleware/loggingMiddleware.ts'
 
 const app = express()
 const port = parseInt(process.env.PORT || '8001', 10)
@@ -33,6 +35,9 @@ const httpServer = createServer(app)
 // Get current directory
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+// Logging middleware - must be early in the stack
+app.use(...createLoggingMiddleware())
 
 // Middlewares
 app.use(express.json({ limit: '10mb' })) // Reasonable limit for JSON payloads
@@ -95,6 +100,9 @@ app.use(generalRateLimit)
 // Configure secure session with CSRF protection
 configureSecureSession(app)
 
+// User context middleware (after authentication/session setup)
+app.use(userContextMiddleware)
+
 // Serve static files from public directory
 app.use('/api/screenshots', express.static(path.join(__dirname, 'public', 'screenshots')))
 app.use('/api/recordings', express.static(path.join(__dirname, 'public', 'recordings')))
@@ -120,7 +128,8 @@ app.use((_req, res, _next) => {
   res.status(404).json({ message: 'Endpoint not found' })
 })
 
-// Error handling
+// Error handling with logging
+app.use(errorLoggingMiddleware)
 app.use(errorHandler)
 
 catchErrors()
@@ -129,14 +138,14 @@ catchErrors()
 const shouldStartServer = process.env.FLY_APP_NAME || process.env.NODE_ENV !== 'test'
 if (shouldStartServer) {
   const host = '0.0.0.0'
-  console.log(`Starting server on ${host}:${port}`)
+  logger.info(`Starting server on ${host}:${port}`)
   httpServer.listen(port, host, () => {
-    console.log(`Clones backend listening on port ${port}`)
+    logger.info(`Clones backend listening on port ${port}`)
 
     // Connect to database asynchronously - don't block server startup
     connectToDatabase()
-      .then(() => console.log('Database connected successfully'))
-      .catch(error => console.error('Database connection failed:', error))
+      .then(() => logger.info('Database connected successfully'))
+      .catch(error => logger.error('Database connection failed:', error))
 
     connectToRedis()
 
@@ -150,18 +159,18 @@ if (shouldStartServer) {
 
 // Graceful shutdown logic
 const handleShutdown = () => {
-  console.log(`\nReceived shutdown signal. Shutting down gracefully...`)
+  logger.info(`\nReceived shutdown signal. Shutting down gracefully...`)
 
   // Stop background services first
   stopClaimLockCleanupService()
 
   httpServer.close(() => {
-    console.log('HTTP server closed.')
+    logger.info('HTTP server closed.')
     mongoose.disconnect().then(() => {
-      console.log('MongoDB connection closed.')
+      logger.info('MongoDB connection closed.')
       if (process.env.NODE_ENV !== 'test') {
         disconnectFromRedis()
-        console.log('Redis connections closed.')
+        logger.info('Redis connections closed.')
       }
       process.exit(0)
     })

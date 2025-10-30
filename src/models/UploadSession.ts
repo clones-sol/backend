@@ -1,3 +1,4 @@
+import { logger } from "../services/logger.ts"
 import { type Document, model, Schema } from 'mongoose'
 import type { UploadChunk, UploadSession } from '../types/factory.ts'
 
@@ -54,17 +55,17 @@ const uploadSessionSchema = new Schema<IUploadSessionDocument>(
 
 // Add middleware to log when sessions are deleted (including TTL cleanup)
 uploadSessionSchema.pre('deleteOne', function() {
-  console.log(`[TTL-CLEANUP] UploadSession deleteOne triggered at ${new Date().toISOString()} for filter:`, this.getFilter())
+  logger.info(`[TTL-CLEANUP] UploadSession deleteOne triggered at ${new Date().toISOString()} for filter:`, this.getFilter())
 })
 
 uploadSessionSchema.pre('deleteMany', function() {
-  console.log(`[TTL-CLEANUP] UploadSession deleteMany triggered at ${new Date().toISOString()} for filter:`, this.getFilter())
+  logger.info(`[TTL-CLEANUP] UploadSession deleteMany triggered at ${new Date().toISOString()} for filter:`, this.getFilter())
 })
 
 uploadSessionSchema.pre('findOneAndDelete', async function() {
   const doc = await this.model.findOne(this.getFilter())
   if (doc) {
-    console.log(`[TTL-CLEANUP] UploadSession findOneAndDelete triggered at ${new Date().toISOString()}. Session ID: ${doc._id}, isProcessing: ${doc.isProcessing}`)
+    logger.info(`[TTL-CLEANUP] UploadSession findOneAndDelete triggered at ${new Date().toISOString()}. Session ID: ${doc._id}, isProcessing: ${doc.isProcessing}`)
   }
 })
 

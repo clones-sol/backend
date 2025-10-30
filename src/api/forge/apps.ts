@@ -18,6 +18,7 @@ import {
 import { generateContentSchema, getTasksSchema } from '../schemas/forgeFactory.ts'
 import { factoryIdParamSchema, updateFactoryAppsSchema } from '../schemas/forgeApps.ts'
 import { requireWalletAddress } from '../../middleware/auth.ts'
+import { logger } from "../../services/logger.ts"
 
 // MongoDB aggregation pipeline types
 interface MongoMatchStage {
@@ -84,7 +85,7 @@ function buildAppTaskMatchStage(params: TaskQueryParams): Record<string, unknown
         appTaskMatchStage['apps.categories'] = { $in: categoriesArray }
       }
     } catch (e) {
-      console.error('Error parsing categories parameter:', e)
+      logger.error('Error parsing categories parameter:', e)
     }
   }
 
@@ -537,7 +538,7 @@ router.get(
           appMatchStage['apps.categories'] = { $in: categoriesArray }
         }
       } catch (e) {
-        console.error('Error parsing categories parameter:', e)
+        logger.error('Error parsing categories parameter:', e)
       }
     }
 

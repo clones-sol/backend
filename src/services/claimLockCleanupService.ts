@@ -6,6 +6,7 @@
  */
 
 import { DemonstrationSubmission } from '../models/Models.ts'
+import { logger } from './logger.js'
 
 const LOCK_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // Run every 5 minutes
@@ -14,21 +15,21 @@ let cleanupInterval: NodeJS.Timeout | null = null
 
 export function startClaimLockCleanupService() {
     if (cleanupInterval) {
-        console.log('Claim lock cleanup service is already running')
+        logger.info('Claim lock cleanup service is already running')
         return
     }
 
-    console.log('Starting claim lock cleanup service (runs every 5 minutes)')
+    logger.info('Starting claim lock cleanup service (runs every 5 minutes)')
 
     // Run immediately on start
     cleanupStaleLocks().catch((error) =>
-        console.error('Error in initial cleanup:', error)
+        logger.error('Error in initial cleanup:', error)
     )
 
     // Then run periodically
     cleanupInterval = setInterval(() => {
         cleanupStaleLocks().catch((error) =>
-            console.error('Error in scheduled cleanup:', error)
+            logger.error('Error in scheduled cleanup:', error)
         )
     }, CLEANUP_INTERVAL_MS)
 }
@@ -37,7 +38,7 @@ export function stopClaimLockCleanupService() {
     if (cleanupInterval) {
         clearInterval(cleanupInterval)
         cleanupInterval = null
-        console.log('Claim lock cleanup service stopped')
+        logger.info('Claim lock cleanup service stopped')
     }
 }
 
@@ -61,12 +62,12 @@ async function cleanupStaleLocks() {
         )
 
         if (result.modifiedCount > 0) {
-            console.log(
+            logger.info(
                 `Cleaned up ${result.modifiedCount} stale claim lock(s) (older than ${LOCK_TIMEOUT_MS / 60000} minutes)`
             )
         }
     } catch (error) {
-        console.error('Error cleaning up stale locks:', error)
+        logger.error('Error cleaning up stale locks:', error)
     }
 }
 

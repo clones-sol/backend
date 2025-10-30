@@ -1,4 +1,5 @@
 import { ethers } from 'ethers'
+import { logger } from "../logger.ts"
 import RewardPoolImplementationABI from '../../contracts/abis/RewardPoolImplementation.json' with { type: 'json' }
 
 interface ContractFeeConfig {
@@ -33,11 +34,11 @@ export async function getContractFeeConfig(poolAddress: string): Promise<Contrac
         }
         cacheTimestamp = now
 
-        console.log(`Fee config loaded from contract: ${cachedFeeConfig.feeBps} bps (${(cachedFeeConfig.feeBps / cachedFeeConfig.feeDenominator * 100).toFixed(1)}%)`)
+        logger.info(`Fee config loaded from contract: ${cachedFeeConfig.feeBps} bps (${(cachedFeeConfig.feeBps / cachedFeeConfig.feeDenominator * 100).toFixed(1)}%)`)
 
         return cachedFeeConfig
     } catch (error) {
-        console.error('Failed to read fee config from contract:', error)
+        logger.error('Failed to read fee config from contract:', error)
         throw new Error(
             `Failed to read platform fee from smart contract: ${error instanceof Error ? error.message : 'Unknown error'}. Cannot calculate reward amounts.`
         )

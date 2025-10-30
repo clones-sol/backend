@@ -7,6 +7,7 @@ import { successResponse } from '../middleware/types/errors.ts'
 import { validateBody } from '../middleware/validator.ts'
 import { getLeaderboardData } from '../services/demonstration/demonstration.ts'
 import { progressCheckSchema } from './schemas/demonstration.ts'
+import { logger } from "../services/logger.ts"
 
 dotenv.config()
 
@@ -24,7 +25,7 @@ router.post(
   validateBody(progressCheckSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { quest, screenshots } = req.body
-    console.log('CHECKING PROGRESS')
+    logger.info('CHECKING PROGRESS')
 
     // Take up to last 5 screenshots
     const recentScreenshots = screenshots.slice(-5)
@@ -59,7 +60,7 @@ Base your analysis on visual evidence from the screenshots showing completed act
     })
 
     const content = response.choices[0].message.content
-    console.log(content)
+    logger.info(content)
 
     if (!content) {
       throw new Error('Empty response from OpenAI')

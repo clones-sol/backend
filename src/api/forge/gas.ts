@@ -4,6 +4,7 @@ import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
 import { ApiError, successResponse } from '../../middleware/types/errors.ts'
 import { validateBody, validateQuery } from '../../middleware/validator.ts'
 import { createGasEstimationService } from '../../services/blockchain/gasEstimationService.ts'
+import { logger } from "../../services/logger.ts"
 import {
   analyzeGasSchema,
   estimateGasSchema,
@@ -74,7 +75,7 @@ router.post(
         })
       )
     } catch (error) {
-      console.error('Gas estimation failed:', error)
+      logger.error('Gas estimation failed:', error)
       throw ApiError.internalError(
         `Gas estimation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -136,7 +137,7 @@ router.post(
         })
       )
     } catch (error) {
-      console.error('Gas analysis failed:', error)
+      logger.error('Gas analysis failed:', error)
       throw ApiError.internalError(
         `Gas analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -199,7 +200,7 @@ router.post(
         })
       )
     } catch (error) {
-      console.error('Batch optimization failed:', error)
+      logger.error('Batch optimization failed:', error)
       throw ApiError.internalError(
         `Batch optimization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -234,7 +235,7 @@ router.get(
         })
       )
     } catch (error) {
-      console.error('Gas advice failed:', error)
+      logger.error('Gas advice failed:', error)
       throw ApiError.internalError(
         `Gas advice failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )

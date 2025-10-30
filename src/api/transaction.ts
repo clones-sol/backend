@@ -19,6 +19,7 @@ import { ContentFilterService } from '../services/validation/contentFilter.ts'
 import { validateAddress } from '../utils/addressValidation.js'
 import { AmountValidator } from '../utils/amountValidation.ts'
 import { CircuitBreakerManager } from '../utils/circuitBreaker.ts'
+import { logger } from "../services/logger.ts"
 import {
   completeTransactionSchema,
   estimateGasSchema,
@@ -357,7 +358,7 @@ router.post(
                   // Expected error: User hasn't approved token yet
                   // Return fallback gas limit instead of throwing
                   if (error instanceof Error && error.message.includes('allowance')) {
-                    console.log('Gas estimation for fundPool failed (allowance not granted), using fallback')
+                    logger.info('Gas estimation for fundPool failed (allowance not granted), using fallback')
                     return BigInt(120000)
                   }
                   throw error // Re-throw unexpected errors
@@ -419,7 +420,7 @@ router.post(
         })
       )
     } catch (error) {
-      console.error('Gas estimation error:', error)
+      logger.error('Gas estimation error:', error)
       throw ApiError.internalError('Failed to estimate gas')
     }
   })
@@ -629,14 +630,14 @@ router.post(
           },
           { new: true }
         )
-        console.log('lockResult:', lockResult ? 'SUCCESS' : 'FAILED')
+        logger.info('lockResult:', lockResult ? 'SUCCESS' : 'FAILED')
         if (!lockResult) {
           throw ApiError.conflict(
             'This reward is currently being claimed or has already been claimed. Please check your claim status.'
           )
         }
 
-        console.log(`Locked submission ${submission._id} for claiming with marker: ${claimingMarker}`)
+        logger.info(`Locked submission ${submission._id} for claiming with marker: ${claimingMarker}`)
 
         try {
           // Import claim auth service
@@ -655,9 +656,9 @@ router.post(
 
           // Determine function name and args based on referral presence
           const hasReferrals = claimAuthorization.referrals && claimAuthorization.referrals.length > 0
-          console.log('hasReferrals:', hasReferrals)
+          logger.info('hasReferrals:', hasReferrals)
           const functionName = hasReferrals ? 'payWithSigAndReferrals' : 'payWithSig'
-          console.log('functionName:', functionName)
+          logger.info('functionName:', functionName)
 
           let args: unknown[]
           if (hasReferrals) {
@@ -665,15 +666,15 @@ router.post(
             const provider = new ethers.JsonRpcProvider(process.env.RPC_URL)
             const { tokenCache } = await import('../utils/tokenCache.ts')
             const metadata = await tokenCache.getTokenMetadata(claimAuthorization.tokenAddress, provider)
-            console.log('metadata:', metadata)
+            logger.info('metadata:', metadata)
 
             // Extract referral addresses and amounts from authorization
             const referralAddresses = claimAuthorization.referrals!.map(r => r.address)
-            console.log('referralAddresses:', referralAddresses)
+            logger.info('referralAddresses:', referralAddresses)
             const referralAmounts = claimAuthorization.referrals!.map(r =>
               ethers.parseUnits(r.amount.toString(), metadata.decimals).toString()
             )
-            console.log('referralAmounts:', referralAmounts)
+            logger.info('referralAmounts:', referralAmounts)
             args = [
               claimAuthorization.account,
               claimAuthorization.cumulativeAmount,
@@ -690,7 +691,7 @@ router.post(
               claimAuthorization.signature
             ]
           }
-          console.log('args:', args)
+          logger.info('args:', args)
           // Prepare transaction data
           transactionData = {
             contractAddress: poolAddress,
@@ -710,7 +711,7 @@ router.post(
           }
         } catch (error) {
           // CRITICAL: If signature generation fails, unlock the submission
-          console.error(`Claim authorization failed for ${submission._id}, unlocking...`, error)
+          logger.error(`Claim authorization failed for ${submission._id}, unlocking...`, error)
 
           await DemonstrationSubmission.findOneAndUpdate(
             {
@@ -725,7 +726,7 @@ router.post(
             }
           )
 
-          console.log(`Unlocked submission ${submission._id} after authorization failure`)
+          logger.info(`Unlocked submission ${submission._id} after authorization failure`)
 
           // Re-throw the error with user-friendly message
           if (error instanceof Error && error.message.includes('timeout')) {
@@ -938,11 +939,11 @@ router.post(
           )
 
           if (!result) {
-            console.warn(
+            logger.warn(
               `Submission ${submissionId} was already claimed or not found during txHash update`
             )
           } else {
-            console.log(`Successfully recorded claim for submission ${submissionId}: ${txHash}`)
+            logger.info(`Successfully recorded claim for submission ${submissionId}: ${txHash}`)
           }
         } else if (status === 'failed' || status === 'cancelled') {
           // FAILURE: Remove the CLAIMING_ lock to allow retry
@@ -961,14 +962,14 @@ router.post(
           )
 
           if (result) {
-            console.log(
+            logger.info(
               `Unlocked submission ${submissionId} after ${status} transaction (user can retry)`
             )
           }
         }
       } catch (updateError) {
         // Log but don't fail the request - session was already updated
-        console.error('Failed to update submission with txHash:', updateError)
+        logger.error('Failed to update submission with txHash:', updateError)
       }
     }
 
@@ -1122,7 +1123,7 @@ router.post(
       const { createReferralLookupService } = await import('../services/referral/referralLookupService.ts')
       const referralLookupService = createReferralLookupService()
       const referrerAddress = await referralLookupService.getFarmerReferrer(creatorAddress)
-      console.log('referrerAddress', referrerAddress)
+      logger.info('referrerAddress', referrerAddress)
 
       // Use MongoDB transaction for atomicity
       const dbSession = await mongoose.startSession()
@@ -1167,7 +1168,7 @@ router.post(
         })
       )
     } catch (error: unknown) {
-      console.error('Factory finalization error:', error)
+      logger.error('Factory finalization error:', error)
 
       if (error instanceof ApiError) {
         throw error

@@ -2,6 +2,7 @@ import session from 'express-session';
 import MongoStore from 'connect-mongo';
 import { doubleCsrf } from 'csrf-csrf';
 import { Application } from 'express';
+import { logger } from "../services/logger.ts"
 
 // Global CSRF configuration - single source of truth
 let csrfConfig: ReturnType<typeof doubleCsrf>;
@@ -73,9 +74,9 @@ export function configureSecureSession(app: Application): void {
           req.query._csrf;
       }
     });
-    console.log('CSRF configuration initialized successfully');
+    logger.info('CSRF configuration initialized successfully');
   } catch (error) {
-    console.error('CSRF configuration initialization failed');
+    logger.error('CSRF configuration initialization failed');
     throw new Error('Failed to initialize CSRF protection');
   }
 
@@ -150,7 +151,7 @@ export function configureSecureSession(app: Application): void {
           'referer': req.headers['referer']
         };
       }
-      // console.log('CSRF Debug:', debugInfo);
+      // logger.info('CSRF Debug:', debugInfo);
     }
 
     // Check if this endpoint should skip CSRF protection
@@ -162,7 +163,7 @@ export function configureSecureSession(app: Application): void {
 
     if (shouldSkipCSRF) {
       if (process.env.CSRF_DEBUG === 'true') {
-        console.log(`CSRF exemption applied for bootstrap endpoint: ${req.path}`);
+        logger.info(`CSRF exemption applied for bootstrap endpoint: ${req.path}`);
       }
       return next(); // Skip CSRF protection for bootstrap endpoints
     }
@@ -217,7 +218,7 @@ async function verifyWalletTokenOwnership(token: string, expectedAddress?: strin
 
     return true;
   } catch (error) {
-    console.error('Token ownership verification failed:', error);
+    logger.error('Token ownership verification failed:', error);
     return false;
   }
 }
@@ -237,7 +238,7 @@ export function createSessionFromToken() {
       // Verify token ownership
       const isValidToken = await verifyWalletTokenOwnership(token, address);
       if (!isValidToken) {
-        console.warn('Invalid token or address mismatch for session creation');
+        logger.warn('Invalid token or address mismatch for session creation');
         res.status(401).json({
           success: false,
           error: 'Invalid authentication token'
@@ -262,7 +263,7 @@ export function createSessionFromToken() {
           await new Promise<void>((resolve, reject) => {
             req.session.regenerate((err: any) => {
               if (err) {
-                console.error('Session regeneration failed:', err);
+                logger.error('Session regeneration failed:', err);
                 reject(err);
               } else {
                 resolve();
@@ -279,7 +280,7 @@ export function createSessionFromToken() {
           await new Promise((resolve, reject) => {
             req.session.save((err: any) => {
               if (err) {
-                console.error('Session save failed:', err);
+                logger.error('Session save failed:', err);
                 reject(err);
               } else {
                 resolve(undefined);
@@ -289,7 +290,7 @@ export function createSessionFromToken() {
         }
       }
     } catch (error) {
-      console.error('Session creation failed:', error);
+      logger.error('Session creation failed:', error);
       return res.status(500).json({
         success: false,
         error: 'Session creation failed'
@@ -356,7 +357,7 @@ export function getCsrfToken() {
         }
       });
     } catch (error) {
-      console.error('CSRF token generation failed:', error);
+      logger.error('CSRF token generation failed:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to generate CSRF token'

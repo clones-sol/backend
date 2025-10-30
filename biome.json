@@ -23,7 +23,8 @@
 			"recommended": true,
 			"suspicious": {
 				"noExplicitAny": "error",
-				"noTsIgnore": "error"
+				"noTsIgnore": "error",
+				"noConsole": "error"
 			},
 			"style": {
 				"noNonNullAssertion": "warn",

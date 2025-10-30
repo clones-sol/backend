@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { logger } from './logger.js'
 
 export const connectToDatabase = async () => {
   try {
@@ -10,9 +11,9 @@ export const connectToDatabase = async () => {
     await mongoose.connect(dbURI)
 
     await mongoose.connection.db?.admin().command({ ping: 1 })
-    console.log('Database connected!')
+    logger.info('Database connected!')
   } catch (err) {
-    console.error('Error connecting to MongoDB:', err)
+    logger.error('Error connecting to MongoDB:', err)
     // Set exit code to 1 for graceful shutdown in case of database connection error
     process.exitCode = 1
   }

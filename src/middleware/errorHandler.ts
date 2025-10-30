@@ -1,3 +1,4 @@
+import { logger } from "../services/logger.ts"
 import type { NextFunction, Request, Response } from 'express'
 import { ApiError, ErrorCode, errorResponse } from './types/errors.ts'
 
@@ -11,7 +12,7 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ) => {
-  console.error(`API Error occurred: ${err.message}`, err)
+  logger.error(`API Error occurred: ${err.message}`, err)
 
   // Default error values
   let statusCode = 500
@@ -45,7 +46,7 @@ export const errorHandler = (
       }
     } catch (e) {
       // If extraction fails, just use the error message
-      console.error('Failed to extract validation details:', e)
+      logger.error('Failed to extract validation details:', e)
     }
   } else if (err.name === 'MongoServerError' && (err as any).code === 11000) {
     // Handle MongoDB duplicate key errors
@@ -62,7 +63,7 @@ export const errorHandler = (
         }
       }
     } catch (e) {
-      console.error('Failed to extract duplicate key details:', e)
+      logger.error('Failed to extract duplicate key details:', e)
     }
   } else if (err.name === 'CastError') {
     // Handle Mongoose cast errors (e.g., invalid ObjectId)
@@ -80,7 +81,7 @@ export const errorHandler = (
         }
       }
     } catch (e) {
-      console.error('Failed to extract cast error details:', e)
+      logger.error('Failed to extract cast error details:', e)
     }
   } else if ((err as any).code === 'EBADCSRFTOKEN' || err.message?.includes('invalid csrf token') || err.message?.includes('forbidden')) {
     // Handle CSRF token errors from csrf-csrf library

@@ -1,5 +1,6 @@
 import { ethers } from 'ethers'
 import { tokenCache } from '../../utils/tokenCache.js'
+import { logger } from "../logger.ts"
 
 const ERC20_ABI = [
   'function balanceOf(address) view returns (uint256)',
@@ -18,7 +19,7 @@ class BlockchainService {
     if (process.env.NODE_ENV === 'test') {
       this.provider.on('error', (error) => {
         // Silently handle RPC errors in test environment to prevent unhandled rejections
-        console.debug('RPC error suppressed in test environment:', error.message)
+        logger.debug('RPC error suppressed in test environment:', error.message)
       })
     }
   }
@@ -28,7 +29,7 @@ class BlockchainService {
     try {
       return await this.getTokenPriceUSD('ETH')
     } catch (e) {
-      console.error('Error fetching ETH price:', e)
+      logger.error('Error fetching ETH price:', e)
       return 3000 // fallback
     }
   }
@@ -82,7 +83,7 @@ class BlockchainService {
 
       return Number(ethers.formatUnits(raw, metadata.decimals))
     } catch (e) {
-      console.error('Error getting token balance:', e)
+      logger.error('Error getting token balance:', e)
       return 0
     }
   }
@@ -107,7 +108,7 @@ class BlockchainService {
         }
       }
     } catch (e) {
-      console.error('Failed to fetch fee data:', e)
+      logger.error('Failed to fetch fee data:', e)
     }
     return {
       maxFeePerGas: ethers.parseUnits('2', 'gwei'),

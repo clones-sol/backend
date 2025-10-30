@@ -24,6 +24,7 @@ import { createClaimAuthService } from '../blockchain/claimAuthService.ts'
 import { calculateFeeAmounts, getContractFeeConfig } from '../blockchain/contractConfigService.ts'
 import { getTokenContractAddress } from '../blockchain/tokens.ts'
 import { createReferralLookupService } from '../referral/referralLookupService.ts'
+import { logger } from "../logger.ts"
 
 // Initialize claim authorization service
 let claimAuthService: ReturnType<typeof createClaimAuthService> | null = null
@@ -32,7 +33,7 @@ try {
     claimAuthService = createClaimAuthService()
   }
 } catch (error) {
-  console.warn('ClaimAuthService not initialized:', (error as Error).message)
+  logger.warn('ClaimAuthService not initialized:', (error as Error).message)
 }
 
 // Global processing queue
@@ -96,15 +97,15 @@ export async function processNextInQueue() {
 
     // Run Clones Quality Agent
     const extractDir = getUploadsPath(`extract_${submissionId}`)
-    console.log('Running Clones Quality Agent for directory:', extractDir)
+    logger.info('Running Clones Quality Agent for directory:', extractDir)
     try {
       // Check if directory exists
       await fs.access(extractDir)
-      console.log('Extract directory exists')
+      logger.info('Extract directory exists')
 
       // List directory contents
       const files = await fs.readdir(extractDir)
-      console.log('Directory contents:', files)
+      logger.info('Directory contents:', files)
 
       await new Promise<void>((resolve, reject) => {
         const absoluteExtractDir = path.resolve(extractDir)
@@ -124,26 +125,26 @@ export async function processNextInQueue() {
 
         pipeline.stdout.on('data', (data) => {
           stdout += data
-          console.log('Clones Quality Agent stdout:', data.toString())
+          logger.info('Clones Quality Agent stdout:', data.toString())
         })
 
         pipeline.stderr.on('data', (data) => {
           stderr += data
-          console.error('Clones Quality Agent stderr:', data.toString())
+          logger.error('Clones Quality Agent stderr:', data.toString())
         })
 
         pipeline.on('close', (code: number) => {
           if (code === 0) {
             resolve()
           } else {
-            console.error('Clones Quality Agent stdout:', stdout)
-            console.error('Clones Quality Agent stderr:', stderr)
+            logger.error('Clones Quality Agent stdout:', stdout)
+            logger.error('Clones Quality Agent stderr:', stderr)
             reject(new Error(`Clones Quality Agent failed:\nstdout: ${stdout}\nstderr: ${stderr}`))
           }
         })
 
         pipeline.on('error', (err) => {
-          console.error('Clones Quality Agent spawn error:', err)
+          logger.error('Clones Quality Agent spawn error:', err)
           reject(err)
         })
       })
@@ -152,30 +153,30 @@ export async function processNextInQueue() {
       const scoresPath = path.join(extractDir, 'scores.json')
       try {
         await fs.access(scoresPath)
-        console.log('scores.json exists')
+        logger.info('scores.json exists')
       } catch (error) {
-        console.error('scores.json not found:', error)
+        logger.error('scores.json not found:', error)
         throw new Error('scores.json not found after Clones Quality Agent run')
       }
 
       // Read and parse scores.json
-      console.log('Reading scores.json')
+      logger.info('Reading scores.json')
       const scoresContent = await fs.readFile(scoresPath, 'utf8')
-      console.log('scores.json content:', scoresContent)
+      logger.info('scores.json content:', scoresContent)
       const gradeResult: ForgeSubmissionGradeResult = JSON.parse(scoresContent)
-      console.log('Parsed grade result:', gradeResult)
+      logger.info('Parsed grade result:', gradeResult)
 
       // Read and parse metrics.json
       const metricsPath = path.join(extractDir, 'metrics.json')
       let metricsResult = null
       try {
         await fs.access(metricsPath)
-        console.log('metrics.json exists')
+        logger.info('metrics.json exists')
         const metricsContent = await fs.readFile(metricsPath, 'utf8')
         metricsResult = JSON.parse(metricsContent)
-        console.log('Parsed metrics result:', metricsResult)
+        logger.info('Parsed metrics result:', metricsResult)
       } catch (_error) {
-        console.log('metrics.json not found or could not be parsed, continuing without metrics.')
+        logger.info('metrics.json not found or could not be parsed, continuing without metrics.')
       }
 
       // Get factory details and calculate reward
@@ -187,12 +188,12 @@ export async function processNextInQueue() {
 
       // Get factory details if factoryId exists
       const factoryId = submission?.meta?.quest.factory_id || submission?.meta?.quest.pool_id
-      console.log('Checking for factoryId:', factoryId)
+      logger.info('Checking for factoryId:', factoryId)
       let factory = null
       if (factoryId) {
-        console.log('Looking up factory:', factoryId)
+        logger.info('Looking up factory:', factoryId)
         factory = await FactoryModel.findById(factoryId)
-        console.log('Found factory:', factory ? factory.name : 'null')
+        logger.info('Found factory:', factory ? factory.name : 'null')
       }
 
       if (factoryId && !factory) {
@@ -200,7 +201,7 @@ export async function processNextInQueue() {
       }
 
       if (factory) {
-        console.log('Processing factory reward:', factory.name)
+        logger.info('Processing factory reward:', factory.name)
         while (retries > 0) {
           try {
             // Reward skip conditions:
@@ -215,7 +216,7 @@ export async function processNextInQueue() {
             if (!submission?.meta?.quest.task_id) {
               reward = 0
               gradeResult.reasoning = `( system: no reward given - missing task_id ) ${gradeResult.reasoning}`
-              console.log('No reward given - missing task_id')
+              logger.info('No reward given - missing task_id')
               break
             }
 
@@ -228,7 +229,7 @@ export async function processNextInQueue() {
             if (!task) {
               reward = 0
               gradeResult.reasoning = `( system: no reward given - invalid task_id, no corresponding task found ) ${gradeResult.reasoning}`
-              console.log('No reward given - invalid task_id, no corresponding task found')
+              logger.info('No reward given - invalid task_id, no corresponding task found')
               break
             }
 
@@ -238,7 +239,7 @@ export async function processNextInQueue() {
             else {
               reward = 0
               gradeResult.reasoning = `( system: no reward given - task has no reward limit ) ${gradeResult.reasoning}`
-              console.log('No reward given - task has no reward limit')
+              logger.info('No reward given - task has no reward limit')
               break
             }
 
@@ -258,7 +259,7 @@ export async function processNextInQueue() {
               reward = 0
               gradeResult.reasoning = `( system: no reward given - previous submission exists with score of ${previousSubmission.grade_result?.score || 0
                 } ) ${gradeResult.reasoning}`
-              console.log('No reward given - previous submission exists with score of', previousSubmission.grade_result?.score || 0)
+              logger.info('No reward given - previous submission exists with score of', previousSubmission.grade_result?.score || 0)
               break
             }
 
@@ -274,7 +275,7 @@ export async function processNextInQueue() {
               if (taskSubmissionsCount >= task.uploadLimit) {
                 reward = 0
                 gradeResult.reasoning = `( system: no reward given - per-task upload limit of ${task.uploadLimit} reached ) ${gradeResult.reasoning}`
-                console.log('No reward given - per-task upload limit of', task.uploadLimit, 'reached')
+                logger.info('No reward given - per-task upload limit of', task.uploadLimit, 'reached')
                 break
               }
             }
@@ -311,7 +312,7 @@ export async function processNextInQueue() {
               if (typeof gymSubmissionsCount === 'number' && gymSubmissionsCount >= limitValue) {
                 reward = 0
                 gradeResult.reasoning = `( system: no reward given - per-gym upload limit of ${limitValue} ${limitType} reached ) ${gradeResult.reasoning}`
-                console.log('No reward given - per-gym upload limit of', limitValue, limitType, 'reached')
+                logger.info('No reward given - per-gym upload limit of', limitValue, limitType, 'reached')
                 break
               }
             }
@@ -320,20 +321,20 @@ export async function processNextInQueue() {
             if (clampedScore < 50) {
               reward = 0
               gradeResult.reasoning = `( system: reward returned to factory due to <50% quality score ) ${gradeResult.reasoning}`
-              console.log('No reward given - reward returned to factory due to <50% quality score')
+              logger.info('No reward given - reward returned to factory due to <50% quality score')
               break
             }
 
             // All checks passed, calculate reward
-            console.log('Calculating reward:', maxReward, clampedScore)
+            logger.info('Calculating reward:', maxReward, clampedScore)
             reward = Math.max(0, Math.min(maxReward, (maxReward * clampedScore) / 100))
-            console.log('Calculated reward:', reward)
+            logger.info('Calculated reward:', reward)
 
             break // Exit retry loop if successful
           } catch (error) {
             retries--
             if (retries === 0) {
-              console.error('Failed to calculate reward:', error)
+              logger.error('Failed to calculate reward:', error)
             } else {
               // Wait 1 second before retrying
               await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -383,7 +384,7 @@ export async function processNextInQueue() {
         claimAuthService &&
         factory.poolAddress
       ) {
-        console.log(
+        logger.info(
           `Generating claim authorization for submission ${submissionId} to user ${submission.address}`
         )
 
@@ -399,7 +400,7 @@ export async function processNextInQueue() {
             factoryReferrer
           )
 
-          console.log(
+          logger.info(
             `Claim authorization generated for submission ${submissionId}, claimable: ${claimAuthorization.newClaimableAmount}, publisher: ${claimAuthorization.publisherUsed}`
           )
 
@@ -460,7 +461,7 @@ export async function processNextInQueue() {
           // Save updated claim authorization data
           await submission.save()
         } catch (error) {
-          console.error('Claim authorization generation failed:', error)
+          logger.error('Claim authorization generation failed:', error)
 
           // IMPORTANT: Keep the calculated reward - don't reset to 0 for temporary failures
           // The user earned the reward, the authorization just needs to be retried
@@ -471,7 +472,7 @@ export async function processNextInQueue() {
           // Keep reward and maxReward as calculated - just mark that authorization is missing
           await submission.save()
 
-          console.log(
+          logger.info(
             `Submission ${submissionId} completed with reward ${reward} but claim authorization failed (can be regenerated on claim)`
           )
         }
@@ -481,7 +482,7 @@ export async function processNextInQueue() {
         reward > 0 &&
         (!claimAuthService || !factory.poolAddress)
       ) {
-        console.log('ClaimAuthService or poolAddress not available - updating reward to 0')
+        logger.info('ClaimAuthService or poolAddress not available - updating reward to 0')
         submission.reward = 0
         submission.grade_result.reasoning = `( system: no reward given - claim authorization service unavailable ) ${submission.grade_result.reasoning}`
         await submission.save()

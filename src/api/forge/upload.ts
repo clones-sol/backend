@@ -29,6 +29,7 @@ import {
   UploadLimitType
 } from '../../types/index.ts'
 import { initUploadSchema, uploadChunkSchema, uploadIdParamSchema } from '../schemas/forgeUpload.ts'
+import { logger } from "../../services/logger.ts"
 
 // Initialize services as singletons (module-level)
 const blockchainService = new BlockchainService(process.env.RPC_URL || '')
@@ -62,13 +63,13 @@ function getDemoStorageService(): DemoStorageService {
 // Helper functions to reduce complexity
 async function validateUploadComplete(session: IUploadSessionDocument) {
   if (session.receivedChunks.size !== session.totalChunks) {
-    console.log(
+    logger.info(
       `[UPLOAD] Incomplete upload: ${session.receivedChunks.size}/${session.totalChunks} chunks received`
     )
     const missing = Array.from({ length: session.totalChunks }, (_, i) => i).filter(
       (i) => !session.receivedChunks.has(i.toString())
     )
-    console.log(`[UPLOAD] Missing chunks: ${missing.join(', ')}`)
+    logger.info(`[UPLOAD] Missing chunks: ${missing.join(', ')}`)
 
     throw ApiError.uploadIncomplete('Upload incomplete', {
       received: session.receivedChunks.size,
@@ -117,13 +118,13 @@ async function retryFileOperation<T>(
       }
 
       if (!shouldRetry || attempt === maxRetries) {
-        console.error(`[UPLOAD] ${operationName} failed after ${attempt} attempts:`, error)
+        logger.error(`[UPLOAD] ${operationName} failed after ${attempt} attempts:`, error)
         throw error
       }
 
       const delay = baseDelay * Math.pow(2, attempt - 1)
       const errorMessage = error instanceof Error ? error.message : String(error)
-      console.warn(`[UPLOAD] ${operationName} failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms:`, errorMessage)
+      logger.warn(`[UPLOAD] ${operationName} failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms:`, errorMessage)
       await new Promise(resolve => setTimeout(resolve, delay))
     }
   }
@@ -132,25 +133,25 @@ async function retryFileOperation<T>(
 }
 
 async function combineChunks(session: IUploadSessionDocument, finalFilePath: string) {
-  console.log(`[UPLOAD] All chunks received, combining into final file`)
-  console.log(`[UPLOAD] Final file path: ${finalFilePath}`)
+  logger.info(`[UPLOAD] All chunks received, combining into final file`)
+  logger.info(`[UPLOAD] Final file path: ${finalFilePath}`)
 
   const sortedChunks = Array.from(session.receivedChunks.values()).sort(
     (a, b) => a.chunkIndex - b.chunkIndex
   )
-  console.log(`[UPLOAD] Sorted ${sortedChunks.length} chunks for combining`)
+  logger.info(`[UPLOAD] Sorted ${sortedChunks.length} chunks for combining`)
 
   // Get object storage service for reading chunks from Tigris
   const objectStorage = getObjectStorageService()
 
   const writeStream = createWriteStream(finalFilePath)
-  console.log(`[UPLOAD] Created write stream for final file`)
+  logger.info(`[UPLOAD] Created write stream for final file`)
 
   // Write chunks sequentially with retry logic
-  console.log(`[UPLOAD] Starting to write chunks sequentially from Tigris`)
+  logger.info(`[UPLOAD] Starting to write chunks sequentially from Tigris`)
   for (let i = 0; i < sortedChunks.length; i++) {
     const chunk = sortedChunks[i]
-    console.log(
+    logger.info(
       `[UPLOAD] Writing chunk ${i + 1}/${sortedChunks.length} (index: ${chunk.chunkIndex}, size: ${chunk.size} bytes)`
     )
 
@@ -158,7 +159,7 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
     const chunkBuffer = await retryFileOperation(
       async () => {
         const buffer = await objectStorage.getItem({ name: chunk.path })
-        console.log(`[UPLOAD] Downloaded chunk ${chunk.chunkIndex} from Tigris (${buffer.length} bytes)`)
+        logger.info(`[UPLOAD] Downloaded chunk ${chunk.chunkIndex} from Tigris (${buffer.length} bytes)`)
         return buffer
       },
       `Download chunk ${chunk.chunkIndex} from Tigris`
@@ -176,19 +177,19 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
       writeStream.once('error', reject)
     })
 
-    console.log(`[UPLOAD] Finished writing chunk ${chunk.chunkIndex}`)
+    logger.info(`[UPLOAD] Finished writing chunk ${chunk.chunkIndex}`)
   }
 
   // Close the write stream
-  console.log(`[UPLOAD] All chunks written, closing write stream`)
+  logger.info(`[UPLOAD] All chunks written, closing write stream`)
   await new Promise<void>((resolve, reject) => {
     writeStream.end()
     writeStream.on('finish', () => {
-      console.log(`[UPLOAD] Write stream closed successfully`)
+      logger.info(`[UPLOAD] Write stream closed successfully`)
       resolve()
     })
     writeStream.on('error', (err: Error) => {
-      console.error(`[UPLOAD] Error closing write stream:`, err)
+      logger.error(`[UPLOAD] Error closing write stream:`, err)
       reject(err)
     })
   })
@@ -198,7 +199,7 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
     () => stat(finalFilePath),
     `Verify final file creation`
   )
-  console.log(`[UPLOAD] Final file created successfully, size: ${finalFileStats.size} bytes`)
+  logger.info(`[UPLOAD] Final file created successfully, size: ${finalFileStats.size} bytes`)
 
   if (finalFileStats.size === 0) {
     throw new Error(`Final file ${finalFilePath} is empty after combination`)
@@ -206,56 +207,56 @@ async function combineChunks(session: IUploadSessionDocument, finalFilePath: str
 }
 
 async function extractZipFile(finalFilePath: string, extractDir: string) {
-  console.log(`[UPLOAD] Creating extraction directory: ${extractDir}`)
+  logger.info(`[UPLOAD] Creating extraction directory: ${extractDir}`)
   await mkdir(extractDir, { recursive: true })
 
-  console.log(`[UPLOAD] Extracting ZIP file to ${extractDir}`)
+  logger.info(`[UPLOAD] Extracting ZIP file to ${extractDir}`)
   await new Promise<void>((resolve, reject) => {
     createReadStream(finalFilePath)
       .pipe(Extract({ path: extractDir }))
       .on('close', () => {
-        console.log(`[UPLOAD] ZIP extraction completed`)
+        logger.info(`[UPLOAD] ZIP extraction completed`)
         resolve()
       })
       .on('error', (err: Error) => {
-        console.error(`[UPLOAD] Error extracting ZIP:`, err)
+        logger.error(`[UPLOAD] Error extracting ZIP:`, err)
         reject(err)
       })
   })
 }
 
 async function processMetadata(extractDir: string, address: string) {
-  console.log(`[UPLOAD] Reading meta.json from extracted files`)
+  logger.info(`[UPLOAD] Reading meta.json from extracted files`)
   const metaJsonPath = path.join(extractDir, 'meta.json')
-  console.log(`[UPLOAD] Meta JSON path: ${metaJsonPath}`)
+  logger.info(`[UPLOAD] Meta JSON path: ${metaJsonPath}`)
   const metaJson = await readFile(metaJsonPath, 'utf8')
-  console.log(`[UPLOAD] Meta JSON content length: ${metaJson.length}`)
+  logger.info(`[UPLOAD] Meta JSON content length: ${metaJson.length}`)
   const meta: DBDemonstrationSubmission['meta'] = JSON.parse(metaJson)
-  console.log(`[UPLOAD] Parsed meta data, id: ${meta.id}`)
+  logger.info(`[UPLOAD] Parsed meta data, id: ${meta.id}`)
 
   // Create UUID from meta.id + address
   const uuid = createHash('sha256').update(`${meta.id}${address}`).digest('hex')
-  console.log(`[UPLOAD] Generated submission UUID: ${uuid}`)
+  logger.info(`[UPLOAD] Generated submission UUID: ${uuid}`)
 
   return { meta, uuid }
 }
 
 async function moveRequiredFiles(extractDir: string, finalDir: string) {
-  console.log(`[UPLOAD] Creating final directory: ${finalDir}`)
+  logger.info(`[UPLOAD] Creating final directory: ${finalDir}`)
   await mkdir(finalDir, { recursive: true })
 
   const requiredFiles = ['input_log.jsonl', 'meta.json', 'recording.mp4', 'sft.json', 'input_log_meta.json']
-  console.log(`[UPLOAD] Moving required files to final directory`)
+  logger.info(`[UPLOAD] Moving required files to final directory`)
 
   for (const file of requiredFiles) {
     const sourcePath = path.join(extractDir, file)
     const destPath = path.join(finalDir, file)
-    console.log(`[UPLOAD] Copying ${file} from ${sourcePath} to ${destPath}`)
+    logger.info(`[UPLOAD] Copying ${file} from ${sourcePath} to ${destPath}`)
     try {
       await copyFile(sourcePath, destPath)
-      console.log(`[UPLOAD] Successfully copied ${file}`)
+      logger.info(`[UPLOAD] Successfully copied ${file}`)
     } catch (error) {
-      console.error(`[UPLOAD] Error copying file ${file}:`, error)
+      logger.error(`[UPLOAD] Error copying file ${file}:`, error)
       throw ApiError.badRequest(`Missing required file: ${file}`)
     }
   }
@@ -343,7 +344,7 @@ async function verifyFactoryAndBalance(meta: Record<string, any>): Promise<any> 
     throw ApiError.badRequest('Invalid data: missing pool id')
   }
 
-  console.log(`[UPLOAD] Verifying pool balance and status for factoryId: ${meta.quest.pool_id}`)
+  logger.info(`[UPLOAD] Verifying pool balance and status for factoryId: ${meta.quest.pool_id}`)
   const factory = await FactoryModel.findById(meta.quest.pool_id)
   if (!factory) {
     throw ApiError.notFound('Factory not found')
@@ -354,7 +355,7 @@ async function verifyFactoryAndBalance(meta: Record<string, any>): Promise<any> 
   }
 
   const task = factory.apps.flatMap((app) => app.tasks).find((task) => task.id === meta.quest.task_id)
-  console.log(`[UPLOAD] Task: ${JSON.stringify(task)}`)
+  logger.info(`[UPLOAD] Task: ${JSON.stringify(task)}`)
   if (!task) {
     throw ApiError.badRequest('Invalid data: missing task')
   }
@@ -363,7 +364,7 @@ async function verifyFactoryAndBalance(meta: Record<string, any>): Promise<any> 
   const currentBalance = await blockchainService.getTokenBalance(tokenAddress, factory.poolAddress)
 
   if (task.rewardLimit !== undefined && currentBalance < task.rewardLimit) {
-    console.log(`[UPLOAD] Insufficient funds for task: ${currentBalance} < ${task.rewardLimit}`)
+    logger.info(`[UPLOAD] Insufficient funds for task: ${currentBalance} < ${task.rewardLimit}`)
     throw ApiError.insufficientFunds(`Factory has insufficient funds for this task (required: ${task.rewardLimit}, available: ${currentBalance})`)
   }
 
@@ -388,7 +389,7 @@ async function checkFactoryUploadLimits(factory: Record<string, any>): Promise<v
       })
 
       if (gymSubmissions >= factory.uploadLimit.value) {
-        console.log(`[UPLOAD] Daily upload limit reached for pool.`)
+        logger.info(`[UPLOAD] Daily upload limit reached for pool.`)
         throw ApiError.forbidden('Daily upload limit reached for this pool')
       }
       break
@@ -401,7 +402,7 @@ async function checkFactoryUploadLimits(factory: Record<string, any>): Promise<v
       })
 
       if (gymSubmissions >= factory.uploadLimit.value) {
-        console.log(`[UPLOAD] Total upload limit reached for pool.`)
+        logger.info(`[UPLOAD] Total upload limit reached for pool.`)
         throw ApiError.forbidden('Total upload limit reached for this pool.')
       }
       break
@@ -438,7 +439,7 @@ async function checkTaskUploadLimits(
   })
 
   if (task?.uploadLimit && taskSubmissions >= task.uploadLimit) {
-    console.log(`[UPLOAD] Total upload limit reached for task.`)
+    logger.info(`[UPLOAD] Total upload limit reached for task.`)
     throw ApiError.forbidden('Upload limit reached for this task')
   }
 
@@ -447,7 +448,7 @@ async function checkTaskUploadLimits(
     factory.uploadLimit?.value &&
     taskSubmissions >= factory.uploadLimit.value
   ) {
-    console.log(`[UPLOAD] Per-Task upload limit reached for pool.`)
+    logger.info(`[UPLOAD] Per-Task upload limit reached for pool.`)
     throw ApiError.forbidden('Per-task upload limit reached for this pool')
   }
 }
@@ -458,7 +459,7 @@ async function uploadFilesToStorage(
   submissionId: string,
   userAddress: string
 ): Promise<{ demoHash: string; fileManifest: any; integrityVerified: boolean }> {
-  console.log(`[UPLOAD] Starting demo storage upload for ${requiredFiles.length} files`)
+  logger.info(`[UPLOAD] Starting demo storage upload for ${requiredFiles.length} files`)
   const demoStorage = getDemoStorageService()
 
   const demoFiles = {} as Record<string, Buffer>
@@ -466,7 +467,7 @@ async function uploadFilesToStorage(
     const filePath = path.join(finalDir, file)
     const fileBuffer = await readFile(filePath)
     demoFiles[file] = fileBuffer
-    console.log(`[UPLOAD] Loaded ${file} (${fileBuffer.length} bytes) into memory`)
+    logger.info(`[UPLOAD] Loaded ${file} (${fileBuffer.length} bytes) into memory`)
   }
 
   const typedDemoFiles: DemoFiles = {
@@ -477,7 +478,7 @@ async function uploadFilesToStorage(
     'input_log_meta.json': demoFiles['input_log_meta.json']
   }
 
-  console.log(`[UPLOAD] Storing demo files with hash-based storage`)
+  logger.info(`[UPLOAD] Storing demo files with hash-based storage`)
 
   // Extract real metadata from meta.json
   const metaJsonContent = JSON.parse(typedDemoFiles['meta.json'].toString())
@@ -503,9 +504,9 @@ async function uploadFilesToStorage(
     metadata
   )
 
-  console.log(`[UPLOAD] Demo stored with hash: ${demoHash}`)
+  logger.info(`[UPLOAD] Demo stored with hash: ${demoHash}`)
 
-  console.log(`[UPLOAD] Verifying demo integrity`)
+  logger.info(`[UPLOAD] Verifying demo integrity`)
   const verification = await demoStorage.verifyDemo(demoHash)
   if (!verification.valid) {
     throw new Error(`Demo integrity verification failed: ${verification.errors.join(', ')}`)
@@ -536,7 +537,7 @@ async function uploadFilesToStorage(
     }
   }
 
-  console.log(`[UPLOAD] Demo integrity verified and file manifest created`)
+  logger.info(`[UPLOAD] Demo integrity verified and file manifest created`)
 
   return {
     demoHash,
@@ -549,36 +550,36 @@ async function cleanupUploadFiles(
   session: IUploadSessionDocument,
   finalFilePath: string
 ): Promise<void> {
-  console.log(`[UPLOAD] Starting cleanup process for session ${session.id}`)
+  logger.info(`[UPLOAD] Starting cleanup process for session ${session.id}`)
 
   // First, verify the final file exists and is valid before cleaning up chunks
   try {
     const finalFileStats = await stat(finalFilePath)
-    console.log(`[UPLOAD] Final file verified before cleanup, size: ${finalFileStats.size} bytes`)
+    logger.info(`[UPLOAD] Final file verified before cleanup, size: ${finalFileStats.size} bytes`)
 
     if (finalFileStats.size === 0) {
-      console.error(`[UPLOAD] WARNING: Final file is empty, this may indicate a problem`)
+      logger.error(`[UPLOAD] WARNING: Final file is empty, this may indicate a problem`)
       throw new Error(`Final file ${finalFilePath} is empty`)
     }
   } catch (error) {
-    console.error(`[UPLOAD] CRITICAL: Final file not found before cleanup: ${finalFilePath}`)
+    logger.error(`[UPLOAD] CRITICAL: Final file not found before cleanup: ${finalFilePath}`)
     throw new Error(`Cannot cleanup chunks - final file does not exist: ${finalFilePath}`)
   }
 
   // Only proceed with chunk cleanup after confirming final file is valid
-  console.log(`[UPLOAD] Final file confirmed valid, proceeding with chunk cleanup`)
+  logger.info(`[UPLOAD] Final file confirmed valid, proceeding with chunk cleanup`)
   await cleanupSession(session)
-  console.log(`[UPLOAD] Session chunk files cleaned up`)
+  logger.info(`[UPLOAD] Session chunk files cleaned up`)
 
-  console.log(`[UPLOAD] Removing session from active sessions`)
+  logger.info(`[UPLOAD] Removing session from active sessions`)
   await UploadSessionModel.findByIdAndDelete(session.id)
 
-  console.log(`[UPLOAD] Cleaning up temporary ZIP file: ${finalFilePath}`)
+  logger.info(`[UPLOAD] Cleaning up temporary ZIP file: ${finalFilePath}`)
   await unlink(finalFilePath).catch((err: Error) => {
-    console.error(`[UPLOAD] Error deleting temporary ZIP file:`, err)
+    logger.error(`[UPLOAD] Error deleting temporary ZIP file:`, err)
   })
 
-  console.log(`[UPLOAD] Cleanup process completed for session ${session.id}`)
+  logger.info(`[UPLOAD] Cleanup process completed for session ${session.id}`)
 }
 
 /**
@@ -890,69 +891,69 @@ router.post(
     const uploadId = req.params.uploadId
     const correlationId = `${uploadId}-${startTime}`
 
-    console.log(`[UPLOAD:${correlationId}] Starting complete process for upload ${uploadId}`)
+    logger.info(`[UPLOAD:${correlationId}] Starting complete process for upload ${uploadId}`)
 
     // @ts-expect-error - Get session from the request object
     const session: IUploadSessionDocument = req.uploadSession
     // @ts-expect-error - Get walletAddress from the request object
     const address = req.walletAddress
 
-    console.log(
+    logger.info(
       `[UPLOAD:${correlationId}] Processing upload for address: ${address}, chunks: ${session.receivedChunks.size}/${session.totalChunks}`
     )
-    console.log(`[UPLOAD:${correlationId}] Session created: ${session.createdAt}, last updated: ${session.lastUpdated}`)
+    logger.info(`[UPLOAD:${correlationId}] Session created: ${session.createdAt}, last updated: ${session.lastUpdated}`)
 
     // Mark session as processing to prevent TTL cleanup
     session.isProcessing = true
     await session.save()
-    console.log(`[UPLOAD:${correlationId}] Session marked as processing to prevent TTL cleanup`)
+    logger.info(`[UPLOAD:${correlationId}] Session marked as processing to prevent TTL cleanup`)
 
     const step1Start = Date.now()
     await validateUploadComplete(session)
-    console.log(`[UPLOAD:${correlationId}] Step 1 - Validation completed in ${Date.now() - step1Start}ms`)
+    logger.info(`[UPLOAD:${correlationId}] Step 1 - Validation completed in ${Date.now() - step1Start}ms`)
 
     const step2Start = Date.now()
     const finalFilePath = getUploadsPath(`complete_${session.id}.zip`)
-    console.log(`[UPLOAD:${correlationId}] Step 2 - Starting chunk combination to ${finalFilePath}`)
+    logger.info(`[UPLOAD:${correlationId}] Step 2 - Starting chunk combination to ${finalFilePath}`)
     await combineChunks(session, finalFilePath)
-    console.log(`[UPLOAD:${correlationId}] Step 2 - Chunk combination completed in ${Date.now() - step2Start}ms`)
+    logger.info(`[UPLOAD:${correlationId}] Step 2 - Chunk combination completed in ${Date.now() - step2Start}ms`)
 
     const step3Start = Date.now()
     const extractDir = getUploadsPath(`extract_${session.id}`)
-    console.log(`[UPLOAD:${correlationId}] Step 3 - Starting ZIP extraction to ${extractDir}`)
+    logger.info(`[UPLOAD:${correlationId}] Step 3 - Starting ZIP extraction to ${extractDir}`)
     await extractZipFile(finalFilePath, extractDir)
-    console.log(`[UPLOAD:${correlationId}] Step 3 - ZIP extraction completed in ${Date.now() - step3Start}ms`)
+    logger.info(`[UPLOAD:${correlationId}] Step 3 - ZIP extraction completed in ${Date.now() - step3Start}ms`)
 
     const step4Start = Date.now()
     const { meta, uuid } = await processMetadata(extractDir, address)
-    console.log(`[UPLOAD:${correlationId}] Step 4 - Metadata processing completed in ${Date.now() - step4Start}ms, UUID: ${uuid}`)
+    logger.info(`[UPLOAD:${correlationId}] Step 4 - Metadata processing completed in ${Date.now() - step4Start}ms, UUID: ${uuid}`)
 
     const step5Start = Date.now()
     const finalDir = getUploadsPath(`extract_${uuid}`)
     const requiredFiles = await moveRequiredFiles(extractDir, finalDir)
-    console.log(`[UPLOAD:${correlationId}] Step 5 - File movement completed in ${Date.now() - step5Start}ms`)
+    logger.info(`[UPLOAD:${correlationId}] Step 5 - File movement completed in ${Date.now() - step5Start}ms`)
 
     const step6Start = Date.now()
     const { demoHash, fileManifest, integrityVerified } = await uploadFilesToStorage(requiredFiles, finalDir, uuid, address)
-    console.log(`[UPLOAD:${correlationId}] Step 6 - Storage upload completed in ${Date.now() - step6Start}ms`)
+    logger.info(`[UPLOAD:${correlationId}] Step 6 - Storage upload completed in ${Date.now() - step6Start}ms`)
 
     const step7Start = Date.now()
     const { factory } = await verifyFactoryAndBalance(meta)
     await checkFactoryUploadLimits(factory)
     await checkTaskUploadLimits(meta, factory)
-    console.log(`[UPLOAD:${correlationId}] Step 7 - Factory validation completed in ${Date.now() - step7Start}ms`)
+    logger.info(`[UPLOAD:${correlationId}] Step 7 - Factory validation completed in ${Date.now() - step7Start}ms`)
 
     const step8Start = Date.now()
-    console.log(`[UPLOAD:${correlationId}] Step 8 - Checking for existing submission with ID: ${uuid}`)
+    logger.info(`[UPLOAD:${correlationId}] Step 8 - Checking for existing submission with ID: ${uuid}`)
     const tempSub = await DemonstrationSubmission.findById(uuid)
     if (tempSub) {
-      console.log(`[UPLOAD:${correlationId}] Submission already exists with ID: ${uuid}`)
+      logger.info(`[UPLOAD:${correlationId}] Submission already exists with ID: ${uuid}`)
       throw ApiError.conflict('Submission data already uploaded', {
         submissionId: uuid
       })
     }
 
-    console.log(`[UPLOAD:${correlationId}] Creating new submission record in database`)
+    logger.info(`[UPLOAD:${correlationId}] Creating new submission record in database`)
     const submission = await DemonstrationSubmission.create({
       _id: uuid,
       address,
@@ -963,26 +964,26 @@ router.post(
       integrityVerified,
       integrityLastCheck: new Date()
     })
-    console.log(`[UPLOAD:${correlationId}] Submission created with ID: ${submission._id}`)
+    logger.info(`[UPLOAD:${correlationId}] Submission created with ID: ${submission._id}`)
 
-    console.log(`[UPLOAD:${correlationId}] Adding submission to processing queue`)
+    logger.info(`[UPLOAD:${correlationId}] Adding submission to processing queue`)
     addToProcessingQueue(uuid)
-    console.log(`[UPLOAD:${correlationId}] Submission added to processing queue`)
-    console.log(`[UPLOAD:${correlationId}] Step 8 - Database operations completed in ${Date.now() - step8Start}ms`)
+    logger.info(`[UPLOAD:${correlationId}] Submission added to processing queue`)
+    logger.info(`[UPLOAD:${correlationId}] Step 8 - Database operations completed in ${Date.now() - step8Start}ms`)
 
     const step9Start = Date.now()
-    console.log(`[UPLOAD:${correlationId}] Step 9 - Starting cleanup process`)
+    logger.info(`[UPLOAD:${correlationId}] Step 9 - Starting cleanup process`)
 
     // Mark session as no longer processing before cleanup
     session.isProcessing = false
     await session.save()
-    console.log(`[UPLOAD:${correlationId}] Session marked as no longer processing`)
+    logger.info(`[UPLOAD:${correlationId}] Session marked as no longer processing`)
 
     await cleanupUploadFiles(session, finalFilePath)
-    console.log(`[UPLOAD:${correlationId}] Step 9 - Cleanup completed in ${Date.now() - step9Start}ms`)
+    logger.info(`[UPLOAD:${correlationId}] Step 9 - Cleanup completed in ${Date.now() - step9Start}ms`)
 
     const totalTime = Date.now() - startTime
-    console.log(`[UPLOAD:${correlationId}] Upload complete process finished successfully for ID: ${uuid} (Total time: ${totalTime}ms)`)
+    logger.info(`[UPLOAD:${correlationId}] Upload complete process finished successfully for ID: ${uuid} (Total time: ${totalTime}ms)`)
 
     res.json(
       successResponse({
@@ -1163,7 +1164,7 @@ router.post(
  *   }
  * });
  * const result = await completeResponse.json();
- * console.log(`Upload completed with submission ID: ${result.submissionId}`);
+ * logger.info(`Upload completed with submission ID: ${result.submissionId}`);
  * ```
  */
 

@@ -14,6 +14,7 @@ import { requireWalletAddress } from '../../middleware/auth.ts'
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
 import { ApiError, successResponse } from '../../middleware/types/errors.ts'
 import { ValidationRules, validateParams } from '../../middleware/validator.ts'
+import { logger } from "../../services/logger.ts"
 
 const router: Router = express.Router()
 
@@ -70,13 +71,13 @@ async function runCQAProcessing(recordingDir: string): Promise<{
     throw new Error('OPENAI_API_KEY environment variable required for CQA processing')
   }
 
-  console.log(`[CQA] Running Clones Quality Agent for directory: ${recordingDir}`)
+  logger.info(`[CQA] Running Clones Quality Agent for directory: ${recordingDir}`)
 
   // Check if directory exists and has files
   try {
     await fs.access(recordingDir)
     const files = await fs.readdir(recordingDir)
-    console.log(`[CQA] Directory contents: ${files.join(', ')}`)
+    logger.info(`[CQA] Directory contents: ${files.join(', ')}`)
 
     if (files.length === 0) {
       throw new Error('No files found in recording directory')
@@ -100,7 +101,7 @@ async function runCQAProcessing(recordingDir: string): Promise<{
       args.push('--evaluation-model', process.env.CQA_EVALUATION_MODEL)
     }
 
-    console.log(`[CQA] Executing: ${process.env.CQA_PATH} ${args.join(' ')}`)
+    logger.info(`[CQA] Executing: ${process.env.CQA_PATH} ${args.join(' ')}`)
 
     const pipeline = spawn(process.env.CQA_PATH, args, {
       cwd: '/app/cqa', // Run from CQA directory with node_modules
@@ -115,12 +116,12 @@ async function runCQAProcessing(recordingDir: string): Promise<{
 
     pipeline.stdout.on('data', (data) => {
       stdout += data
-      console.log(`[CQA stdout] ${data.toString()}`)
+      logger.info(`[CQA stdout] ${data.toString()}`)
     })
 
     pipeline.stderr.on('data', (data) => {
       stderr += data
-      console.error(`[CQA stderr] ${data.toString()}`)
+      logger.error(`[CQA stderr] ${data.toString()}`)
     })
 
     pipeline.on('close', async (code: number) => {
@@ -131,7 +132,7 @@ async function runCQAProcessing(recordingDir: string): Promise<{
 
           // List all files in the directory after CQA processing
           const files = await fs.readdir(recordingDir)
-          console.log(`[CQA] Files after processing: ${files.join(', ')}`)
+          logger.info(`[CQA] Files after processing: ${files.join(', ')}`)
 
           // Read all generated files (excluding original input files)
           const originalFiles = ['input_log.jsonl', 'input_log_meta.json', 'meta.json', 'recording.mp4']
@@ -142,28 +143,28 @@ async function runCQAProcessing(recordingDir: string): Promise<{
                 const filePath = path.join(recordingDir, file)
                 const content = await fs.readFile(filePath, 'utf8')
                 generatedFiles[file] = content
-                console.log(`[CQA] Read generated file: ${file}`)
+                logger.info(`[CQA] Read generated file: ${file}`)
               } catch (error) {
-                console.warn(`[CQA] Failed to read file ${file}: ${error}`)
+                logger.warn(`[CQA] Failed to read file ${file}: ${error}`)
               }
             }
           }
 
           resolve({ generatedFiles })
         } catch (error) {
-          console.error(`[CQA] Failed to read generated files: ${error}`)
+          logger.error(`[CQA] Failed to read generated files: ${error}`)
           reject(new Error(`Failed to read CQA generated files: ${error}`))
         }
       } else {
-        console.error(`[CQA] Process failed with code ${code}`)
-        console.error(`[CQA] stdout: ${stdout}`)
-        console.error(`[CQA] stderr: ${stderr}`)
+        logger.error(`[CQA] Process failed with code ${code}`)
+        logger.error(`[CQA] stdout: ${stdout}`)
+        logger.error(`[CQA] stderr: ${stderr}`)
         reject(new Error(`Clones Quality Agent failed with code ${code}\nstdout: ${stdout}\nstderr: ${stderr}`))
       }
     })
 
     pipeline.on('error', (err) => {
-      console.error(`[CQA] Spawn error: ${err}`)
+      logger.error(`[CQA] Spawn error: ${err}`)
       reject(new Error(`Failed to start Clones Quality Agent: ${err.message}`))
     })
   })
@@ -234,7 +235,7 @@ router.post(
     const { recordingId } = req.params
     const walletAddress = req.walletAddress
     const files = req.files as Express.Multer.File[]
-    console.log('[CQA] Files:', files)
+    logger.info('[CQA] Files:', files)
 
     // Validate recording ID
     validateRecordingId(recordingId)
@@ -243,8 +244,8 @@ router.post(
       throw ApiError.badRequest('No files uploaded')
     }
 
-    console.log(`[CQA] Processing recording ${recordingId} for wallet ${walletAddress}`)
-    console.log(`[CQA] Received ${files.length} files: ${files.map(f => f.originalname).join(', ')}`)
+    logger.info(`[CQA] Processing recording ${recordingId} for wallet ${walletAddress}`)
+    logger.info(`[CQA] Received ${files.length} files: ${files.map(f => f.originalname).join(', ')}`)
 
     // Create dedicated directory for this recording
     const recordingDir = getUploadsPath('recordings', recordingId)
@@ -258,21 +259,21 @@ router.post(
 
         // Get file stats for comparison
         const stats = await fs.stat(targetPath)
-        console.log(`[CQA] Moved ${file.originalname} to ${targetPath} (${stats.size} bytes)`)
+        logger.info(`[CQA] Moved ${file.originalname} to ${targetPath} (${stats.size} bytes)`)
 
         // For JSON/JSONL files, log first few lines
         if (file.originalname.endsWith('.json') || file.originalname.endsWith('.jsonl')) {
           const content = await fs.readFile(targetPath, 'utf8')
           const lines = content.split('\n').slice(0, 3)
-          console.log(`[CQA] ${file.originalname} preview: ${lines.map(l => l.substring(0, 100)).join(' | ')}`)
+          logger.info(`[CQA] ${file.originalname} preview: ${lines.map(l => l.substring(0, 100)).join(' | ')}`)
         }
       }
 
       // Process with CQA
       const result = await runCQAProcessing(recordingDir)
 
-      console.log(`[CQA] Successfully processed recording ${recordingId}`)
-      console.log(`[CQA] Generated ${Object.keys(result.generatedFiles).length} files: ${Object.keys(result.generatedFiles).join(', ')}`)
+      logger.info(`[CQA] Successfully processed recording ${recordingId}`)
+      logger.info(`[CQA] Generated ${Object.keys(result.generatedFiles).length} files: ${Object.keys(result.generatedFiles).join(', ')}`)
 
       res.status(200).json(successResponse({
         recordingId,
@@ -281,14 +282,14 @@ router.post(
       }))
 
     } catch (error) {
-      console.error(`[CQA] Processing failed for recording ${recordingId}:`, error)
+      logger.error(`[CQA] Processing failed for recording ${recordingId}:`, error)
 
       // Clean up on failure
       try {
         await fs.rm(recordingDir, { recursive: true, force: true })
-        console.log(`[CQA] Cleaned up failed recording directory: ${recordingDir}`)
+        logger.info(`[CQA] Cleaned up failed recording directory: ${recordingDir}`)
       } catch (cleanupError) {
-        console.error(`[CQA] Failed to cleanup directory: ${cleanupError}`)
+        logger.error(`[CQA] Failed to cleanup directory: ${cleanupError}`)
       }
 
       throw ApiError.internalError(`Recording processing failed: ${error instanceof Error ? error.message : String(error)}`)

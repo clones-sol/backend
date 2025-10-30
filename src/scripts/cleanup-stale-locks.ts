@@ -10,6 +10,7 @@
 
 import { DemonstrationSubmission } from '../models/Models.ts'
 import mongoose from 'mongoose'
+import { logger } from "../services/logger.ts"
 
 const LOCK_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
@@ -19,7 +20,7 @@ async function cleanupStaleLocks() {
         const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/clones'
         await mongoose.connect(mongoUri)
 
-        console.log('Searching for stale claim locks...')
+        logger.info('Searching for stale claim locks...')
 
         const now = Date.now()
         const cutoffTime = now - LOCK_TIMEOUT_MS
@@ -31,14 +32,14 @@ async function cleanupStaleLocks() {
         })
 
         if (staleSubmissions.length === 0) {
-            console.log('No stale locks found')
+            logger.info('No stale locks found')
             return
         }
 
-        console.log(`Found ${staleSubmissions.length} stale locks to clean up`)
+        logger.info(`Found ${staleSubmissions.length} stale locks to clean up`)
 
         for (const submission of staleSubmissions) {
-            console.log(`  - Unlocking submission ${submission._id} (locked at ${new Date(submission.onChainReward?.timestamp || 0).toISOString()})`)
+            logger.info(`  - Unlocking submission ${submission._id} (locked at ${new Date(submission.onChainReward?.timestamp || 0).toISOString()})`)
         }
 
         // Remove the locks atomically
@@ -55,10 +56,10 @@ async function cleanupStaleLocks() {
             }
         )
 
-        console.log(`Cleaned up ${result.modifiedCount} stale locks`)
+        logger.info(`Cleaned up ${result.modifiedCount} stale locks`)
 
     } catch (error) {
-        console.error('Error cleaning up stale locks:', error)
+        logger.error('Error cleaning up stale locks:', error)
         process.exit(1)
     } finally {
         await mongoose.disconnect()
@@ -69,11 +70,11 @@ async function cleanupStaleLocks() {
 if (import.meta.url === `file://${process.argv[1]}`) {
     cleanupStaleLocks()
         .then(() => {
-            console.log('Cleanup complete')
+            logger.info('Cleanup complete')
             process.exit(0)
         })
         .catch((error) => {
-            console.error('Cleanup failed:', error)
+            logger.error('Cleanup failed:', error)
             process.exit(1)
         })
 }

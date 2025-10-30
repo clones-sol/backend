@@ -3,6 +3,7 @@ import type http from 'node:http'
 import { URL } from 'node:url'
 import { WebSocket, WebSocketServer } from 'ws'
 import { redisPublisher, redisSubscriber } from '../redis.ts'
+import { logger } from "../logger.ts"
 
 const getWalletAddressFromRequest = (request: http.IncomingMessage): string | null => {
   const url = new URL(request.url || '', `ws://${request.headers.host}`)
@@ -71,7 +72,7 @@ export const initializeWebSocketServer = (server: http.Server) => {
           // If this is the first local subscriber for this topic, subscribe the instance to the Redis channel.
           if (localSubscribers.get(topic)?.size === 1) {
             redisSubscriber.subscribe(topic)
-            console.log(`[Redis] Instance subscribed to topic: ${topic}`)
+            logger.info(`[Redis] Instance subscribed to topic: ${topic}`)
           }
 
           ws.send(
@@ -88,7 +89,7 @@ export const initializeWebSocketServer = (server: http.Server) => {
             if (localSubscribers.get(topic)?.size === 0) {
               localSubscribers.delete(topic)
               redisSubscriber.unsubscribe(topic)
-              console.log(`[Redis] Instance unsubscribed from topic: ${topic}`)
+              logger.info(`[Redis] Instance unsubscribed from topic: ${topic}`)
             }
           }
           if (clientTopics.has(clientId)) {
@@ -96,7 +97,7 @@ export const initializeWebSocketServer = (server: http.Server) => {
           }
         }
       } catch (error) {
-        console.error('Failed to process WebSocket message:', error)
+        logger.error('Failed to process WebSocket message:', error)
       }
     })
 
@@ -109,7 +110,7 @@ export const initializeWebSocketServer = (server: http.Server) => {
             if (topicSubscribers.size === 0) {
               localSubscribers.delete(topic)
               redisSubscriber.unsubscribe(topic)
-              console.log(`[Redis] Instance unsubscribed from topic: ${topic}`)
+              logger.info(`[Redis] Instance unsubscribed from topic: ${topic}`)
             }
           }
         }
@@ -119,7 +120,7 @@ export const initializeWebSocketServer = (server: http.Server) => {
     })
   })
 
-  console.log('🚀 WebSocket server initialized for multi-instance environment.')
+  logger.info('🚀 WebSocket server initialized for multi-instance environment.')
 }
 
 /**
@@ -130,6 +131,6 @@ export const initializeWebSocketServer = (server: http.Server) => {
  */
 export const broadcastToTopic = (topic: string, message: object) => {
   const serializedMessage = JSON.stringify(message)
-  console.log(`[Redis] Publishing to topic ${topic}: ${serializedMessage}`)
+  logger.info(`[Redis] Publishing to topic ${topic}: ${serializedMessage}`)
   redisPublisher.publish(topic, serializedMessage)
 }

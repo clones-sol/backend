@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
 import { FactoryStatus } from '../../types/factory.ts'
 import BlockchainService from '../blockchain/index.ts'
+import { logger } from "../logger.ts"
 
 // Cache to store generated instruction lists
 const _CACHE_EXPIRY = 2 * 60 * 60 * 1000
@@ -50,7 +51,7 @@ async function getTokenPricesUSD(tokenSymbols: string[]): Promise<Map<string, nu
     try {
       const price = await BlockchainService.getTokenPriceUSD(symbol)
       priceMap.set(symbol, price)
-      console.log(`${symbol}: $${price}`)
+      logger.info(`${symbol}: $${price}`)
     } catch (error) {
       priceMap.set(symbol, 0)
     }

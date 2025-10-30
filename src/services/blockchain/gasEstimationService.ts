@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 import { tokenCache } from '../../utils/tokenCache.js'
 import type { ClaimData } from './factoryTransactionService.ts'
 import BlockchainService from './index.ts'
+import { logger } from "../logger.ts"
 
 /**
  * Constants for gas estimation and analysis.
@@ -108,7 +109,7 @@ class GasEstimationService {
         maxPriorityFeePerGas: gasPrice / DEFAULT_PRIORITY_FEE_RATIO
       }
     } catch (error) {
-      console.error('Failed to get gas price:', error)
+      logger.error('Failed to get gas price:', error)
       // Conservative fallback
       return {
         maxFeePerGas: DEFAULT_GAS_PRICE,
@@ -153,7 +154,7 @@ class GasEstimationService {
         totalGasCostUsd
       }
     } catch (error) {
-      console.error('Gas estimation failed:', error)
+      logger.error('Gas estimation failed:', error)
 
       // Sophisticated fallback based on transaction complexity
       const batchCount = claims.length
@@ -181,7 +182,7 @@ class GasEstimationService {
       const ethPriceUsd = await BlockchainService.getEthPriceInUSD()
       const totalGasCostUsd = parseFloat(totalGasCostEth) * ethPriceUsd
 
-      console.log(
+      logger.info(
         `Fallback gas estimation: ${batchCount} claims = ${safeGasLimit.toString()} gas (${totalGasCostUsd.toFixed(2)} USD)`
       )
 

@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { logger } from "../logger.ts"
 import type {
   GenericModelMessage,
   ILLMService,
@@ -77,7 +78,7 @@ export class OpenAIService implements ILLMService {
         }
       }
     } catch (error) {
-      console.error('OpenAI Service Error:', error)
+      logger.error('OpenAI Service Error:', error)
       throw error
     }
   }

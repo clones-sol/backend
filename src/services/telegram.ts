@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { logger } from './logger.js'
 import type {
   TelegramConfig,
   TelegramMessage,
@@ -20,7 +21,7 @@ class TelegramService {
     const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET
 
     if (!botToken || !channelId) {
-      console.debug('Telegram configuration not found. Notifications will be skipped.')
+      logger.debug('Telegram configuration not found. Notifications will be skipped.')
       return
     }
 
@@ -31,7 +32,7 @@ class TelegramService {
     }
 
     this.baseUrl = `https://api.telegram.org/bot${botToken}`
-    console.log('Telegram service initialized successfully')
+    logger.info('Telegram service initialized successfully')
   }
 
   private isConfigured(): boolean {
@@ -75,7 +76,7 @@ Your skills \\+ your clicks \\= AI that actually does stuff\\. Record, earn, and
 
   async sendFactoryActivationNotification(notification: FactoryActivationNotification): Promise<boolean> {
     if (!this.isConfigured()) {
-      console.debug('Telegram not configured, skipping factory activation notification')
+      logger.debug('Telegram not configured, skipping factory activation notification')
       return false
     }
 
@@ -99,21 +100,21 @@ Your skills \\+ your clicks \\= AI that actually does stuff\\. Record, earn, and
       )
 
       if (response.data.ok) {
-        console.log(`Factory activation notification sent successfully for factory: ${notification.factoryName}`)
+        logger.info(`Factory activation notification sent successfully for factory: ${notification.factoryName}`)
         return true
       } else {
-        console.error('Telegram API error:', response.data.description)
+        logger.error('Telegram API error:', response.data.description)
         return false
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        console.error('Failed to send Telegram notification:', {
+        logger.error('Failed to send Telegram notification:', {
           status: error.response?.status,
           statusText: error.response?.statusText,
           data: error.response?.data
         })
       } else {
-        console.error('Unexpected error sending Telegram notification:', error)
+        logger.error('Unexpected error sending Telegram notification:', error)
       }
       return false
     }
@@ -121,7 +122,7 @@ Your skills \\+ your clicks \\= AI that actually does stuff\\. Record, earn, and
 
   async testConnection(): Promise<boolean> {
     if (!this.isConfigured()) {
-      console.debug('Telegram not configured, cannot test connection')
+      logger.debug('Telegram not configured, cannot test connection')
       return false
     }
 
@@ -132,14 +133,14 @@ Your skills \\+ your clicks \\= AI that actually does stuff\\. Record, earn, and
       )
 
       if (response.data.ok) {
-        console.log('Telegram bot connection test successful')
+        logger.info('Telegram bot connection test successful')
         return true
       } else {
-        console.error('Telegram bot connection test failed:', response.data.description)
+        logger.error('Telegram bot connection test failed:', response.data.description)
         return false
       }
     } catch (error) {
-      console.error('Telegram connection test error:', error)
+      logger.error('Telegram connection test error:', error)
       return false
     }
   }

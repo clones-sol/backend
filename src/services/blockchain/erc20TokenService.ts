@@ -1,5 +1,6 @@
 import { ethers } from 'ethers'
 import { tokenCache } from '../../utils/tokenCache.js'
+import { logger } from "../logger.ts"
 
 export type Erc20Artifact = {
   abi: any[]
@@ -71,7 +72,7 @@ export async function createTokenDeploymentTransaction(
 
   // Gas estimate with a small buffer
   const est = await provider.estimateGas(unsignedTx).catch((err) => {
-    console.error('Gas estimation failed for ERC-20 deployment transaction:', err)
+    logger.error('Gas estimation failed for ERC-20 deployment transaction:', err)
     // Fallback: use a reasonable default for contract deployment
     return 3000000n
   })

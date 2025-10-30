@@ -6,6 +6,7 @@ import {
   DemoManifest,
   DatasetManifest
 } from './types.ts'
+import { logger } from "../logger.ts"
 import {
   generateDemoHash,
   calculateFileHash,
@@ -28,7 +29,7 @@ export class DemoStorageService {
     const timestamp = Date.now()
     const demoHash = generateDemoHash(submissionId, userAddress, timestamp)
 
-    console.log(`[DemoStorage] Storing demo ${demoHash} for submission ${submissionId}`)
+    logger.info(`[DemoStorage] Storing demo ${demoHash} for submission ${submissionId}`)
 
     const fileIntegrities: FileIntegrity[] = []
 
@@ -37,7 +38,7 @@ export class DemoStorageService {
       const filePath = getDemoStoragePath(demoHash, filename)
       const fileHash = calculateFileHash(buffer)
 
-      console.log(`[DemoStorage] Storing ${filename} at ${filePath} (${buffer.length} bytes, hash: ${fileHash.substring(0, 16)}...)`)
+      logger.info(`[DemoStorage] Storing ${filename} at ${filePath} (${buffer.length} bytes, hash: ${fileHash.substring(0, 16)}...)`)
 
       await this.objectStorage.saveItem({
         name: filePath,
@@ -92,7 +93,7 @@ export class DemoStorageService {
       })
     }
 
-    console.log(`[DemoStorage] Demo ${demoHash} stored successfully with overall hash ${overallHash.substring(0, 16)}...`)
+    logger.info(`[DemoStorage] Demo ${demoHash} stored successfully with overall hash ${overallHash.substring(0, 16)}...`)
 
     return demoHash
   }
@@ -106,7 +107,7 @@ export class DemoStorageService {
     try {
       return await this.objectStorage.getItem({ name: filePath })
     } catch (error) {
-      console.error(`[DemoStorage] Failed to get ${filename} for demo ${demoHash}: ${error}`)
+      logger.error(`[DemoStorage] Failed to get ${filename} for demo ${demoHash}: ${error}`)
       throw new Error(`Demo file not found: ${filename}`)
     }
   }
@@ -120,7 +121,7 @@ export class DemoStorageService {
     try {
       return await this.objectStorage.getItemStream({ name: filePath })
     } catch (error) {
-      console.error(`[DemoStorage] Failed to stream ${filename} for demo ${demoHash}: ${error}`)
+      logger.error(`[DemoStorage] Failed to stream ${filename} for demo ${demoHash}: ${error}`)
       throw new Error(`Demo file not found: ${filename}`)
     }
   }
@@ -186,7 +187,7 @@ export class DemoStorageService {
       const integrityBuffer = await this.objectStorage.getItem({ name: integrityPath })
       return JSON.parse(integrityBuffer.toString())
     } catch (error) {
-      console.error(`[DemoStorage] Failed to get integrity for demo ${demoHash}: ${error}`)
+      logger.error(`[DemoStorage] Failed to get integrity for demo ${demoHash}: ${error}`)
       return null
     }
   }
