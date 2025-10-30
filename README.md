@@ -72,6 +72,7 @@ npm run quality:fix    # Auto-fix quality issues
 - **Storage**: AWS SDK S3 (LocalStack/Tigris)
 - **Validation**: Zod schemas, express-validator
 - **WebSocket**: ws library for real-time communication
+- **Logging**: Pino with W3C Trace Context for distributed tracing
 
 ### Deployment Environments
 
@@ -167,6 +168,89 @@ Once running, verify the setup:
 - **MongoDB**: localhost:27017 (admin/admin)
 - **Redis**: localhost:6379
 - **LocalStack S3**: localhost:4566
+
+## Logging & Observability
+
+### Distributed Tracing System
+
+The backend implements a comprehensive logging system with **W3C Trace Context** for distributed tracing and request correlation. Every log entry includes structured identifiers for full observability.
+
+#### Log Identifiers
+
+When you see logs like this:
+```
+correlationId: "af2222ae-51c9-46bc-872f-0738cf1fd313"
+requestId: "579ebcef-1ad8-4cb2-823a-96f8100edb6a"  
+traceId: "fd89d19b096f23e3d4055f93a8a699c1"
+spanId: "4ba75139112690d5"
+```
+
+Here's what each identifier means:
+
+**`correlationId`**
+- **Purpose**: Unique identifier to track a request across all services
+- **Use Case**: Groups all logs related to the same user request
+- **Example**: If a user action triggers 5 different service calls, all will share the same `correlationId`
+
+**`requestId`**
+- **Purpose**: Unique identifier for this specific HTTP request
+- **Use Case**: Differentiates each individual request at the Express server level
+- **Example**: Each HTTP GET/POST call has its own `requestId`
+
+**`traceId`**
+- **Purpose**: Complete trace identifier following W3C Trace Context standard
+- **Use Case**: Tracks a complete transaction across multiple systems/microservices
+- **Format**: 32 hexadecimal characters (128 bits)
+
+**`spanId`**
+- **Purpose**: Identifier for a specific operation within the trace
+- **Use Case**: Represents a unit of work (function call, database query, etc.)
+- **Format**: 16 hexadecimal characters (64 bits)
+
+#### Benefits
+
+1. **Debugging**: Find all logs for a problematic request
+2. **Performance**: Analyze the complete journey of a request
+3. **Monitoring**: Track requests across microservices
+4. **Observability**: Compatible with tools like Grafana, Jaeger, DataDog
+
+With these identifiers, you can easily filter logs for a specific request and see its complete path through your system.
+
+### Log Configuration
+
+#### Development Mode
+- **Format**: Pretty-printed with colors and timestamps
+- **Level**: `debug` (shows all log levels)
+- **Output**: Console with structured JSON fallback
+
+#### Production Mode
+- **Format**: Structured JSON for log aggregation
+- **Level**: `info` (filters debug logs for performance)
+- **Output**: JSON logs suitable for Grafana/Loki ingestion
+
+#### Environment Variables
+```bash
+LOG_LEVEL=debug           # Minimum log level (debug, info, warn, error)
+SERVICE_NAME=clones-backend  # Service identifier for logs
+LOG_PRETTY=true           # Enable pretty printing in development
+```
+
+### Automatic Request Logging
+
+Every HTTP request is automatically logged with:
+- Request details (method, URL, headers, user agent)
+- Response details (status code, content length)
+- Performance metrics (duration, slow/very slow flags)
+- User context (user ID, wallet address, session)
+- Correlation and trace identifiers
+
+### Code Quality Enforcement
+
+The logging system enforces best practices:
+- **Biome linting rules** ban `console.*` usage (CI will fail)
+- **Structured logging** with proper log levels
+- **Automatic context injection** via AsyncLocalStorage
+- **Request correlation** across the entire request lifecycle
 
 ## Production Deployment
 

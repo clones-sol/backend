@@ -13,11 +13,12 @@
 import type { Request, Response, NextFunction } from 'express'
 import pinoHttp, { type HttpLogger } from 'pino-http'
 import { logger, logContext, type LogContext } from "../services/logger.ts"
-import { 
-  extractTraceContext, 
-  createRootTraceContext, 
+import {
+  extractTraceContext,
+  createRootTraceContext,
   createChildSpan,
-  generateCorrelationId
+  generateCorrelationId,
+  parseTraceParent
 } from '../utils/traceContext.ts'
 
 // Extend Express Request to include logging context
@@ -39,14 +40,14 @@ declare global {
 function createPinoHttpMiddleware() {
   return (pinoHttp as any)({
     logger: logger.getPinoInstance(),
-    
+
     // Generate unique request ID
     genReqId: (req: any, res: any) => {
       // Use existing correlation ID from headers or generate new one
       const existingCorrelationId = req.headers['x-correlation-id'] as string
       return existingCorrelationId || generateCorrelationId()
     },
-    
+
     // Custom request message
     customLogLevel: (req: any, res: any, err: any) => {
       if (res.statusCode >= 400 && res.statusCode < 500) {
@@ -60,22 +61,22 @@ function createPinoHttpMiddleware() {
       }
       return 'info'
     },
-    
+
     // Custom success message
     customSuccessMessage: (req: any, res: any) => {
       return `${req.method} ${req.url} completed`
     },
-    
+
     // Custom error message
     customErrorMessage: (req: any, res: any, err: any) => {
       return `${req.method} ${req.url} failed: ${err.message}`
     },
-    
+
     // Custom request logging
     customReceivedMessage: (req: any, res: any) => {
       return `${req.method} ${req.url} started`
     },
-    
+
     // Auto-logging configuration
     autoLogging: {
       ignore: (req: any) => {
@@ -92,17 +93,20 @@ function createPinoHttpMiddleware() {
 export function traceContextMiddleware(req: Request, res: Response, next: NextFunction): void {
   try {
     // Extract trace context from incoming headers
-    const { traceparent, tracestate, correlationId } = extractTraceContext(req.headers)
-    
+    const { traceparent, correlationId } = extractTraceContext(req.headers)
+
     let finalTraceId: string
     let finalSpanId: string
     let finalCorrelationId: string
     let traceparentHeader: string
-    
+
     if (traceparent) {
       // Continue existing trace with new child span
       traceparentHeader = createChildSpan(traceparent)
-      const parsed = require('../utils/traceContext.js').parseTraceParent(traceparentHeader)
+      const parsed = parseTraceParent(traceparentHeader)
+      if (!parsed) {
+        throw new Error('Failed to parse traceparent header')
+      }
       finalTraceId = parsed.traceId
       finalSpanId = parsed.spanId
       finalCorrelationId = correlationId
@@ -114,16 +118,16 @@ export function traceContextMiddleware(req: Request, res: Response, next: NextFu
       finalSpanId = rootContext.spanId
       finalCorrelationId = rootContext.correlationId
     }
-    
+
     // Set trace headers in response for downstream services
     res.setHeader('traceparent', traceparentHeader)
     res.setHeader('x-correlation-id', finalCorrelationId)
-    
+
     // Attach trace context to request
     req.correlationId = finalCorrelationId
     req.traceId = finalTraceId
     req.spanId = finalSpanId
-    
+
     // Create log context for AsyncLocalStorage
     const context: LogContext = {
       correlationId: finalCorrelationId,
@@ -131,7 +135,7 @@ export function traceContextMiddleware(req: Request, res: Response, next: NextFu
       traceId: finalTraceId,
       spanId: finalSpanId
     }
-    
+
     // Run the rest of the request in trace context
     logContext.run(context, () => {
       // Create scoped logger for this request
@@ -141,10 +145,10 @@ export function traceContextMiddleware(req: Request, res: Response, next: NextFu
         traceId: finalTraceId,
         spanId: finalSpanId
       }) as any
-      
+
       next()
     })
-    
+
   } catch (error) {
     // If trace context setup fails, continue without it
     logger.warn({ error }, 'Failed to setup trace context, continuing without it')
@@ -180,21 +184,20 @@ export function errorLoggingMiddleware(
       sessionId: (req as any).sessionId
     }
   }, `Request failed: ${err.message}`)
-  
+
   next(err)
 }
 
 /**
- * Request timing middleware
+ * Request timing middleware using safer 'finish' event
  */
 export function requestTimingMiddleware(req: Request, res: Response, next: NextFunction): void {
   const startTime = Date.now()
-  
-  // Override res.end to log timing
-  const originalEnd = res.end
-  res.end = function(this: Response, ...args: any[]): any {
+
+  // Use 'finish' event instead of overriding res.end to avoid conflicts
+  res.on('finish', () => {
     const duration = Date.now() - startTime
-    
+
     // Log request completion with timing
     req.log.info({
       req: {
@@ -212,11 +215,8 @@ export function requestTimingMiddleware(req: Request, res: Response, next: NextF
         very_slow: duration > 5000
       }
     }, `Request completed in ${duration}ms`)
-    
-    // Call original end method
-    return (originalEnd as any).apply(this, args)
-  }
-  
+  })
+
   next()
 }
 
@@ -226,9 +226,9 @@ export function requestTimingMiddleware(req: Request, res: Response, next: NextF
 export function userContextMiddleware(req: Request, res: Response, next: NextFunction): void {
   // Extract user information from authenticated request
   const userId = (req as any).userId
-  const walletAddress = (req as any).walletAddress  
+  const walletAddress = (req as any).walletAddress
   const sessionId = (req as any).sessionId
-  
+
   if (userId || walletAddress || sessionId) {
     // Update log context with user information
     const currentContext = logContext.getStore() || {}
@@ -238,7 +238,7 @@ export function userContextMiddleware(req: Request, res: Response, next: NextFun
       walletAddress,
       sessionId
     }
-    
+
     // Run remaining middleware with updated context
     logContext.run(updatedContext, () => {
       // Update request logger with user context
@@ -247,7 +247,7 @@ export function userContextMiddleware(req: Request, res: Response, next: NextFun
         walletAddress,
         sessionId
       }) as any
-      
+
       next()
     })
   } else {
@@ -260,14 +260,14 @@ export function userContextMiddleware(req: Request, res: Response, next: NextFun
  */
 export function createLoggingMiddleware() {
   const pinoHttpMiddleware = createPinoHttpMiddleware()
-  
+
   return [
     // 1. Pino HTTP middleware (must be first)
     pinoHttpMiddleware,
-    
+
     // 2. Trace context and correlation
     traceContextMiddleware,
-    
+
     // 3. Request timing
     requestTimingMiddleware
   ]

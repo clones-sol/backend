@@ -122,23 +122,57 @@ export async function processNextInQueue() {
 
         let stdout = ''
         let stderr = ''
+        let stdoutBuffer = ''
+        let stderrBuffer = ''
 
         pipeline.stdout.on('data', (data) => {
           stdout += data
-          logger.info('Clones Quality Agent stdout:', data.toString())
+          stdoutBuffer += data.toString()
+          
+          // Log complete lines as they come
+          const lines = stdoutBuffer.split('\n')
+          stdoutBuffer = lines.pop() || '' // Keep incomplete line in buffer
+          
+          lines.forEach(line => {
+            if (line.trim()) {
+              logger.info({ cqaOutput: 'stdout', line }, 'CQA stdout')
+            }
+          })
         })
 
         pipeline.stderr.on('data', (data) => {
           stderr += data
-          logger.error('Clones Quality Agent stderr:', data.toString())
+          stderrBuffer += data.toString()
+          
+          // Log complete lines as they come
+          const lines = stderrBuffer.split('\n')
+          stderrBuffer = lines.pop() || '' // Keep incomplete line in buffer
+          
+          lines.forEach(line => {
+            if (line.trim()) {
+              logger.warn({ cqaOutput: 'stderr', line }, 'CQA stderr')
+            }
+          })
         })
 
         pipeline.on('close', (code: number) => {
+          // Log any remaining buffer content
+          if (stdoutBuffer.trim()) {
+            logger.info({ cqaOutput: 'stdout', line: stdoutBuffer.trim() }, 'CQA stdout (final)')
+          }
+          if (stderrBuffer.trim()) {
+            logger.warn({ cqaOutput: 'stderr', line: stderrBuffer.trim() }, 'CQA stderr (final)')
+          }
+          
           if (code === 0) {
+            logger.info({ exitCode: code, stdoutLength: stdout.length, stderrLength: stderr.length }, 'CQA process completed successfully')
             resolve()
           } else {
-            logger.error('Clones Quality Agent stdout:', stdout)
-            logger.error('Clones Quality Agent stderr:', stderr)
+            logger.error({ 
+              exitCode: code, 
+              fullStdout: stdout, 
+              fullStderr: stderr 
+            }, 'CQA process failed')
             reject(new Error(`Clones Quality Agent failed:\nstdout: ${stdout}\nstderr: ${stderr}`))
           }
         })
