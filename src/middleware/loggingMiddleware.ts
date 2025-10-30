@@ -12,7 +12,8 @@
 
 import type { Request, Response, NextFunction } from 'express'
 import { pinoHttp, type HttpLogger, type Options } from 'pino-http'
-import { logger, logContext, type LogContext } from "../services/logger.ts"
+import type { Logger as PinoLogger } from 'pino'
+import { logger, logContext, type LogContext, type ContextLogger } from "../services/logger.ts"
 import {
   extractTraceContext,
   createRootTraceContext,
@@ -29,7 +30,7 @@ declare global {
       correlationId: string
       traceId?: string
       spanId?: string
-      log: typeof logger
+      log: ContextLogger & PinoLogger
     }
   }
 }
@@ -141,7 +142,7 @@ export function traceContextMiddleware(req: Request, res: Response, next: NextFu
     // Run the rest of the request in trace context
     logContext.run(context, () => {
       // Create scoped logger for this request with HTTP labels for Grafana
-      req.log = logger.child({
+      req.log = logger.childWithPinoCompat({
         requestId: String(req.id),
         correlationId: finalCorrelationId,
         traceId: finalTraceId,
@@ -150,7 +151,7 @@ export function traceContextMiddleware(req: Request, res: Response, next: NextFu
         method: req.method,
         route: req.route?.path || req.path || 'unknown',
         userAgent: req.headers['user-agent']?.slice(0, 100) // Truncate for readability
-      }) as any
+      })
 
       next()
     })
@@ -159,7 +160,7 @@ export function traceContextMiddleware(req: Request, res: Response, next: NextFu
     // If trace context setup fails, continue without it
     logger.warn({ error }, 'Failed to setup trace context, continuing without it')
     req.correlationId = generateCorrelationId()
-    req.log = logger.child({ requestId: String(req.id), correlationId: req.correlationId }) as any
+    req.log = logger.childWithPinoCompat({ requestId: String(req.id), correlationId: req.correlationId })
     next()
   }
 }
@@ -258,7 +259,7 @@ export function userContextMiddleware(req: Request, res: Response, next: NextFun
         userId,
         walletAddress,
         sessionId
-      }) as any
+      })
 
       next()
     })
