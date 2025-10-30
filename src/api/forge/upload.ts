@@ -362,7 +362,7 @@ async function verifyFactoryAndBalance(meta: Record<string, any>): Promise<any> 
   const tokenAddress = factory.token.address
   const currentBalance = await blockchainService.getTokenBalance(tokenAddress, factory.poolAddress)
 
-  if (task.rewardLimit && currentBalance < task.rewardLimit) {
+  if (task.rewardLimit !== undefined && currentBalance < task.rewardLimit) {
     console.log(`[UPLOAD] Insufficient funds for task: ${currentBalance} < ${task.rewardLimit}`)
     throw ApiError.insufficientFunds(`Factory has insufficient funds for this task (required: ${task.rewardLimit}, available: ${currentBalance})`)
   }
@@ -937,7 +937,7 @@ router.post(
     console.log(`[UPLOAD:${correlationId}] Step 6 - Storage upload completed in ${Date.now() - step6Start}ms`)
 
     const step7Start = Date.now()
-    const factory = await verifyFactoryAndBalance(meta)
+    const { factory } = await verifyFactoryAndBalance(meta)
     await checkFactoryUploadLimits(factory)
     await checkTaskUploadLimits(meta, factory)
     console.log(`[UPLOAD:${correlationId}] Step 7 - Factory validation completed in ${Date.now() - step7Start}ms`)
