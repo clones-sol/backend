@@ -11,6 +11,7 @@ import BlockchainService from '../services/blockchain/index.ts'
 import { getTokenContractAddress } from '../services/blockchain/tokens.ts'
 import { referralService } from '../services/referral/index.ts'
 import type { ConnectBody } from '../types/index.ts'
+import { logger } from "../services/logger.ts"
 import {
   addressParamSchema,
   checkConnectionSchema,
@@ -43,7 +44,7 @@ async function verifySignature(
       throw ApiError.invalidSignature()
     }
   } catch (err) {
-    console.error('Error verifying signature:', err)
+    logger.error('Error verifying signature:', err)
     throw ApiError.internalError('Signature verification failed')
   }
 }
@@ -61,7 +62,7 @@ async function handleReferral(referralCode: string, address: string): Promise<bo
     await referralService.createReferral(referrerAddress, address, referralCode)
     return true
   } catch (error) {
-    console.error('Referral creation failed:', error)
+    logger.error('Referral creation failed:', error)
     return false
   }
 }
@@ -127,7 +128,7 @@ router.post(
       if (signature && timestamp) {
         await verifySignature(signature, timestamp, address)
       } else {
-        console.warn('Connection without signature from address:', address)
+        logger.warn('Connection without signature from address:', address)
       }
 
       await WalletConnectionModel.updateOne(
@@ -264,7 +265,7 @@ router.get(
           const commissionService = createCommissionTierService()
           tierInfo = await commissionService.getUserTierInfo(connection.address)
         } catch (error) {
-          console.error('Failed to fetch tier info:', error)
+          logger.error('Failed to fetch tier info:', error)
           // Don't fail the request, just log the error
         }
       }
@@ -555,7 +556,7 @@ function handleCSRFTokenRequest(req: any, res: any, config: any) {
     try {
       token = config.generateToken(req, res);
     } catch (retryError) {
-      console.error('CSRF token generation failed after retry');
+      logger.error('CSRF token generation failed after retry');
       return res.status(500).json({
         success: false,
         error: 'Failed to generate CSRF token'
@@ -572,7 +573,7 @@ function generateCSRFToken(req: any, res: any): string | null {
   try {
     const config = getCSRFConfig();
     if (!config) {
-      console.warn('CSRF configuration not available');
+      logger.warn('CSRF configuration not available');
       return null;
     }
 
@@ -583,7 +584,7 @@ function generateCSRFToken(req: any, res: any): string | null {
 
     return config.generateToken(req, res);
   } catch (error) {
-    console.warn('CSRF token generation failed:', error);
+    logger.warn('CSRF token generation failed:', error);
     return null;
   }
 }
@@ -753,7 +754,7 @@ router.post(
         await new Promise<void>((resolve, reject) => {
           req.session.regenerate((err: any) => {
             if (err) {
-              console.error('Session regeneration failed:', err);
+              logger.error('Session regeneration failed:', err);
               reject(err);
             } else {
               resolve();
@@ -770,7 +771,7 @@ router.post(
         await new Promise((resolve, reject) => {
           req.session.save((err: any) => {
             if (err) {
-              console.error('Session save failed:', err);
+              logger.error('Session save failed:', err);
               reject(err);
             } else {
               resolve(undefined);
@@ -794,7 +795,7 @@ router.post(
       }));
 
     } catch (error) {
-      console.error('Failed to establish session from transaction:', error);
+      logger.error('Failed to establish session from transaction:', error);
 
       if (error instanceof Error) {
         if (error.message.includes('not found')) {

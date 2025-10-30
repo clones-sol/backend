@@ -3,6 +3,7 @@ import OpenAI from 'openai'
 import { FactoryModel } from '../../models/Factory.ts'
 import type { FactoryApp } from '../../types/factory.ts'
 import { APP_TASK_GENERATION_PROMPT } from '../forge/index.ts'
+import { logger } from "../logger.ts"
 
 // Configure OpenAI
 const openai = new OpenAI({
@@ -19,7 +20,7 @@ export async function generateAppsForFactory(factoryId: string, skills: string[]
   // Cancel existing generation
   const existingPromise = activeGenerations.get(factoryId)
   if (existingPromise) {
-    console.log(`Canceling existing app generation for factory ${factoryId}`)
+    logger.info(`Canceling existing app generation for factory ${factoryId}`)
     activeGenerations.delete(factoryId)
   }
 
@@ -87,7 +88,7 @@ async function executeGeneration(factoryId: string, skills: string[]): Promise<v
     }
   } catch (error) {
     const err = error as Error
-    console.error('Error generating apps:', err)
+    logger.error('Error generating apps:', err)
     throw err
   } finally {
     // Clean up

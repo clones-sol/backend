@@ -1,7 +1,8 @@
+import { logger } from "../services/logger.ts"
 const catchErrors = () => {
   process.on('uncaughtException', async (err) => {
-    console.log(`Caught exception at ${new Date()}: ${err}`)
-    console.log('Stack trace:', err.stack)
+    logger.info(`Caught exception at ${new Date()}: ${err}`)
+    logger.info('Stack trace:', err.stack)
   })
 }
 

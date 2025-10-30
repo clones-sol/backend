@@ -10,6 +10,7 @@ import { type IReferral, ReferralModel } from '../../models/Referral.ts'
 import { type IReferralCode, ReferralCodeModel } from '../../models/ReferralCode.ts'
 import { ContentFilterService } from '../validation/contentFilter.ts'
 import { ReferralCleanupService } from './cleanupService.ts'
+import { logger } from "../logger.ts"
 
 export class ReferralService {
   private cleanupService: ReferralCleanupService
@@ -50,7 +51,7 @@ export class ReferralService {
 
         // Validate the generated code against the content filter
         if (!(await ContentFilterService.isReferralCodeAcceptable(referralCode))) {
-          console.warn(`Generated referral code "${referralCode}" is not acceptable. Retrying...`)
+          logger.warn(`Generated referral code "${referralCode}" is not acceptable. Retrying...`)
           lastError = new Error('Generated code failed content filter.')
           continue // Retry with a new code
         }
@@ -91,7 +92,7 @@ export class ReferralService {
 
           // This is a collision - the generated code already exists
           // We'll retry with a new code on the next iteration
-          console.warn(`Referral code collision detected on attempt ${attempt + 1}, retrying...`)
+          logger.warn(`Referral code collision detected on attempt ${attempt + 1}, retrying...`)
           continue
         }
 
@@ -128,7 +129,7 @@ export class ReferralService {
 
     // Check content filter on validation, just in case a code was created before the filter was in place
     if (!(await ContentFilterService.isReferralCodeAcceptable(referralCode))) {
-      console.warn(`Attempt to use unacceptable referral code "${referralCode}".`)
+      logger.warn(`Attempt to use unacceptable referral code "${referralCode}".`)
       return null
     }
 

@@ -6,6 +6,7 @@ import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
 import { ApiError, successResponse } from '../../middleware/types/errors.ts'
 import { ValidationRules, validateParams } from '../../middleware/validator.ts'
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
+import { logger } from "../../services/logger.ts"
 export { router as forgeSubmissionsApi }
 
 /**
@@ -42,7 +43,7 @@ router.get(
       .select('-__v')
 
 
-    console.log('Submissions:', submissions)
+    logger.info('Submissions:', submissions)
     res.status(200).json(successResponse(submissions))
   })
 )

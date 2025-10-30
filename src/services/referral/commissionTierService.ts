@@ -1,6 +1,7 @@
 import { ethers } from 'ethers'
 import { getTokenContractAddress } from '../blockchain/tokens.ts'
 import BlockchainService from '../blockchain/index.ts'
+import { logger } from "../logger.ts"
 
 /**
  * Commission Tier Service
@@ -156,7 +157,7 @@ export class CommissionTierService {
 
     // Ensure protocol keeps is not negative (safety check - should never happen with max 5% tiers)
     if (protocolKeeps < 0) {
-      console.warn(`Protocol keeps negative: ${protocolKeeps}. Total commissions: ${totalReferrerRewards}, Base fee: ${basePlatformFee}`)
+      logger.warn(`Protocol keeps negative: ${protocolKeeps}. Total commissions: ${totalReferrerRewards}, Base fee: ${basePlatformFee}`)
     }
 
     return {
@@ -215,7 +216,7 @@ export class CommissionTierService {
     if (protocolKeepsWei < 0n) {
       const totalCommissionsTokens = parseFloat(ethers.formatUnits(totalReferrerRewardsWei, decimals))
       const baseFeeTokens = parseFloat(ethers.formatUnits(basePlatformFeeWei, decimals))
-      console.warn(`Protocol keeps negative: ${protocolKeepsWei}. Total commissions: ${totalCommissionsTokens}, Base fee: ${baseFeeTokens}`)
+      logger.warn(`Protocol keeps negative: ${protocolKeepsWei}. Total commissions: ${totalCommissionsTokens}, Base fee: ${baseFeeTokens}`)
     }
 
     return {
@@ -233,7 +234,7 @@ export class CommissionTierService {
   private async getClonesBalance(userAddress: string): Promise<number> {
     try {
       if (!ethers.isAddress(userAddress)) {
-        console.warn(`Invalid address for CLONES balance query: ${userAddress}`)
+        logger.warn(`Invalid address for CLONES balance query: ${userAddress}`)
         return 0
       }
 
@@ -243,11 +244,11 @@ export class CommissionTierService {
         userAddress
       )
 
-      console.log(`CLONES holdings for ${userAddress}: ${balanceFormatted} tokens (tier: ${this.getCommissionPercentageFromAmount(balanceFormatted)}%)`)
+      logger.info(`CLONES holdings for ${userAddress}: ${balanceFormatted} tokens (tier: ${this.getCommissionPercentageFromAmount(balanceFormatted)}%)`)
       return balanceFormatted
 
     } catch (error) {
-      console.error(`Failed to fetch CLONES balance for ${userAddress}:`, error)
+      logger.error(`Failed to fetch CLONES balance for ${userAddress}:`, error)
       // Return 0 on error to default to minimum commission (Tier 1)
       return 0
     }

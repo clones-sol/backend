@@ -5,6 +5,7 @@ import { errorHandlerAsync } from '../middleware/errorHandler.ts'
 import { ApiError, successResponse } from '../middleware/types/errors.ts'
 import { ValidationRules, validateBody, validateParams, validateQuery } from '../middleware/validator.ts'
 import { createWithdrawalValidationService } from '../services/blockchain/withdrawalValidationService.ts'
+import { logger } from "../services/logger.ts"
 
 /**
  * @title Withdrawal Management API
@@ -114,7 +115,7 @@ router.post(
                 })
             )
         } catch (error) {
-            console.error('Withdrawal validation error:', error)
+            logger.error('Withdrawal validation error:', error)
             // Re-throw ApiError as-is (preserves status codes like 403)
             if (error instanceof ApiError) {
                 throw error
@@ -174,7 +175,7 @@ router.get(
                 })
             )
         } catch (error) {
-            console.error('Pool health check error:', error)
+            logger.error('Pool health check error:', error)
             throw ApiError.internalError(
                 `Failed to check pool health: ${error instanceof Error ? error.message : 'Unknown error'}`
             )
@@ -240,7 +241,7 @@ router.get(
                 })
             )
         } catch (error) {
-            console.error('Max withdrawal calculation error:', error)
+            logger.error('Max withdrawal calculation error:', error)
             // Re-throw ApiError as-is (preserves status codes like 403)
             if (error instanceof ApiError) {
                 throw error

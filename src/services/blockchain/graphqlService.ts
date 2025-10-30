@@ -1,4 +1,5 @@
 import { GraphQLClient } from 'graphql-request'
+import { logger } from "../logger.ts"
 
 interface SubgraphConfig {
   endpoint: string
@@ -105,7 +106,7 @@ export class GraphQLService {
       const query = this.buildPoolSearchQuery(criteria)
       const variables = this.buildPoolSearchVariables(criteria)
 
-      console.log('Executing pool search query:', {
+      logger.info('Executing pool search query:', {
         query: `${query.substring(0, 200)}...`,
         variables
       })
@@ -115,10 +116,10 @@ export class GraphQLService {
         poolsTotal: Array<{ id: string }>
       }>(query, variables)
 
-      console.log('Received GraphQL data:', JSON.stringify(data, null, 2))
+      logger.info('Received GraphQL data:', JSON.stringify(data, null, 2))
 
       if (!data || !data.pools) {
-        console.error('GraphQL query returned no pools or an error response.', data)
+        logger.error('GraphQL query returned no pools or an error response.', data)
         return {
           pools: [],
           total: 0,
@@ -136,7 +137,7 @@ export class GraphQLService {
         hasMore
       }
     } catch (error) {
-      console.error('Failed to search pools via GraphQL:', error)
+      logger.error('Failed to search pools via GraphQL:', error)
       throw new Error(
         `Pool search failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -166,7 +167,7 @@ export class GraphQLService {
       }>(query)
       return data.factoryStats
     } catch (error) {
-      console.error('Failed to fetch factory analytics:', error)
+      logger.error('Failed to fetch factory analytics:', error)
       return null
     }
   }
@@ -213,7 +214,7 @@ export class GraphQLService {
 
       return data.dailyStats
     } catch (error) {
-      console.error('Failed to fetch daily stats:', error)
+      logger.error('Failed to fetch daily stats:', error)
       return []
     }
   }
@@ -255,7 +256,7 @@ export class GraphQLService {
 
       return data.user
     } catch (error) {
-      console.error('Failed to fetch user activity:', error)
+      logger.error('Failed to fetch user activity:', error)
       return null
     }
   }
@@ -337,7 +338,7 @@ export class GraphQLService {
 
       return data.batchClaims
     } catch (error) {
-      console.error('Failed to fetch batch claim analytics:', error)
+      logger.error('Failed to fetch batch claim analytics:', error)
       return []
     }
   }
@@ -389,7 +390,7 @@ export class GraphQLService {
 
       return data.pools
     } catch (error) {
-      console.error('Failed to fetch pools by creator:', error)
+      logger.error('Failed to fetch pools by creator:', error)
       return []
     }
   }

@@ -6,6 +6,7 @@ import { ObjectStorageService } from '../../services/storage/index.ts'
 import { DemoStorageService } from '../../services/demo-storage/index.ts'
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
 import { generalRateLimit } from '../../middleware/rateLimiter.ts'
+import { logger } from "../../services/logger.ts"
 
 const router = express.Router()
 
@@ -39,18 +40,18 @@ async function hasAccessToSubmission(submissionId: string, userAddress: string) 
   // Check if user is the factory creator via meta.quest.pool_id
   const poolId = submission.meta?.quest?.pool_id || submission.onChainReward?.poolAddress
   if (poolId) {
-    console.log('Checking factory creator access:')
-    console.log('  Pool ID:', poolId)
-    console.log('  User Address:', userAddress)
+    logger.info('Checking factory creator access:')
+    logger.info('  Pool ID:', poolId)
+    logger.info('  User Address:', userAddress)
     
     const factory = await FactoryModel.findOne({
       _id: poolId,
       ownerAddress: userAddress.toLowerCase()
     })
     
-    console.log('  Factory found:', !!factory)
+    logger.info('  Factory found:', !!factory)
     if (factory) {
-      console.log('  Factory owner:', factory.ownerAddress)
+      logger.info('  Factory owner:', factory.ownerAddress)
       return { hasAccess: true, submission, accessType: 'factory_creator' }
     }
     
@@ -58,11 +59,11 @@ async function hasAccessToSubmission(submissionId: string, userAddress: string) 
     const anyFactory = await FactoryModel.findOne({
       _id: poolId
     })
-    console.log('  Any factory with this pool found:', !!anyFactory)
+    logger.info('  Any factory with this pool found:', !!anyFactory)
     if (anyFactory) {
-      console.log('  Found factory owner:', anyFactory.ownerAddress)
-      console.log('  User address (original):', userAddress)
-      console.log('  User address (lowercase):', userAddress.toLowerCase())
+      logger.info('  Found factory owner:', anyFactory.ownerAddress)
+      logger.info('  User address (original):', userAddress)
+      logger.info('  User address (lowercase):', userAddress.toLowerCase())
     }
   }
 
@@ -164,7 +165,7 @@ router.get('/:submissionId/verify',
         }
       })
     } catch (error) {
-      console.error(`[DEMO-FILES] Error verifying demo ${submission.demoHash}:`, error)
+      logger.error(`[DEMO-FILES] Error verifying demo ${submission.demoHash}:`, error)
 
       res.status(500).json({
         success: false,
@@ -244,19 +245,19 @@ router.get('/:submissionId/:filename',
         error: 'Submission ID and filename are required'
       })
     }
-    console.log('Searching for submission:', submissionId)
-    console.log('User address:', userAddress)
+    logger.info('Searching for submission:', submissionId)
+    logger.info('User address:', userAddress)
 
     const accessCheck = await hasAccessToSubmission(submissionId, userAddress)
     
-    console.log('Access check result:', {
+    logger.info('Access check result:', {
       hasAccess: accessCheck.hasAccess,
       accessType: accessCheck.accessType,
       submissionFound: !!accessCheck.submission
     })
 
     if (accessCheck.hasAccess && accessCheck.accessType) {
-      console.log(`User ${userAddress} accessing submission ${submissionId} as ${accessCheck.accessType}`)
+      logger.info(`User ${userAddress} accessing submission ${submissionId} as ${accessCheck.accessType}`)
     }
 
     if (!accessCheck.hasAccess || !accessCheck.submission) {
@@ -268,10 +269,10 @@ router.get('/:submissionId/:filename',
 
     const submission = accessCheck.submission
 
-    console.log('Submission found:', !!submission)
+    logger.info('Submission found:', !!submission)
     if (submission && submission.demoHash) {
       const availableFiles = await demoStorageService.listDemoFiles(submission.demoHash)
-      console.log('Available files:', availableFiles.map(f => f.filename))
+      logger.info('Available files:', availableFiles.map(f => f.filename))
     }
 
     if (!submission.demoHash) {
@@ -325,7 +326,7 @@ router.get('/:submissionId/:filename',
       fileStream.pipe(res)
 
     } catch (error) {
-      console.error(`[DEMO-FILES] Error retrieving file ${filename} for submission ${submissionId}:`, error)
+      logger.error(`[DEMO-FILES] Error retrieving file ${filename} for submission ${submissionId}:`, error)
 
       if (error instanceof Error && error.message.includes('Object not found')) {
         return res.status(404).json({
@@ -426,19 +427,19 @@ router.get('/:submissionId',
       })
     }
 
-    console.log('Searching for submission:', submissionId)
-    console.log('User address:', userAddress)
+    logger.info('Searching for submission:', submissionId)
+    logger.info('User address:', userAddress)
 
     const accessCheck = await hasAccessToSubmission(submissionId, userAddress)
     
-    console.log('Access check result:', {
+    logger.info('Access check result:', {
       hasAccess: accessCheck.hasAccess,
       accessType: accessCheck.accessType,
       submissionFound: !!accessCheck.submission
     })
 
     if (accessCheck.hasAccess && accessCheck.accessType) {
-      console.log(`User ${userAddress} accessing submission ${submissionId} as ${accessCheck.accessType}`)
+      logger.info(`User ${userAddress} accessing submission ${submissionId} as ${accessCheck.accessType}`)
     }
 
     if (!accessCheck.hasAccess || !accessCheck.submission) {
@@ -450,10 +451,10 @@ router.get('/:submissionId',
 
     const submission = accessCheck.submission
 
-    console.log('Submission found:', !!submission)
+    logger.info('Submission found:', !!submission)
     if (submission && submission.demoHash) {
       const availableFiles = await demoStorageService.listDemoFiles(submission.demoHash)
-      console.log('Available files:', availableFiles.map(f => f.filename))
+      logger.info('Available files:', availableFiles.map(f => f.filename))
     }
 
     if (!submission.demoHash) {

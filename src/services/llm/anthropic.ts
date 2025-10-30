@@ -1,4 +1,5 @@
 import { Anthropic } from '@anthropic-ai/sdk'
+import { logger } from "../logger.ts"
 import type {
   GenericModelMessage,
   ILLMService,
@@ -59,7 +60,7 @@ export class AnthropicService implements ILLMService {
           try {
             for await (const chunk of stream) {
               if (!chunk || typeof chunk !== 'object') {
-                console.warn('Received invalid chunk:', chunk)
+                logger.warn('Received invalid chunk:', chunk)
                 continue
               }
 
@@ -116,7 +117,7 @@ export class AnthropicService implements ILLMService {
               }
             }
           } catch (error) {
-            console.error('Error in Anthropic stream:', error)
+            logger.error('Error in Anthropic stream:', error)
             yield {
               type: 'error',
               message: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -125,7 +126,7 @@ export class AnthropicService implements ILLMService {
         }
       }
     } catch (error) {
-      console.error('Anthropic Service Error:', error)
+      logger.error('Anthropic Service Error:', error)
       throw error
     }
   }

@@ -2,6 +2,7 @@ import express from 'express'
 import { body, param, query, validationResult } from 'express-validator'
 import { FactoryModel } from '../../models/Factory.ts'
 import { GraphQLService } from '../../services/blockchain/graphqlService.js'
+import { logger } from "../../services/logger.ts"
 
 const router = express.Router()
 const _graphqlService = new GraphQLService()
@@ -204,7 +205,7 @@ router.post(
         }
       })
     } catch (error) {
-      console.error('Failed to update pool metadata:', error)
+      logger.error('Failed to update pool metadata:', error)
       res.status(500).json({
         error: 'Failed to update metadata',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -270,7 +271,7 @@ router.get(
         }
       })
     } catch (error) {
-      console.error('Failed to retrieve pool metadata:', error)
+      logger.error('Failed to retrieve pool metadata:', error)
       res.status(500).json({
         error: 'Failed to retrieve metadata from database',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -354,7 +355,7 @@ router.get(
         }
       })
     } catch (error) {
-      console.error('Failed to retrieve pools:', error)
+      logger.error('Failed to retrieve pools:', error)
       res.status(500).json({
         error: 'Failed to retrieve pools from database',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -476,7 +477,7 @@ router.post(
         }
       })
     } catch (error) {
-      console.error('Failed to search pools by metadata:', error)
+      logger.error('Failed to search pools by metadata:', error)
       res.status(500).json({
         error: 'Failed to search pools',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -512,7 +513,7 @@ router.get('/health', async (_req: express.Request, res: express.Response) => {
       timestamp: new Date().toISOString()
     })
   } catch (error) {
-    console.error('Health check failed:', error)
+    logger.error('Health check failed:', error)
     res.status(500).json({
       success: false,
       data: {
@@ -596,7 +597,7 @@ router.post(
         }
       })
     } catch (error) {
-      console.error('Failed to validate metadata:', error)
+      logger.error('Failed to validate metadata:', error)
       res.status(500).json({
         success: false,
         error: 'Validation failed',

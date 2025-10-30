@@ -21,6 +21,7 @@ import {
   type FactoryWithDemonstrations,
   FactoryStatus,
 } from '../../types/factory.ts'
+import { logger } from "../../services/logger.ts"
 import {
   batchClaimSchema,
   createPoolSchema,
@@ -403,7 +404,7 @@ router.get(
         })
       )
     } catch (error) {
-      console.error('Failed to get pool balance:', error)
+      logger.error('Failed to get pool balance:', error)
       throw ApiError.internalError(
         `Failed to get pool balance: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -512,7 +513,7 @@ router.put(
         factoryName: factory.name,
         ownerAddress: factory.ownerAddress
       }).catch(error => {
-        console.error('Failed to send factory activation notification:', error)
+        logger.error('Failed to send factory activation notification:', error)
       })
     }
 
@@ -579,7 +580,7 @@ router.post(
         })
       )
     } catch (error) {
-      console.error('Pool creation preparation failed:', error)
+      logger.error('Pool creation preparation failed:', error)
       throw ApiError.internalError(
         `Pool creation preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -637,7 +638,7 @@ router.post(
         })
       )
     } catch (error) {
-      console.error('Pool prediction failed:', error)
+      logger.error('Pool prediction failed:', error)
       throw ApiError.internalError(
         `Pool prediction failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -690,7 +691,7 @@ router.get(
         })
       )
     } catch (error) {
-      console.error('Failed to get pool info:', error)
+      logger.error('Failed to get pool info:', error)
       throw ApiError.internalError(
         `Failed to get pool info: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -752,7 +753,7 @@ router.post(
         })
       )
     } catch (error) {
-      console.error('Pool funding preparation failed:', error)
+      logger.error('Pool funding preparation failed:', error)
       throw ApiError.internalError(
         `Pool funding preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -816,7 +817,7 @@ router.post(
         })
       )
     } catch (error) {
-      console.error('Claim signature preparation failed:', error)
+      logger.error('Claim signature preparation failed:', error)
       throw ApiError.internalError(
         `Claim signature preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -878,7 +879,7 @@ router.post(
         })
       )
     } catch (error) {
-      console.error('Batch claim preparation failed:', error)
+      logger.error('Batch claim preparation failed:', error)
       throw ApiError.internalError(
         `Batch claim preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -913,7 +914,7 @@ router.get(
         })
       )
     } catch (error) {
-      console.error('Failed to get publisher info:', error)
+      logger.error('Failed to get publisher info:', error)
       throw ApiError.internalError(
         `Failed to get publisher info: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -976,7 +977,7 @@ router.post(
         })
       )
     } catch (error) {
-      console.error('Pool withdrawal preparation failed:', error)
+      logger.error('Pool withdrawal preparation failed:', error)
       throw ApiError.internalError(
         `Pool withdrawal preparation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )

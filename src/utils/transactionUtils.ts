@@ -1,4 +1,5 @@
 import { MONGODB_TRANSACTION_ERROR_CODE } from '../constants/referral.ts'
+import { logger } from "../services/logger.ts"
 
 /**
  * Handle MongoDB transaction errors and fall back to non-transactional approach
@@ -16,7 +17,7 @@ export async function handleTransactionError<T>(
 ): Promise<T> {
   // If transactions are not supported (standalone MongoDB), fall back to non-transactional approach
   if (error.code === MONGODB_TRANSACTION_ERROR_CODE) {
-    console.warn('Transactions not supported, falling back to non-transactional approach')
+    logger.warn('Transactions not supported, falling back to non-transactional approach')
     return await fallbackFunction()
   }
 

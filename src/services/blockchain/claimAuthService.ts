@@ -3,6 +3,7 @@ import { ApiError } from '../../middleware/types/errors.ts'
 import { validatePrivateKey } from '../../utils/addressValidation.js'
 import { tokenCache } from '../../utils/tokenCache.js'
 import { createCommissionTierService } from '../referral/commissionTierService.ts'
+import { logger } from "../logger.ts"
 
 /**
  * Service for generating EIP-712 claim authorization signatures
@@ -104,7 +105,7 @@ class ClaimAuthService {
       const metadata = await tokenCache.getTokenMetadata(tokenAddress, this.provider)
       const alreadyClaimedTokens = parseFloat(ethers.formatUnits(alreadyClaimedWei, metadata.decimals))
 
-      console.log(`User ${userAddress} already claimed: ${alreadyClaimedTokens} tokens (${alreadyClaimedWei} wei)`)
+      logger.info(`User ${userAddress} already claimed: ${alreadyClaimedTokens} tokens (${alreadyClaimedWei} wei)`)
 
       return {
         alreadyClaimedWei: BigInt(alreadyClaimedWei),
@@ -113,7 +114,7 @@ class ClaimAuthService {
         tokenAddress
       }
     } catch (error) {
-      console.error('Error querying already claimed amount:', error)
+      logger.error('Error querying already claimed amount:', error)
       throw ApiError.internalError(
         `Failed to query already claimed amount from smart contract: ${error instanceof Error ? error.message : 'Unknown error'}. Cannot authorize claim without verifying existing claims.`
       )
@@ -132,10 +133,10 @@ class ClaimAuthService {
       )
 
       const nonce = await poolContract.claimNonce(userAddress)
-      console.log(`User ${userAddress} current nonce: ${nonce}`)
+      logger.info(`User ${userAddress} current nonce: ${nonce}`)
       return Number(nonce)
     } catch (error) {
-      console.error('Error querying nonce:', error)
+      logger.error('Error querying nonce:', error)
       throw ApiError.internalError(
         `Failed to query nonce from smart contract: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -184,13 +185,13 @@ class ClaimAuthService {
   }> {
     // Get publisher info to determine which signer to use
     const publisherInfo = await this.getPublisherInfo()
-    console.log('Publisher info:', publisherInfo)
+    logger.info('Publisher info:', publisherInfo)
 
     // Select the appropriate publisher for signing
     let signerWallet: ethers.Wallet
     let publisherUsed: string
-    console.log('Old publisher:', this.oldPublisher)
-    console.log('Current publisher:', this.currentPublisher)
+    logger.info('Old publisher:', this.oldPublisher)
+    logger.info('Current publisher:', this.currentPublisher)
 
     if (publisherInfo.isInGracePeriod && this.oldPublisher) {
       // During grace period, prefer old publisher if available
@@ -209,15 +210,15 @@ class ClaimAuthService {
     }
 
     // Validate that we have the correct private key
-    console.log('Signer wallet:', signerWallet)
-    console.log('Publisher used:', publisherUsed)
+    logger.info('Signer wallet:', signerWallet)
+    logger.info('Publisher used:', publisherUsed)
     if (signerWallet.address.toLowerCase() !== publisherUsed.toLowerCase()) {
       throw ApiError.internalError(
         `Publisher key mismatch. Expected ${publisherUsed}, got ${signerWallet.address}`
       )
     }
 
-    console.log(
+    logger.info(
       `Using publisher ${publisherUsed} for signing (grace period: ${publisherInfo.isInGracePeriod})`
     )
 
@@ -254,10 +255,10 @@ class ClaimAuthService {
 
     // Calculate referral rewards if referrers exist
     let referrals: Array<{ address: string, amount: number, type: 'farmer_referrer' | 'factory_referrer' }> = []
-    console.log('referrals:', referrals)
+    logger.info('referrals:', referrals)
 
-    console.log('farmerReferrer:', farmerReferrer)
-    console.log('factoryReferrer:', factoryReferrer)
+    logger.info('farmerReferrer:', farmerReferrer)
+    logger.info('factoryReferrer:', factoryReferrer)
     if (farmerReferrer || factoryReferrer) {
       const commissionService = createCommissionTierService()
 
@@ -268,7 +269,7 @@ class ClaimAuthService {
         farmerReferrer,
         factoryReferrer
       )
-      console.log('distribution:', distribution)
+      logger.info('distribution:', distribution)
 
       // Add farmer referrer reward if exists
       if (farmerReferrer && distribution.farmerReferrerRewardWei > 0n) {
@@ -291,13 +292,13 @@ class ClaimAuthService {
       }
     }
 
-    console.log(
+    logger.info(
       `Generating signature: alreadyClaimed=${alreadyClaimedTokens}, individualReward=${individualReward}, newCumulative=${newCumulativeAmountTokens}, nonce=${currentNonce}`
     )
-    console.log(
+    logger.info(
       `Wei values: alreadyClaimedWei=${alreadyClaimedWei}, individualRewardWei=${individualRewardWei}, newCumulativeWei=${newCumulativeAmountWei}`
     )
-    console.log(`Referrals:`, referrals)
+    logger.info(`Referrals:`, referrals)
 
     // EIP-712 domain - must match RewardPoolImplementation contract
     const domain = {
@@ -318,17 +319,17 @@ class ClaimAuthService {
 
     // Use the precise wei value (no rounding errors)
     const cumulativeAmountWei = newCumulativeAmountWei
-    console.log('Cumulative amount wei:', cumulativeAmountWei)
+    logger.info('Cumulative amount wei:', cumulativeAmountWei)
 
     const message = {
       account: farmerAddress,
       cumulativeAmount: cumulativeAmountWei,
       nonce: currentNonce
     }
-    console.log('Message:', message)
+    logger.info('Message:', message)
     // Sign the structured data with the selected publisher
     const signature = await signerWallet.signTypedData(domain, types, message)
-    console.log('Signature:', signature)
+    logger.info('Signature:', signature)
     return {
       // Smart contract parameters (exact format for payWithSig call)
       account: farmerAddress,

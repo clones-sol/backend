@@ -3,6 +3,7 @@ import { DemonstrationSubmission } from '../../models/Models.ts'
 import { ApiError } from '../../middleware/types/errors.ts'
 import { tokenCache } from '../../utils/tokenCache.js'
 import { getContractFeeConfig } from './contractConfigService.ts'
+import { logger } from "../logger.ts"
 
 /**
  * @title WithdrawalValidationService
@@ -133,7 +134,7 @@ export class WithdrawalValidationService {
                     totalPending += pending
                 }
             } catch (error) {
-                console.error(
+                logger.error(
                     `Error fetching claimed amount for farmer ${farmerAddress} in pool ${poolAddress}:`,
                     error
                 )

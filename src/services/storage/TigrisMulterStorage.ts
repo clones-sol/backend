@@ -1,5 +1,6 @@
 import { Request } from 'express'
 import { ObjectStorageService } from './index.ts'
+import { logger } from "../logger.ts"
 
 /**
  * Custom Multer storage engine for Tigris
@@ -48,7 +49,7 @@ export class TigrisMulterStorage {
           file: buffer
         })
 
-        console.log(`[TIGRIS-UPLOAD] Chunk ${chunkIndex} uploaded to ${tigrisPath} (${buffer.length} bytes)`)
+        logger.info(`[TIGRIS-UPLOAD] Chunk ${chunkIndex} uploaded to ${tigrisPath} (${buffer.length} bytes)`)
 
         // Return file info similar to disk storage
         callback(null, {
@@ -64,13 +65,13 @@ export class TigrisMulterStorage {
           buffer
         } as Express.Multer.File)
       } catch (error) {
-        console.error(`[TIGRIS-UPLOAD] Error uploading chunk ${chunkIndex}:`, error)
+        logger.error(`[TIGRIS-UPLOAD] Error uploading chunk ${chunkIndex}:`, error)
         callback(error)
       }
     })
 
     file.stream.on('error', (error) => {
-      console.error(`[TIGRIS-UPLOAD] Stream error for chunk ${chunkIndex}:`, error)
+      logger.error(`[TIGRIS-UPLOAD] Stream error for chunk ${chunkIndex}:`, error)
       callback(error)
     })
   }
