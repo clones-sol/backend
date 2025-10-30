@@ -341,39 +341,7 @@ router.get(
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { id } = req.params
 
-    console.log('🔍 BEFORE DB CALL - ID:', id)
     const factory = await FactoryModel.findById(id)
-    console.log('🔍 Raw factory from DB:', {
-      _id: factory?._id,
-      pricePerDemo: factory?.pricePerDemo,
-      typeof_pricePerDemo: typeof factory?.pricePerDemo,
-      timestamp: new Date().toISOString()
-    })
-
-    // Debug MongoDB corruption
-    console.log('🔍 MongoDB collection name:', FactoryModel.collection.collectionName)
-    console.log('🔍 MongoDB database name:', FactoryModel.collection.dbName)
-
-    // Check ALL documents with this ID across all possible states
-    const allDocs = await FactoryModel.collection.find({ _id: id } as any).toArray()
-    console.log('🔍 ALL documents found:', allDocs.length)
-    allDocs.forEach((doc, index) => {
-      console.log(`🔍 Document ${index}:`, {
-        _id: doc._id,
-        pricePerDemo: doc.pricePerDemo,
-        typeof_pricePerDemo: typeof doc.pricePerDemo,
-        raw_pricePerDemo: JSON.stringify(doc.pricePerDemo)
-      })
-    })
-
-    // Raw aggregation to bypass any potential schema issues
-    const rawAgg = await FactoryModel.collection.aggregate([
-      { $match: { _id: id } },
-      { $project: { _id: 1, pricePerDemo: 1, raw_pricePerDemo: { $toString: "$pricePerDemo" } } }
-    ]).toArray()
-    console.log('🔍 RAW aggregation result:', rawAgg)
-
-    console.log('🔍 Factory.toJSON():', factory?.toJSON?.())
 
     if (!factory) {
       throw ApiError.notFound('Factory not found')
@@ -474,8 +442,6 @@ router.get(
  *               status:
  *                 type: string
  *                 enum: [active, paused]
- *               pricePerDemo:
- *                 type: number
  *               tags:
  *                 type: array
  *                 items: { type: string }
@@ -511,7 +477,6 @@ router.put(
       required: false,
       rules: [ValidationRules.isIn([FactoryStatus.active, FactoryStatus.paused])]
     },
-    pricePerDemo: { required: false, rules: [ValidationRules.isNumber()] }
   }),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { id } = req.params
@@ -531,20 +496,12 @@ router.put(
     // Store original status to detect activation
     const originalStatus = factory.status
 
-    // Validate balance only when transitioning from paused to active
-    if (req.body.status === FactoryStatus.active && factory.status === FactoryStatus.paused) {
-      const balance = await blockchainService.getTokenBalance(factory.token.address, ownerAddress)
-      if (balance === 0 || balance < factory.pricePerDemo) {
-        throw ApiError.badRequest('Cannot activate factory: insufficient balance')
-      }
-    }
 
     // Update fields
     if (req.body.name !== undefined) factory.name = req.body.name
     if (req.body.description !== undefined) factory.description = req.body.description
     if (req.body.skills !== undefined) factory.skills = req.body.skills
     if (req.body.status !== undefined) factory.status = req.body.status
-    if (req.body.pricePerDemo !== undefined) factory.pricePerDemo = req.body.pricePerDemo
 
     await factory.save()
 

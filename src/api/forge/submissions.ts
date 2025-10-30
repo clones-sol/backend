@@ -41,6 +41,8 @@ router.get(
       .sort({ createdAt: -1 })
       .select('-__v')
 
+
+    console.log('Submissions:', submissions)
     res.status(200).json(successResponse(submissions))
   })
 )

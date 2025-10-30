@@ -150,7 +150,7 @@ const factorySchema = new Schema<IFactoryDocument>(
       lowercase: true,
       index: true
     },
-    
+
     // Referral tracking - captured at factory creation time
     referrerAddress: {
       type: String,
@@ -178,10 +178,6 @@ const factorySchema = new Schema<IFactoryDocument>(
     // Economic model
     token: {
       type: factoryTokenSchema,
-      required: true
-    },
-    pricePerDemo: {
-      type: Number,
       required: true
     },
 

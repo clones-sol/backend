@@ -353,15 +353,21 @@ async function verifyFactoryAndBalance(meta: Record<string, any>): Promise<any> 
     throw ApiError.badRequest(`Factory is not active (status: ${factory.status})`)
   }
 
+  const task = factory.apps.flatMap((app) => app.tasks).find((task) => task.id === meta.quest.task_id)
+  console.log(`[UPLOAD] Task: ${JSON.stringify(task)}`)
+  if (!task) {
+    throw ApiError.badRequest('Invalid data: missing task')
+  }
+
   const tokenAddress = factory.token.address
   const currentBalance = await blockchainService.getTokenBalance(tokenAddress, factory.poolAddress)
 
-  if (currentBalance < factory.pricePerDemo) {
-    console.log(`[UPLOAD] Insufficient funds: ${currentBalance} < ${factory.pricePerDemo}`)
-    throw ApiError.insufficientFunds('Factory has insufficient funds')
+  if (task.rewardLimit && currentBalance < task.rewardLimit) {
+    console.log(`[UPLOAD] Insufficient funds for task: ${currentBalance} < ${task.rewardLimit}`)
+    throw ApiError.insufficientFunds(`Factory has insufficient funds for this task (required: ${task.rewardLimit}, available: ${currentBalance})`)
   }
 
-  return factory
+  return { factory, currentBalance, task }
 }
 
 async function checkFactoryUploadLimits(factory: Record<string, any>): Promise<void> {

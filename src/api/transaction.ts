@@ -561,7 +561,7 @@ router.post(
         let submission
         let submissionFarmerReferrer: string | undefined
         let submissionFactoryReferrer: string | undefined
-        
+
         if (submissionId) {
           // Verify submission exists and belongs to user with FRESH read from DB
           submission = await DemonstrationSubmission.findById(submissionId)
@@ -571,11 +571,11 @@ router.post(
           if (submission.address.toLowerCase() !== userAddress.toLowerCase()) {
             throw ApiError.forbidden('Submission does not belong to authenticated user')
           }
-          
+
           // Extract referrer addresses from submission
           submissionFarmerReferrer = submission.farmerReferrerAddress
           submissionFactoryReferrer = submission.factoryReferrerAddress
-          
+
         } else {
           // Fallback: Find submission by pool, user, and amount (less precise)
           submission = await DemonstrationSubmission.findOne({
@@ -1118,10 +1118,6 @@ router.post(
       if (nbTasks === 0) {
         throw ApiError.badRequest('No tasks found in apps')
       }
-      const pricePerDemo = metadata.fundingAmount
-        ? AmountValidator.validateBasicAmount(metadata.fundingAmount) / nbTasks
-        : 1.0
-
       // Query referrer from database using lookup service
       const { createReferralLookupService } = await import('../services/referral/referralLookupService.ts')
       const referralLookupService = createReferralLookupService()
@@ -1147,7 +1143,6 @@ router.post(
             address: tokenAddress.toLowerCase(),
             decimals: tokenInfo.decimals
           },
-          pricePerDemo,
           referrerAddress
         )
 
