@@ -203,9 +203,6 @@ export async function processNextInQueue() {
         console.log('Processing factory reward:', factory.name)
         while (retries > 0) {
           try {
-            // Default maxReward is the factory's pricePerDemo
-            maxReward = factory.pricePerDemo
-
             // Reward skip conditions:
             // 1. Missing task_id
             // 2. Invalid task_id (no corresponding task found)
@@ -218,6 +215,7 @@ export async function processNextInQueue() {
             if (!submission?.meta?.quest.task_id) {
               reward = 0
               gradeResult.reasoning = `( system: no reward given - missing task_id ) ${gradeResult.reasoning}`
+              console.log('No reward given - missing task_id')
               break
             }
 
@@ -230,12 +228,18 @@ export async function processNextInQueue() {
             if (!task) {
               reward = 0
               gradeResult.reasoning = `( system: no reward given - invalid task_id, no corresponding task found ) ${gradeResult.reasoning}`
+              console.log('No reward given - invalid task_id, no corresponding task found')
               break
             }
 
-            // Use the task's rewardLimit if it exists
             if (task.rewardLimit) {
               maxReward = task.rewardLimit
+            }
+            else {
+              reward = 0
+              gradeResult.reasoning = `( system: no reward given - task has no reward limit ) ${gradeResult.reasoning}`
+              console.log('No reward given - task has no reward limit')
+              break
             }
 
             // Check 3: Previous submission with higher/equal score
@@ -254,6 +258,7 @@ export async function processNextInQueue() {
               reward = 0
               gradeResult.reasoning = `( system: no reward given - previous submission exists with score of ${previousSubmission.grade_result?.score || 0
                 } ) ${gradeResult.reasoning}`
+              console.log('No reward given - previous submission exists with score of', previousSubmission.grade_result?.score || 0)
               break
             }
 
@@ -269,6 +274,7 @@ export async function processNextInQueue() {
               if (taskSubmissionsCount >= task.uploadLimit) {
                 reward = 0
                 gradeResult.reasoning = `( system: no reward given - per-task upload limit of ${task.uploadLimit} reached ) ${gradeResult.reasoning}`
+                console.log('No reward given - per-task upload limit of', task.uploadLimit, 'reached')
                 break
               }
             }
@@ -305,6 +311,7 @@ export async function processNextInQueue() {
               if (typeof gymSubmissionsCount === 'number' && gymSubmissionsCount >= limitValue) {
                 reward = 0
                 gradeResult.reasoning = `( system: no reward given - per-gym upload limit of ${limitValue} ${limitType} reached ) ${gradeResult.reasoning}`
+                console.log('No reward given - per-gym upload limit of', limitValue, limitType, 'reached')
                 break
               }
             }
@@ -313,6 +320,7 @@ export async function processNextInQueue() {
             if (clampedScore < 50) {
               reward = 0
               gradeResult.reasoning = `( system: reward returned to factory due to <50% quality score ) ${gradeResult.reasoning}`
+              console.log('No reward given - reward returned to factory due to <50% quality score')
               break
             }
 

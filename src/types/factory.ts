@@ -80,7 +80,6 @@ export interface Factory {
 
   // Economic model
   token: FactoryToken
-  pricePerDemo: number // Reward per demonstration
 
   // Statistics
   totalEarned: number // Total rewards paid out
@@ -108,7 +107,6 @@ export interface CreateFactoryRequest {
     type: TokenType
     symbol: string
   }
-  pricePerDemo?: number
   uploadLimit?: FactoryUploadLimit
   apps?: Omit<FactoryApp, 'id'>[] // Apps without IDs (will be generated)
 }
@@ -120,7 +118,6 @@ export interface UpdateFactoryRequest {
   description?: string
   skills?: string[]
   status?: FactoryStatus
-  pricePerDemo?: number
   uploadLimit?: FactoryUploadLimit
   apps?: Omit<FactoryApp, 'id'>[]
 }
@@ -206,7 +203,6 @@ export interface CreatePoolBody {
     symbol: string
   }
   ownerAddress?: string
-  pricePerDemo?: number
   uploadLimit?: {
     type: number
     limitType: UploadLimitType
@@ -230,7 +226,6 @@ export interface UpdatePoolBody {
   name?: string
   status?: FactoryStatus
   skills?: string
-  pricePerDemo?: number
   uploadLimit?: {
     type: number
     limitType: UploadLimitType

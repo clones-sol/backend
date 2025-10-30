@@ -105,7 +105,6 @@ export async function createFactory(
   skills: string[],
   apps: FactoryApp[],
   token: any,
-  pricePerDemo: number,
   referrerAddress?: string
 ): Promise<any> {
   // Create factory document
@@ -131,7 +130,6 @@ export async function createFactory(
     status: 'paused',
     skills,
     token,
-    pricePerDemo,
     apps: appsWithIds,
     createdAt: new Date(),
     updatedAt: new Date()

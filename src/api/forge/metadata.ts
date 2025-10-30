@@ -441,7 +441,7 @@ router.post(
 
       const pools = await FactoryModel.find(query)
         .select(
-          'poolAddress name description skills tags pricePerDemo totalEarned createdAt updatedAt'
+          'poolAddress name description skills tags totalEarned createdAt updatedAt'
         )
         .skip(offset)
         .limit(limit)
@@ -457,7 +457,6 @@ router.post(
             name: pool.name,
             description: pool.description,
             skills: pool.skills,
-            pricePerDemo: pool.pricePerDemo,
             totalEarned: pool.totalEarned,
             createdAt: pool.createdAt,
             updatedAt: pool.updatedAt

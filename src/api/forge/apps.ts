@@ -39,8 +39,6 @@ function checkAdultContent(text: string): boolean {
 
 interface TaskQueryParams {
   pool_id?: string
-  min_reward?: string
-  max_reward?: string
   categories?: string | string[]
   query?: string
   hide_adult?: string
@@ -61,10 +59,6 @@ interface SubmissionMaps {
 interface MongoMatchFilter {
   _id?: string
   status?: string
-  pricePerDemo?: {
-    $gte?: number
-    $lte?: number
-  }
 }
 
 function buildFactoryMatchStage(params: TaskQueryParams): MongoMatchFilter {
@@ -74,17 +68,6 @@ function buildFactoryMatchStage(params: TaskQueryParams): MongoMatchFilter {
     matchStage._id = params.pool_id.toString()
   } else {
     matchStage.status = FactoryStatus.active
-  }
-
-  if (params.min_reward !== undefined || params.max_reward !== undefined) {
-    const priceFilter: Record<string, number> = {}
-    if (params.min_reward !== undefined) {
-      priceFilter.$gte = Number(params.min_reward)
-    }
-    if (params.max_reward !== undefined) {
-      priceFilter.$lte = Number(params.max_reward)
-    }
-    matchStage.pricePerDemo = priceFilter
   }
 
   return matchStage
@@ -147,7 +130,6 @@ function buildQueryPipeline(params: TaskQueryParams): PipelineStage[] {
       uploadLimit: '$apps.tasks.uploadLimit',
       rewardLimit: '$apps.tasks.rewardLimit',
       factoryId: '$_id',
-      pricePerDemo: '$pricePerDemo',
       uploadLimitType: '$uploadLimit.type',
       uploadLimitValue: '$uploadLimit.value',
       app: {
@@ -485,15 +467,6 @@ router.get(
         continue
       }
 
-      const effectiveReward =
-        taskData.rewardLimit !== undefined ? taskData.rewardLimit : taskData.pricePerDemo
-      if (
-        (params.min_reward !== undefined && (effectiveReward || 0) < Number(params.min_reward)) ||
-        (params.max_reward !== undefined && (effectiveReward || 0) > Number(params.max_reward))
-      ) {
-        continue
-      }
-
       const limitInfo = calculateTaskLimits(taskData, submissionMaps)
       const gymSubmissions =
         submissionMaps.daily.get(taskData.factoryId.toString()) ||
@@ -548,19 +521,6 @@ router.get(
       matchStage.status = FactoryStatus.active
     }
 
-    // Apply reward filtering at factory level
-    if (min_reward !== undefined || max_reward !== undefined) {
-      if (min_reward !== undefined) {
-        matchStage.pricePerDemo = { $gte: Number(min_reward) }
-      }
-      if (max_reward !== undefined) {
-        matchStage.pricePerDemo = {
-          ...(matchStage.pricePerDemo || {}),
-          $lte: Number(max_reward)
-        }
-      }
-    }
-
     pipeline.push({ $match: matchStage })
 
     // Unwind apps
@@ -604,7 +564,6 @@ router.get(
         categories: '$apps.categories',
         tasks: '$apps.tasks',
         factoryId: '$_id',
-        pricePerDemo: '$pricePerDemo',
         uploadLimit: '$uploadLimit',
         pool_id: '$_id'
       }

@@ -389,29 +389,52 @@ class FactoryService {
     alreadyClaimed?: string
     factory: string
   }> {
+    // Validate pool address format
+    if (!ethers.isAddress(poolAddress)) {
+      throw new Error(`Invalid pool address format: ${poolAddress}`)
+    }
+
+    // Check if contract exists at the address
+    const code = await this.provider.getCode(poolAddress)
+    if (code === '0x') {
+      throw new Error(`No contract found at address: ${poolAddress}`)
+    }
+
     const vault = new ethers.Contract(poolAddress, VAULT_ABI, this.provider)
-    const tokenAddress = await vault.token()
-    const factory = await vault.getFactory()
+    
+    try {
+      const [tokenAddress, factory] = await Promise.all([
+        vault.token(),
+        vault.getFactory()
+      ])
+      
+      // Validate token address
+      if (!ethers.isAddress(tokenAddress)) {
+        throw new Error(`Invalid token address returned: ${tokenAddress}`)
+      }
 
-    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider)
-    const [balance, metadata] = await Promise.all([
-      tokenContract.balanceOf(poolAddress),
-      tokenCache.getTokenMetadata(tokenAddress, this.provider)
-    ])
+      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider)
+      const [balance, metadata] = await Promise.all([
+        tokenContract.balanceOf(poolAddress),
+        tokenCache.getTokenMetadata(tokenAddress, this.provider)
+      ])
 
-    const result: any = {
-      tokenAddress,
-      tokenSymbol: metadata.symbol,
-      tokenBalance: ethers.formatUnits(balance, metadata.decimals),
-      factory
+      const result: any = {
+        tokenAddress,
+        tokenSymbol: metadata.symbol,
+        tokenBalance: ethers.formatUnits(balance, metadata.decimals),
+        factory
+      }
+
+      if (account) {
+        const claimed = await vault.alreadyClaimed(account)
+        result.alreadyClaimed = ethers.formatUnits(claimed, metadata.decimals)
+      }
+
+      return result
+    } catch (error) {
+      throw new Error(`Failed to get pool info: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
-
-    if (account) {
-      const claimed = await vault.alreadyClaimed(account)
-      result.alreadyClaimed = ethers.formatUnits(claimed, metadata.decimals)
-    }
-
-    return result
   }
 
   /**
