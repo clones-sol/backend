@@ -197,13 +197,22 @@ const SENSITIVE_BODY_FIELDS = SENSITIVE_FIELDS.filter(field =>
 )
 
 /**
- * Sanitize headers by removing sensitive authentication data
+ * Sanitize headers by removing sensitive authentication data (case-insensitive)
  */
 function sanitizeHeaders(headers: Record<string, any>): Record<string, any> {
   const sanitized = { ...headers }
-  SENSITIVE_HEADER_FIELDS.forEach(header => {
-    if (sanitized[header]) {
-      sanitized[header] = '[REDACTED]'
+  
+  // Create a map of lowercase header names to original names for case-insensitive lookup
+  const headerMap = new Map<string, string>()
+  Object.keys(sanitized).forEach(key => {
+    headerMap.set(key.toLowerCase(), key)
+  })
+  
+  // Check each sensitive header field (case-insensitive)
+  SENSITIVE_HEADER_FIELDS.forEach(sensitiveField => {
+    const originalKey = headerMap.get(sensitiveField.toLowerCase())
+    if (originalKey && sanitized[originalKey]) {
+      sanitized[originalKey] = '[REDACTED]'
     }
   })
   
@@ -211,19 +220,58 @@ function sanitizeHeaders(headers: Record<string, any>): Record<string, any> {
 }
 
 /**
- * Sanitize request body by removing sensitive fields and limiting size
+ * Recursively sanitize an object by removing sensitive fields at any depth
+ */
+function sanitizeObjectRecursive(obj: any, depth: number = 0): any {
+  // Prevent infinite recursion
+  if (depth > 10) {
+    return '[MAX_DEPTH_REACHED]'
+  }
+  
+  if (obj === null || obj === undefined) {
+    return obj
+  }
+  
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeObjectRecursive(item, depth + 1))
+  }
+  
+  // Handle non-object types
+  if (typeof obj !== 'object') {
+    return obj
+  }
+  
+  // Handle objects
+  const sanitized = { ...obj }
+  
+  Object.keys(sanitized).forEach(key => {
+    // Check if this key is sensitive (case-insensitive)
+    const isSensitive = SENSITIVE_BODY_FIELDS.some(
+      sensitiveField => key.toLowerCase() === sensitiveField.toLowerCase()
+    )
+    
+    if (isSensitive) {
+      sanitized[key] = '[REDACTED]'
+    } else if (sanitized[key] && typeof sanitized[key] === 'object') {
+      // Recursively sanitize nested objects
+      sanitized[key] = sanitizeObjectRecursive(sanitized[key], depth + 1)
+    }
+  })
+  
+  return sanitized
+}
+
+/**
+ * Sanitize request body by removing sensitive fields recursively and limiting size
  */
 function sanitizeBody(body: any, maxSize: number = 1000): any {
-  if (!body || typeof body !== 'object') {
+  if (!body || (typeof body !== 'object' && !Array.isArray(body))) {
     return body
   }
 
-  const sanitized = { ...body }
-  SENSITIVE_BODY_FIELDS.forEach(field => {
-    if (sanitized[field]) {
-      sanitized[field] = '[REDACTED]'
-    }
-  })
+  // Recursively sanitize the body
+  const sanitized = sanitizeObjectRecursive(body)
 
   // Limit body size to prevent log flooding with proper truncation
   const stringified = JSON.stringify(sanitized)
