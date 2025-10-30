@@ -11,7 +11,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express'
-import pinoHttp, { type HttpLogger } from 'pino-http'
+import { pinoHttp, type HttpLogger, type Options } from 'pino-http'
 import { logger, logContext, type LogContext } from "../services/logger.ts"
 import {
   extractTraceContext,
@@ -37,19 +37,19 @@ declare global {
 /**
  * Create Pino HTTP middleware with custom configuration
  */
-function createPinoHttpMiddleware() {
-  return (pinoHttp as any)({
+function createPinoHttpMiddleware(): HttpLogger {
+  const options: Options = {
     logger: logger.getPinoInstance(),
 
     // Generate unique request ID
-    genReqId: (req: any, res: any) => {
+    genReqId: (req, res) => {
       // Use existing correlation ID from headers or generate new one
       const existingCorrelationId = req.headers['x-correlation-id'] as string
       return existingCorrelationId || generateCorrelationId()
     },
 
     // Custom request message
-    customLogLevel: (req: any, res: any, err: any) => {
+    customLogLevel: (req, res, err) => {
       if (res.statusCode >= 400 && res.statusCode < 500) {
         return 'warn'
       }
@@ -63,28 +63,30 @@ function createPinoHttpMiddleware() {
     },
 
     // Custom success message
-    customSuccessMessage: (req: any, res: any) => {
+    customSuccessMessage: (req, res) => {
       return `${req.method} ${req.url} completed`
     },
 
     // Custom error message
-    customErrorMessage: (req: any, res: any, err: any) => {
+    customErrorMessage: (req, res, err) => {
       return `${req.method} ${req.url} failed: ${err.message}`
     },
 
     // Custom request logging
-    customReceivedMessage: (req: any, res: any) => {
+    customReceivedMessage: (req, res) => {
       return `${req.method} ${req.url} started`
     },
 
     // Auto-logging configuration
     autoLogging: {
-      ignore: (req: any) => {
+      ignore: (req) => {
         // Skip logging for health checks and metrics endpoints
         return req.url === '/health' || req.url === '/metrics'
       }
     }
-  })
+  }
+
+  return pinoHttp(options)
 }
 
 /**
@@ -138,12 +140,16 @@ export function traceContextMiddleware(req: Request, res: Response, next: NextFu
 
     // Run the rest of the request in trace context
     logContext.run(context, () => {
-      // Create scoped logger for this request
+      // Create scoped logger for this request with HTTP labels for Grafana
       req.log = logger.child({
         requestId: String(req.id),
         correlationId: finalCorrelationId,
         traceId: finalTraceId,
-        spanId: finalSpanId
+        spanId: finalSpanId,
+        // HTTP labels for Grafana filtering
+        method: req.method,
+        route: req.route?.path || req.path || 'unknown',
+        userAgent: req.headers['user-agent']?.slice(0, 100) // Truncate for readability
       }) as any
 
       next()
@@ -198,8 +204,14 @@ export function requestTimingMiddleware(req: Request, res: Response, next: NextF
   res.on('finish', () => {
     const duration = Date.now() - startTime
 
-    // Log request completion with timing
-    req.log.info({
+    // Update logger with response status for Grafana
+    const responseLogger = req.log.child({
+      status: res.statusCode,
+      statusClass: Math.floor(res.statusCode / 100) + 'xx' // 2xx, 4xx, 5xx for filtering
+    })
+
+    // Log request completion with timing and structured labels
+    responseLogger.info({
       req: {
         method: req.method,
         url: req.url,

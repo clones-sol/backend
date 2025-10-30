@@ -196,19 +196,26 @@ function createSerializers() {
 }
 
 /**
+ * Get structured base labels for Grafana filtering and observability
+ */
+function getBaseLabels() {
+  return {
+    service: process.env.SERVICE_NAME || 'clones-backend',
+    environment: process.env.NODE_ENV || 'development', 
+    version: process.env.npm_package_version || '1.0.0',
+    instance: process.env.FLY_ALLOC_ID || process.env.HOSTNAME || 'local'
+  }
+}
+
+/**
  * Create transport configuration
  */
 function createTransport() {
   const usePrettyPrint = shouldUsePrettyPrint()
 
   if (!usePrettyPrint) {
-    // Production: JSON to stdout
-    return {
-      target: 'pino/file',
-      options: {
-        destination: 1 // stdout
-      }
-    }
+    // Production: JSON to stdout only (Fly.io handles rotation)
+    return undefined // Let Pino default to stdout
   }
 
   // Development: Pretty print
@@ -217,7 +224,7 @@ function createTransport() {
     options: {
       colorize: true,
       translateTime: 'HH:MM:ss Z',
-      ignore: 'pid,hostname,service,version,environment'
+      ignore: 'pid,hostname,service,version,environment,instance'
     }
   }
 }
@@ -228,6 +235,7 @@ function createTransport() {
 function createBaseLogger() {
   return pino({
     level: getLogLevel(),
+    base: getBaseLabels(), // Structured labels for Grafana
     redact: createRedactConfig(),
     serializers: createSerializers(),
     mixin: createMixin(),
@@ -269,6 +277,20 @@ class ContextLogger {
   }
 
   /**
+   * Private helper method to handle common logging logic
+   */
+  private logWithLevel(level: LogLevel, objOrMsg: any, msg?: any, ...args: any[]) {
+    if (typeof objOrMsg === 'string') {
+      this.pino[level](objOrMsg, ...args)
+    } else if (msg === undefined) {
+      // Handle case where only object is passed (like console.log(obj))
+      this.pino[level]({ data: objOrMsg }, 'Logged object')
+    } else {
+      this.pino[level](objOrMsg, msg, ...args)
+    }
+  }
+
+  /**
    * Log methods with automatic context injection
    * 
    * These methods accept either:
@@ -278,69 +300,27 @@ class ContextLogger {
    * - Any data type: logger.info(anything) - for console.log replacement
    */
   fatal(objOrMsg: any, msg?: any, ...args: any[]) {
-    if (typeof objOrMsg === 'string') {
-      this.pino.fatal(objOrMsg, ...args)
-    } else if (msg === undefined) {
-      // Handle case where only object is passed (like console.log(obj))
-      this.pino.fatal({ data: objOrMsg }, 'Logged object')
-    } else {
-      this.pino.fatal(objOrMsg, msg, ...args)
-    }
+    this.logWithLevel('fatal', objOrMsg, msg, ...args)
   }
 
   error(objOrMsg: any, msg?: any, ...args: any[]) {
-    if (typeof objOrMsg === 'string') {
-      this.pino.error(objOrMsg, ...args)
-    } else if (msg === undefined) {
-      // Handle case where only object is passed (like console.log(obj))
-      this.pino.error({ data: objOrMsg }, 'Logged object')
-    } else {
-      this.pino.error(objOrMsg, msg, ...args)
-    }
+    this.logWithLevel('error', objOrMsg, msg, ...args)
   }
 
   warn(objOrMsg: any, msg?: any, ...args: any[]) {
-    if (typeof objOrMsg === 'string') {
-      this.pino.warn(objOrMsg, ...args)
-    } else if (msg === undefined) {
-      // Handle case where only object is passed (like console.log(obj))
-      this.pino.warn({ data: objOrMsg }, 'Logged object')
-    } else {
-      this.pino.warn(objOrMsg, msg, ...args)
-    }
+    this.logWithLevel('warn', objOrMsg, msg, ...args)
   }
 
   info(objOrMsg: any, msg?: any, ...args: any[]) {
-    if (typeof objOrMsg === 'string') {
-      this.pino.info(objOrMsg, ...args)
-    } else if (msg === undefined) {
-      // Handle case where only object is passed (like console.log(obj))
-      this.pino.info({ data: objOrMsg }, 'Logged object')
-    } else {
-      this.pino.info(objOrMsg, msg, ...args)
-    }
+    this.logWithLevel('info', objOrMsg, msg, ...args)
   }
 
   debug(objOrMsg: any, msg?: any, ...args: any[]) {
-    if (typeof objOrMsg === 'string') {
-      this.pino.debug(objOrMsg, ...args)
-    } else if (msg === undefined) {
-      // Handle case where only object is passed (like console.log(obj))
-      this.pino.debug({ data: objOrMsg }, 'Logged object')
-    } else {
-      this.pino.debug(objOrMsg, msg, ...args)
-    }
+    this.logWithLevel('debug', objOrMsg, msg, ...args)
   }
 
   trace(objOrMsg: any, msg?: any, ...args: any[]) {
-    if (typeof objOrMsg === 'string') {
-      this.pino.trace(objOrMsg, ...args)
-    } else if (msg === undefined) {
-      // Handle case where only object is passed (like console.log(obj))
-      this.pino.trace({ data: objOrMsg }, 'Logged object')
-    } else {
-      this.pino.trace(objOrMsg, msg, ...args)
-    }
+    this.logWithLevel('trace', objOrMsg, msg, ...args)
   }
 
   /**
