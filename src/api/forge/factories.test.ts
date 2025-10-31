@@ -5,6 +5,7 @@ import supertest from 'supertest'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { errorHandler } from '../../middleware/errorHandler.ts'
 import { FactoryModel } from '../../models/Factory.ts'
+import { DemonstrationSubmission } from '../../models/DemonstrationSubmission.ts'
 import { FactoryStatus } from '../../types/factory.ts'
 import { factoriesApi } from './factories.ts'
 
@@ -180,6 +181,7 @@ describe('Forge Factories API', () => {
 
   afterEach(async () => {
     await FactoryModel.deleteMany({})
+    await DemonstrationSubmission.deleteMany({})
     vi.clearAllMocks()
   })
 
@@ -352,6 +354,108 @@ describe('Forge Factories API', () => {
 
       expect(mockFactoryService.getPoolInfo).toHaveBeenCalledWith(poolAddress, undefined)
       expect(response.body.data.owner).toBe(TEST_WALLET_ADDRESS)
+    })
+  })
+
+  describe('GET /:id/grading-results', () => {
+    const factoryId = '60f8e4b4c3b3e4a3b1e8e4a1'
+
+    beforeEach(async () => {
+      await DemonstrationSubmission.create([
+        {
+          _id: 'sub1',
+          address: '0x123',
+          meta: { quest: { pool_id: factoryId } },
+          status: 'completed',
+          grade_result: {
+            score: 80,
+            confidence: 0.9,
+            outcomeAchievement: 0.85,
+            processQuality: 0.75,
+            efficiency: 0.95
+          },
+          createdAt: new Date('2023-01-02T10:00:00.000Z')
+        },
+        {
+          _id: 'sub2',
+          address: '0x123',
+          meta: { quest: { pool_id: factoryId } },
+          status: 'completed',
+          grade_result: {
+            score: 90,
+            confidence: 0.95,
+            outcomeAchievement: 0.9,
+            processQuality: 0.8,
+            efficiency: 1.0
+          },
+          createdAt: new Date('2023-01-01T10:00:00.000Z')
+        },
+        {
+          // another factory
+          _id: 'sub3',
+          address: '0x123',
+          meta: { quest: { pool_id: '60f8e4b4c3b3e4a3b1e8e4a2' } },
+          status: 'completed',
+          grade_result: { score: 50 }
+        },
+        {
+          // not completed status
+          _id: 'sub4',
+          address: '0x123',
+          meta: { quest: { pool_id: factoryId } },
+          status: 'pending',
+          grade_result: { score: 100 }
+        },
+        {
+          // completed but no grade
+          _id: 'sub5',
+          address: '0x123',
+          meta: { quest: { pool_id: factoryId } },
+          status: 'completed'
+        }
+      ])
+    })
+
+    it("should return a list of a factory's grading results, sorted by creation date", async () => {
+      const response = await supertest(app)
+        .get(`/api/v1/forge/factories/${factoryId}/grading-results`)
+        .expect(200)
+
+      expect(response.body.success).toBe(true)
+      const results = response.body.data
+      expect(results).toHaveLength(2)
+
+      // Check sorting (most recent first)
+      expect(results[0].submissionId).toBe('sub1')
+      expect(results[1].submissionId).toBe('sub2')
+
+      // Check structure of a result
+      expect(results[0]).toEqual({
+        submissionId: 'sub1',
+        createdAt: '2023-01-02T10:00:00.000Z',
+        score: 80,
+        confidence: 0.9,
+        outcomeAchievement: 0.85,
+        processQuality: 0.75,
+        efficiency: 0.95
+      })
+    })
+
+    it('should return 404 if factory does not exist', async () => {
+      const nonExistentId = '60f8e4b4c3b3e4a3b1e8e4a9'
+      await supertest(app)
+        .get(`/api/v1/forge/factories/${nonExistentId}/grading-results`)
+        .expect(404)
+    })
+
+    it('should return an empty array if no completed submissions with grades are found', async () => {
+      await DemonstrationSubmission.deleteMany({})
+      const response = await supertest(app)
+        .get(`/api/v1/forge/factories/${factoryId}/grading-results`)
+        .expect(200)
+
+      expect(response.body.success).toBe(true)
+      expect(response.body.data).toEqual([])
     })
   })
 })

@@ -14,6 +14,7 @@ import BlockchainService from '../../services/blockchain/index.ts'
 import { getTokenContractAddress, supportedTokens } from '../../services/blockchain/tokens.ts'
 import { getFactoryDemonstrationCount, getFactoriesDemonstrationCounts } from '../../utils/factoryStats.ts'
 import telegramService from '../../services/telegram.js'
+import { DemonstrationSubmission } from '../../models/DemonstrationSubmission.ts'
 import {
   type Factory,
   type FactorySearchCriteria,
@@ -696,6 +697,73 @@ router.get(
         `Failed to get pool info: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
     }
+  })
+)
+
+/**
+ * @swagger
+ * /forge/factories/{id}/grading-results:
+ *   get:
+ *     summary: Get a list of grading results for a factory's completed demonstrations
+ *     tags: [Factories]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Factory ID
+ *     responses:
+ *       '200':
+ *         description: A list of grading results for the factory
+ *       '404':
+ *         description: Factory not found
+ */
+router.get(
+  '/:id/grading-results',
+  validateParams({
+    id: { required: true, rules: [ValidationRules.isString()] }
+  }),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { id: factoryId } = req.params
+
+    const factory = await FactoryModel.findById(factoryId)
+    if (!factory) {
+      throw ApiError.notFound('Factory not found')
+    }
+
+    const submissions = await DemonstrationSubmission.find(
+      {
+        'meta.quest.pool_id': factoryId,
+        status: 'completed',
+        'grade_result.score': { $exists: true, $ne: null }
+      },
+      {
+        'grade_result.score': 1,
+        'grade_result.confidence': 1,
+        'grade_result.outcomeAchievement': 1,
+        'grade_result.processQuality': 1,
+        'grade_result.efficiency': 1,
+        createdAt: 1,
+        _id: 1
+      }
+    )
+      .sort({ createdAt: -1 })
+      .lean()
+
+    const results = submissions
+      .filter(sub => sub.grade_result)
+      .map(sub => ({
+        submissionId: sub._id,
+        createdAt: sub.createdAt,
+        score: sub.grade_result!.score,
+        confidence: sub.grade_result!.confidence,
+        outcomeAchievement: sub.grade_result!.outcomeAchievement,
+        processQuality: sub.grade_result!.processQuality,
+        efficiency: sub.grade_result!.efficiency
+      }))
+
+    res.json(successResponse(results))
   })
 )
 

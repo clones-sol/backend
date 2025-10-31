@@ -5,11 +5,16 @@ import { ForgeSubmissionProcessingStatus } from '../types/factory.ts'
  * Count completed demonstrations for a factory
  */
 export async function getFactoryDemonstrationCount(factoryId: string): Promise<number> {
-  return await DemonstrationSubmission.countDocuments({
+  console.log('factoryId', factoryId)
+  console.log('status', ForgeSubmissionProcessingStatus.COMPLETED)
+  console.log('reward', { $gt: 0 })
+  const count = await DemonstrationSubmission.countDocuments({
     'meta.quest.pool_id': factoryId,
     status: ForgeSubmissionProcessingStatus.COMPLETED,
     reward: { $gt: 0 }
   })
+  console.log('count', count)
+  return count
 }
 
 /**
