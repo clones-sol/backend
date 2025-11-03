@@ -225,19 +225,11 @@ router.post(
     const factoryIds = factories.map(f => (f as any)._id.toString())
     const demonstrationCounts = await getFactoriesDemonstrationCounts(factoryIds)
 
-    const factoriesWithDemonstrations = factories.map(factory => {
-      const factoryJson = factory.toJSON()
-      // DEBUG: Log rewardLimit values
-      if (factoryJson.apps?.[0]?.tasks?.[0]?.rewardLimit !== undefined) {
-        console.log(`DEBUG rewardLimit - Raw:`, factory.apps?.[0]?.tasks?.[0]?.rewardLimit, 
-                   `JSON:`, factoryJson.apps?.[0]?.tasks?.[0]?.rewardLimit)
-      }
-      return {
-        ...factoryJson,
-        id: (factory as any)._id.toString(),
-        demonstrations: demonstrationCounts.get((factory as any)._id.toString()) ?? 0
-      }
-    }) as FactoryWithDemonstrations[]
+    const factoriesWithDemonstrations = factories.map(factory => ({
+      ...factory.toJSON(),
+      id: (factory as any)._id.toString(),
+      demonstrations: demonstrationCounts.get((factory as any)._id.toString()) ?? 0
+    })) as FactoryWithDemonstrations[]
 
     const result: FactorySearchResult = {
       factories: factoriesWithDemonstrations,
