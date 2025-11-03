@@ -13,15 +13,6 @@ export interface TokenConfig {
 }
 
 export const supportedTokens: TokenConfig = {
-  USDC: {
-    name: 'USDC',
-    decimals: 6,
-    contractAddress: {
-      development: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-      test: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-      production: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
-    }
-  },
   CLONES: {
     name: 'CLONES',
     decimals: 18,
@@ -29,6 +20,15 @@ export const supportedTokens: TokenConfig = {
       development: '0x15eB86c7E54B350bf936d916Df33AEF697202E29',
       test: '0x15eB86c7E54B350bf936d916Df33AEF697202E29',
       production: '0xaadd98ad4660008c917c6fe7286bc54b2eef894d'
+    }
+  },
+  USDC: {
+    name: 'USDC',
+    decimals: 6,
+    contractAddress: {
+      development: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+      test: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+      production: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
     }
   },
   WETH: {
