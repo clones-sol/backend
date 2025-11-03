@@ -29,8 +29,6 @@ const router: Router = express.Router()
  *     summary: Validate a withdrawal before execution
  *     description: Checks if a withdrawal would leave sufficient funds for pending farmer claims
  *     tags: [Withdrawal]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -190,8 +188,6 @@ router.get(
  *     summary: Get maximum safe withdrawal amount
  *     description: Calculates the maximum amount that can be safely withdrawn without affecting pending claims
  *     tags: [Withdrawal]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: poolAddress

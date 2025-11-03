@@ -25,11 +25,11 @@ const options: swaggerJsdoc.Options = {
         ],
         components: {
             securitySchemes: {
-                walletAuth: {
+                connectTokenAuth: {
                     type: 'apiKey',
                     in: 'header',
-                    name: 'X-Wallet-Address',
-                    description: 'The wallet address of the authenticated user. This is a placeholder for a more robust authentication mechanism like JWT in the future.',
+                    name: 'x-connect-token',
+                    description: 'Connect token obtained from wallet connection endpoint. Required for authenticated requests.',
                 },
             },
             schemas: {
@@ -76,7 +76,7 @@ const options: swaggerJsdoc.Options = {
         },
         security: [
             {
-                walletAuth: [],
+                connectTokenAuth: [],
             },
         ],
     },
