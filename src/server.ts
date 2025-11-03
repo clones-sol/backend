@@ -79,7 +79,6 @@ app.use(
       'cancelToken',
       'responsetype',
       'x-forwarded-for',
-      'x-wallet-address',
       'x-connect-token',
       'x-csrf-token',
       'content-length',

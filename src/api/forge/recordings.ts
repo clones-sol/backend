@@ -176,8 +176,6 @@ async function runCQAProcessing(recordingDir: string): Promise<{
  *   post:
  *     summary: Process desktop recording with Clones Quality Agent
  *     tags: [Recordings]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: recordingId
@@ -303,8 +301,6 @@ router.post(
  *   get:
  *     summary: Check CQA service health
  *     tags: [Recordings]
- *     security:
- *       - walletAuth: []
  *     responses:
  *       '200':
  *         description: Service is healthy

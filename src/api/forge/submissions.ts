@@ -109,8 +109,6 @@ router.get(
  *   get:
  *     summary: Get any submission status
  *     tags: [Submissions]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: id

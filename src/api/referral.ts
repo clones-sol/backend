@@ -33,8 +33,6 @@ const isEvmAddressRule = ValidationRules.isEVMAddress()
  *     summary: Generate a new referral code for a wallet
  *     description: Creates a unique referral code for the specified EVM wallet address. This code can be shared with others to track referrals.
  *     tags: [Referral System]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -106,8 +104,6 @@ router.post(
  *     summary: Get referral code information for a wallet
  *     description: Retrieves the referral code and associated statistics for a specific EVM wallet address.
  *     tags: [Referral System]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: walletAddress
@@ -189,8 +185,6 @@ router.get(
  *     summary: Apply a referrer code
  *     description: Applies a referrer code to create a referral relationship (referrer → referree).
  *     tags: [Referral System]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -263,8 +257,6 @@ router.post(
  *     summary: Get referral statistics for a wallet
  *     description: Retrieves comprehensive referral statistics for a specific EVM wallet address.
  *     tags: [Referral System]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: walletAddress
@@ -310,8 +302,6 @@ router.get(
  *     summary: Check if a wallet has been referred
  *     description: Checks whether a specific EVM wallet address has been referred and returns the referrer info if applicable.
  *     tags: [Referral System]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: walletAddress
@@ -365,8 +355,6 @@ router.get(
  *     summary: Get referrer information for a wallet
  *     description: Retrieves the referrer information for a specific EVM wallet address that has been referred.
  *     tags: [Referral System]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: walletAddress
@@ -420,8 +408,6 @@ router.get(
  *     summary: Clean up expired referral codes (Admin only)
  *     description: Removes expired referral codes from the system. Requires admin authentication.
  *     tags: [Referral System]
- *     security:
- *       - walletAuth: []
  *     responses:
  *       200:
  *         description: Expired codes cleaned up successfully
@@ -466,8 +452,6 @@ router.post(
  *     summary: Get cleanup statistics (Admin only)
  *     description: Retrieves statistics about the cleanup process. Requires admin authentication.
  *     tags: [Referral System]
- *     security:
- *       - walletAuth: []
  *     responses:
  *       200:
  *         description: Cleanup statistics retrieved successfully
@@ -505,8 +489,6 @@ router.get(
  *     summary: Extend expiration for a referral code (Admin only)
  *     description: Extends the expiration date for a specific wallet's referral code. Requires admin authentication.
  *     tags: [Referral System]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -570,8 +552,6 @@ router.post(
  *     summary: Regenerate expired referral code (Admin only)
  *     description: Regenerates a new referral code for a wallet with an expired code. Requires admin authentication.
  *     tags: [Referral System]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:

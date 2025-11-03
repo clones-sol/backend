@@ -595,8 +595,6 @@ async function cleanupUploadFiles(
  *   post:
  *     summary: Initialize a new upload session
  *     tags: [Upload]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -665,8 +663,6 @@ router.post(
  *   post:
  *     summary: Upload a chunk
  *     tags: [Upload]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: uploadId
@@ -776,8 +772,6 @@ router.post(
  *   get:
  *     summary: Get upload status
  *     tags: [Upload]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: uploadId
@@ -822,8 +816,6 @@ router.get(
  *   delete:
  *     summary: Cancel upload
  *     tags: [Upload]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: uploadId
@@ -864,8 +856,6 @@ router.delete(
  *   post:
  *     summary: Complete upload and process files
  *     tags: [Upload]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: uploadId

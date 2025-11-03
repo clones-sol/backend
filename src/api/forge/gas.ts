@@ -27,8 +27,6 @@ const router: Router = express.Router()
  *   post:
  *     summary: Estimate gas cost for batch claims
  *     tags: [ForgeGas]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -89,8 +87,6 @@ router.post(
  *   post:
  *     summary: Analyze gas cost vs. reward
  *     tags: [ForgeGas]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -151,8 +147,6 @@ router.post(
  *   post:
  *     summary: Optimize batch size for gas efficiency
  *     tags: [ForgeGas]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:

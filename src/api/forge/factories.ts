@@ -225,11 +225,19 @@ router.post(
     const factoryIds = factories.map(f => (f as any)._id.toString())
     const demonstrationCounts = await getFactoriesDemonstrationCounts(factoryIds)
 
-    const factoriesWithDemonstrations = factories.map(factory => ({
-      ...factory.toJSON(),
-      id: (factory as any)._id.toString(),
-      demonstrations: demonstrationCounts.get((factory as any)._id.toString()) ?? 0
-    })) as FactoryWithDemonstrations[]
+    const factoriesWithDemonstrations = factories.map(factory => {
+      const factoryJson = factory.toJSON()
+      // DEBUG: Log rewardLimit values
+      if (factoryJson.apps?.[0]?.tasks?.[0]?.rewardLimit !== undefined) {
+        console.log(`DEBUG rewardLimit - Raw:`, factory.apps?.[0]?.tasks?.[0]?.rewardLimit, 
+                   `JSON:`, factoryJson.apps?.[0]?.tasks?.[0]?.rewardLimit)
+      }
+      return {
+        ...factoryJson,
+        id: (factory as any)._id.toString(),
+        demonstrations: demonstrationCounts.get((factory as any)._id.toString()) ?? 0
+      }
+    }) as FactoryWithDemonstrations[]
 
     const result: FactorySearchResult = {
       factories: factoriesWithDemonstrations,
@@ -249,8 +257,6 @@ router.post(
  *   get:
  *     summary: Get factories for authenticated user
  *     tags: [Factories]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: query
  *         name: limit
@@ -419,8 +425,6 @@ router.get(
  *   put:
  *     summary: Update factory
  *     tags: [Factories]
- *     security:
- *       - walletAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -529,8 +533,6 @@ router.put(
  *   post:
  *     summary: Create a new reward pool
  *     tags: [Factories]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -773,8 +775,6 @@ router.get(
  *   post:
  *     summary: Fund a reward pool
  *     tags: [Factories]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -835,8 +835,6 @@ router.post(
  *   post:
  *     summary: Generate a single claim signature
  *     tags: [Factories]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -899,8 +897,6 @@ router.post(
  *   post:
  *     summary: Generate batch claim data
  *     tags: [Factories]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -961,8 +957,6 @@ router.post(
  *   get:
  *     summary: Get current publisher information
  *     tags: [Factories]
- *     security:
- *       - walletAuth: []
  *     responses:
  *       '200':
  *         description: Publisher information
@@ -996,8 +990,6 @@ router.get(
  *   post:
  *     summary: Withdraw funds from a reward pool (creator only)
  *     tags: [Factories]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:

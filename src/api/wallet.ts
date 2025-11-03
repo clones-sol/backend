@@ -420,8 +420,6 @@ router.get(
  *     summary: Set address's nickname
  *     description: Sets or updates the nickname for a wallet address. Requires authentication.
  *     tags: [Wallet]
- *     security:
- *       - walletAuth: []
  *     requestBody:
  *       required: true
  *       content:
