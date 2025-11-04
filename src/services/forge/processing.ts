@@ -277,14 +277,6 @@ export async function processNextInQueue() {
               break
             }
 
-            // Ensure maxReward is a number for calculations
-            if (typeof maxReward !== 'number') {
-              reward = 0
-              gradeResult.reasoning = `( system: no reward given - invalid reward limit ) ${gradeResult.reasoning}`
-              logger.info('No reward given - invalid reward limit')
-              break
-            }
-
             // Check 3: Previous submission with higher/equal score
             const previousSubmission = await DemonstrationSubmission.findOne({
               address: submission.address,

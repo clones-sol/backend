@@ -8,7 +8,7 @@ export const coerceDecimalValue = (value: unknown): number => {
         return Number.isNaN(parsed) ? 0 : parsed
     }
 
-    if (value !== null && typeof value === 'object' && 'toString' in value) {
+    if (value !== null && typeof value === 'object' && typeof value.toString === 'function') {
         const stringified = (value as { toString: () => string }).toString()
         const parsed = Number.parseFloat(stringified)
         return Number.isNaN(parsed) ? 0 : parsed

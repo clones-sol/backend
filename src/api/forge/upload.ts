@@ -30,6 +30,7 @@ import {
 } from '../../types/index.ts'
 import { initUploadSchema, uploadChunkSchema, uploadIdParamSchema } from '../schemas/forgeUpload.ts'
 import { logger } from "../../services/logger.ts"
+import { coerceDecimalValue } from '../../utils/decimal.ts'
 
 // Initialize services as singletons (module-level)
 const blockchainService = new BlockchainService(process.env.RPC_URL || '')
@@ -363,7 +364,7 @@ async function verifyFactoryAndBalance(meta: Record<string, any>): Promise<any> 
   const tokenAddress = factory.token.address
   const currentBalance = await blockchainService.getTokenBalance(tokenAddress, factory.poolAddress)
 
-  const taskRewardLimit = task.rewardLimit ? (typeof task.rewardLimit === 'number' ? task.rewardLimit : parseFloat(task.rewardLimit.toString())) : 0
+  const taskRewardLimit = coerceDecimalValue(task.rewardLimit)
   if (task.rewardLimit !== undefined && currentBalance < taskRewardLimit) {
     logger.info(`[UPLOAD] Insufficient funds for task: ${currentBalance} < ${taskRewardLimit}`)
     throw ApiError.insufficientFunds(`Factory has insufficient funds for this task (required: ${taskRewardLimit}, available: ${currentBalance})`)
