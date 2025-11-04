@@ -176,7 +176,7 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
       },
       required: false
     },
-    
+
     // Referral snapshot - captured at submission processing time
     farmerReferrerAddress: { type: String, required: false },
     factoryReferrerAddress: { type: String, required: false },
