@@ -1,4 +1,4 @@
-import { type Document, model, Schema } from 'mongoose'
+import { type Document, model, Schema, Types } from 'mongoose'
 import {
   type Factory,
   type FactoryApp,
@@ -10,9 +10,21 @@ import {
   UploadLimitType
 } from '../types/factory.ts'
 
-// Mongoose document interface extending Factory
-export interface IFactoryDocument extends Document, Omit<Factory, 'id'> {
+// Mongoose-specific task interface with Decimal128
+interface IFactoryTaskDocument extends Omit<FactoryTask, 'rewardLimit'> {
+  rewardLimit?: Types.Decimal128
+}
+
+// Mongoose-specific app interface
+interface IFactoryAppDocument extends Omit<FactoryApp, 'tasks'> {
+  tasks: IFactoryTaskDocument[]
+}
+
+// Mongoose document interface with Decimal128 fields
+export interface IFactoryDocument extends Document, Omit<Factory, 'id' | 'totalEarned' | 'apps'> {
   _id: string
+  totalEarned: Types.Decimal128
+  apps: IFactoryAppDocument[]
 }
 
 // Token schema
@@ -78,8 +90,14 @@ const factoryTaskSchema = new Schema<FactoryTask>(
       min: 1
     },
     rewardLimit: {
-      type: Number,
-      min: 0
+      type: Schema.Types.Decimal128,
+      min: 0,
+      get: function (value: any) {
+        return value ? parseFloat(value.toString()) : value
+      },
+      set: function (value: any) {
+        return value === null || value === undefined ? value : Types.Decimal128.fromString(value.toString())
+      }
     }
   },
   { _id: false }
@@ -183,9 +201,15 @@ const factorySchema = new Schema<IFactoryDocument>(
 
     // Statistics
     totalEarned: {
-      type: Number,
+      type: Schema.Types.Decimal128,
       default: 0,
-      min: 0
+      min: 0,
+      get: function (value: any) {
+        return value ? parseFloat(value.toString()) : value
+      },
+      set: function (value: any) {
+        return value === null || value === undefined ? value : Types.Decimal128.fromString(value.toString())
+      }
     },
 
     // Configuration
@@ -206,6 +230,7 @@ const factorySchema = new Schema<IFactoryDocument>(
     collection: 'factories',
     toJSON: {
       virtuals: true,
+      getters: true,
       transform: (_doc, ret) => {
         const { _id, __v, ...rest } = ret
         return { id: _id, ...rest }

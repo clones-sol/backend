@@ -53,21 +53,71 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
     },
     grading_metrics: { type: mongoose.Schema.Types.Mixed, required: false },
     error: { type: String, required: false },
-    reward: { type: Number, required: false },
-    maxReward: { type: Number, required: false },
+    reward: {
+      type: mongoose.Schema.Types.Decimal128,
+      required: false,
+      get: function (value: any) {
+        return value ? parseFloat(value.toString()) : value
+      },
+      set: function (value: any) {
+        return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+      }
+    },
+    maxReward: {
+      type: mongoose.Schema.Types.Decimal128,
+      required: false,
+      get: function (value: any) {
+        return value ? parseFloat(value.toString()) : value
+      },
+      set: function (value: any) {
+        return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+      }
+    },
     clampedScore: { type: Number, required: false },
     onChainReward: {
       type: {
         tokenAddress: String,
         poolAddress: String,
         amount: Number,
-        grossAmount: Number,
-        feeAmount: Number,
-        netAmount: Number,
+        grossAmount: {
+          type: mongoose.Schema.Types.Decimal128,
+          get: function (value: any) {
+            return value ? parseFloat(value.toString()) : value
+          },
+          set: function (value: any) {
+            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+          }
+        },
+        feeAmount: {
+          type: mongoose.Schema.Types.Decimal128,
+          get: function (value: any) {
+            return value ? parseFloat(value.toString()) : value
+          },
+          set: function (value: any) {
+            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+          }
+        },
+        netAmount: {
+          type: mongoose.Schema.Types.Decimal128,
+          get: function (value: any) {
+            return value ? parseFloat(value.toString()) : value
+          },
+          set: function (value: any) {
+            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+          }
+        },
         taskId: String,
         txHash: String,
         timestamp: Number,
-        cumulativeAmount: Number
+        cumulativeAmount: {
+          type: mongoose.Schema.Types.Decimal128,
+          get: function (value: any) {
+            return value ? parseFloat(value.toString()) : value
+          },
+          set: function (value: any) {
+            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+          }
+        }
       },
       required: false
     },
@@ -82,13 +132,45 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
         publisherUsed: String,
         poolAddress: String,
         tokenAddress: String,
-        alreadyClaimed: Number,
-        newClaimableAmount: Number,
-        feePercentage: Number,
+        alreadyClaimed: {
+          type: mongoose.Schema.Types.Decimal128,
+          get: function (value: any) {
+            return value ? parseFloat(value.toString()) : value
+          },
+          set: function (value: any) {
+            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+          }
+        },
+        newClaimableAmount: {
+          type: mongoose.Schema.Types.Decimal128,
+          get: function (value: any) {
+            return value ? parseFloat(value.toString()) : value
+          },
+          set: function (value: any) {
+            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+          }
+        },
+        feePercentage: {
+          type: mongoose.Schema.Types.Decimal128,
+          get: function (value: any) {
+            return value ? parseFloat(value.toString()) : value
+          },
+          set: function (value: any) {
+            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+          }
+        },
         // Referral data for multi-recipient payouts
         referrals: [{
           address: String,
-          amount: Number,
+          amount: {
+            type: mongoose.Schema.Types.Decimal128,
+            get: function (value: any) {
+              return value ? parseFloat(value.toString()) : value
+            },
+            set: function (value: any) {
+              return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+            }
+          },
           type: { type: String, enum: ['farmer_referrer', 'factory_referrer'] }
         }]
       },
@@ -103,7 +185,10 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
   },
   {
     collection: 'demonstration_submissions',
-    timestamps: true
+    timestamps: true,
+    toJSON: {
+      getters: true
+    }
   }
 )
 

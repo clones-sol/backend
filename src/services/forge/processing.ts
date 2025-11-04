@@ -128,11 +128,11 @@ export async function processNextInQueue() {
         pipeline.stdout.on('data', (data) => {
           stdout += data
           stdoutLineBuffer += data.toString()
-          
+
           // Log complete lines as they come
           const lines = stdoutLineBuffer.split('\n')
           stdoutLineBuffer = lines.pop() || '' // Keep incomplete line in buffer
-          
+
           lines.forEach(line => {
             if (line.trim()) {
               logger.info({ cqaOutput: 'stdout', line }, 'CQA stdout')
@@ -143,11 +143,11 @@ export async function processNextInQueue() {
         pipeline.stderr.on('data', (data) => {
           stderr += data
           stderrLineBuffer += data.toString()
-          
+
           // Log complete lines as they come
           const lines = stderrLineBuffer.split('\n')
           stderrLineBuffer = lines.pop() || '' // Keep incomplete line in buffer
-          
+
           lines.forEach(line => {
             if (line.trim()) {
               logger.warn({ cqaOutput: 'stderr', line }, 'CQA stderr')
@@ -163,15 +163,15 @@ export async function processNextInQueue() {
           if (stderrLineBuffer.trim()) {
             logger.warn({ cqaOutput: 'stderr', line: stderrLineBuffer.trim() }, 'CQA stderr (final)')
           }
-          
+
           if (code === 0) {
             logger.info({ exitCode: code, stdoutLength: stdout.length, stderrLength: stderr.length }, 'CQA process completed successfully')
             resolve()
           } else {
-            logger.error({ 
-              exitCode: code, 
-              fullStdout: stdout, 
-              fullStderr: stderr 
+            logger.error({
+              exitCode: code,
+              fullStdout: stdout,
+              fullStderr: stderr
             }, 'CQA process failed')
             reject(new Error(`Clones Quality Agent failed:\nstdout: ${stdout}\nstderr: ${stderr}`))
           }
@@ -215,7 +215,7 @@ export async function processNextInQueue() {
 
       // Get factory details and calculate reward
       let reward
-      let maxReward
+      let maxReward: number = 0
       const clampedScore = Math.max(0, Math.min(100, gradeResult.score))
       let onChainReward: OnChainReward | undefined
       let retries = 3
@@ -268,12 +268,20 @@ export async function processNextInQueue() {
             }
 
             if (task.rewardLimit) {
-              maxReward = task.rewardLimit
+              maxReward = typeof task.rewardLimit === 'number' ? task.rewardLimit : parseFloat(task.rewardLimit.toString())
             }
             else {
               reward = 0
               gradeResult.reasoning = `( system: no reward given - task has no reward limit ) ${gradeResult.reasoning}`
               logger.info('No reward given - task has no reward limit')
+              break
+            }
+
+            // Ensure maxReward is a number for calculations
+            if (typeof maxReward !== 'number') {
+              reward = 0
+              gradeResult.reasoning = `( system: no reward given - invalid reward limit ) ${gradeResult.reasoning}`
+              logger.info('No reward given - invalid reward limit')
               break
             }
 

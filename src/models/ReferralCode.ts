@@ -11,7 +11,11 @@ export interface IReferralCode {
   updatedAt?: Date
 }
 
-const ReferralCodeSchema = new mongoose.Schema<IReferralCode>(
+interface IReferralCodeDocument extends Omit<IReferralCode, 'totalRewards'> {
+  totalRewards: mongoose.Types.Decimal128
+}
+
+const ReferralCodeSchema = new mongoose.Schema<IReferralCodeDocument>(
   {
     walletAddress: {
       type: String,
@@ -29,8 +33,14 @@ const ReferralCodeSchema = new mongoose.Schema<IReferralCode>(
     },
 
     totalRewards: {
-      type: Number,
-      default: 0
+      type: mongoose.Schema.Types.Decimal128,
+      default: mongoose.Types.Decimal128.fromString('0'),
+      get: function (value: any) {
+        return value ? parseFloat(value.toString()) : value
+      },
+      set: function (value: any) {
+        return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+      }
     },
     expiresAt: {
       type: Date
@@ -46,7 +56,10 @@ const ReferralCodeSchema = new mongoose.Schema<IReferralCode>(
     }
   },
   {
-    collection: 'referral_codes'
+    collection: 'referral_codes',
+    toJSON: {
+      getters: true
+    }
   }
 )
 
@@ -59,4 +72,4 @@ ReferralCodeSchema.index({ isActive: 1, expiresAt: 1 }) // For finding active, n
 ReferralCodeSchema.index({ walletAddress: 1, isActive: 1 }) // For finding active codes by wallet
 ReferralCodeSchema.index({ totalRewards: -1 }) // For sorting by rewards (descending)
 
-export const ReferralCodeModel = mongoose.model<IReferralCode>('ReferralCode', ReferralCodeSchema)
+export const ReferralCodeModel = mongoose.model<IReferralCodeDocument>('ReferralCode', ReferralCodeSchema)

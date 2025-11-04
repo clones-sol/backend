@@ -8,7 +8,8 @@ import {
   validateParams,
   validateQuery
 } from '../../middleware/validator.ts'
-import { FactoryModel } from '../../models/Factory.ts'
+import { FactoryModel, type IFactoryDocument } from '../../models/Factory.ts'
+import { coerceDecimalValue } from '../../utils/decimal.ts'
 import { createFactoryService } from '../../services/blockchain/factoryTransactionService.ts'
 import BlockchainService from '../../services/blockchain/index.ts'
 import { getTokenContractAddress, supportedTokens } from '../../services/blockchain/tokens.ts'
@@ -222,14 +223,21 @@ router.post(
     const total = await FactoryModel.countDocuments(query)
 
     // Add demonstration counts to factories
-    const factoryIds = factories.map(f => (f as any)._id.toString())
+    const factoryIds = factories.map(f => (f as unknown as IFactoryDocument)._id.toString())
     const demonstrationCounts = await getFactoriesDemonstrationCounts(factoryIds)
 
-    const factoriesWithDemonstrations = factories.map(factory => ({
-      ...factory.toJSON(),
-      id: (factory as any)._id.toString(),
-      demonstrations: demonstrationCounts.get((factory as any)._id.toString()) ?? 0
-    })) as FactoryWithDemonstrations[]
+    const factoriesWithDemonstrations: FactoryWithDemonstrations[] = factories.map(factory => {
+      const factoryDocument = factory as unknown as IFactoryDocument
+      const factoryJson = factoryDocument.toJSON() as Omit<Factory, 'totalEarned'> & { totalEarned: unknown }
+      const id = factoryDocument._id.toString()
+
+      return {
+        ...factoryJson,
+        id,
+        totalEarned: coerceDecimalValue(factoryJson.totalEarned),
+        demonstrations: demonstrationCounts.get(id) ?? 0
+      }
+    })
 
     const result: FactorySearchResult = {
       factories: factoriesWithDemonstrations,
@@ -293,14 +301,21 @@ router.get(
     const total = await FactoryModel.countDocuments(query)
 
     // Add demonstration counts to factories
-    const factoryIds = factories.map(f => (f as any)._id.toString())
+    const factoryIds = factories.map(f => (f as unknown as IFactoryDocument)._id.toString())
     const demonstrationCounts = await getFactoriesDemonstrationCounts(factoryIds)
 
-    const factoriesWithDemonstrations = factories.map(factory => ({
-      ...factory.toJSON(),
-      id: (factory as any)._id.toString(),
-      demonstrations: demonstrationCounts.get((factory as any)._id.toString()) ?? 0
-    })) as FactoryWithDemonstrations[]
+    const factoriesWithDemonstrations: FactoryWithDemonstrations[] = factories.map(factory => {
+      const factoryDocument = factory as unknown as IFactoryDocument
+      const factoryJson = factoryDocument.toJSON() as Omit<Factory, 'totalEarned'> & { totalEarned: unknown }
+      const id = factoryDocument._id.toString()
+
+      return {
+        ...factoryJson,
+        id,
+        totalEarned: coerceDecimalValue(factoryJson.totalEarned),
+        demonstrations: demonstrationCounts.get(id) ?? 0
+      }
+    })
 
     const result: FactorySearchResult = {
       factories: factoriesWithDemonstrations,
@@ -515,7 +530,7 @@ router.put(
     }
 
     const updatedFactory = await FactoryModel.findById(id)
-    res.json(successResponse(updatedFactory?.toJSON()))
+    res.json(successResponse(updatedFactory ? updatedFactory.toJSON() : null))
   })
 )
 
