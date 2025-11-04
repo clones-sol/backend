@@ -3,7 +3,7 @@
 services:
   # Development Services
   mongodb:
-    image: mongo:8.0.15
+    image: mongo:7.0.25
     container_name: mongodb
     ports:
       - "27017:27017"

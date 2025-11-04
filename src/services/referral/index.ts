@@ -11,6 +11,7 @@ import { type IReferralCode, ReferralCodeModel } from '../../models/ReferralCode
 import { ContentFilterService } from '../validation/contentFilter.ts'
 import { ReferralCleanupService } from './cleanupService.ts'
 import { logger } from "../logger.ts"
+import { coerceDecimalValue } from '../../utils/decimal.ts'
 
 export class ReferralService {
   private cleanupService: ReferralCleanupService
@@ -107,42 +108,39 @@ export class ReferralService {
     )
   }
 
+  async validateReferralCode(referralCode: string): Promise<string | null> {
+    const normalizedCode = referralCode.trim().toUpperCase()
+
+    if (!normalizedCode) {
+      return null
+    }
+
+    const referralDoc = await ReferralCodeModel.findOne({ referralCode: normalizedCode, isActive: true }).exec()
+
+    if (!referralDoc) {
+      return null
+    }
+
+    if (referralDoc.expiresAt && referralDoc.expiresAt.getTime() < Date.now()) {
+      return null
+    }
+
+    return referralDoc.walletAddress
+  }
+
   /**
    * Get referral code for a wallet address
    */
   async getReferralCode(walletAddress: string): Promise<IReferralCode | null> {
-    return await ReferralCodeModel.findOne({ walletAddress, isActive: true }).lean().exec()
-  }
+    const doc = await ReferralCodeModel.findOne({ walletAddress, isActive: true }).exec()
+    if (!doc) return null
 
-  /**
-   * Validate a referral code and get the referrer's wallet address
-   */
-  async validateReferralCode(referralCode: string): Promise<string | null> {
-    const codeRecord = await ReferralCodeModel.findOne({
-      referralCode: { $regex: new RegExp(`^${referralCode}$`, 'i') }, // Case-insensitive
-      isActive: true
-    }).lean()
+    const referralCodeJson = doc.toJSON() as Omit<IReferralCode, 'totalRewards'> & { totalRewards: unknown }
 
-    if (!codeRecord) {
-      return null
+    return {
+      ...referralCodeJson,
+      totalRewards: coerceDecimalValue(referralCodeJson.totalRewards)
     }
-
-    // Check content filter on validation, just in case a code was created before the filter was in place
-    if (!(await ContentFilterService.isReferralCodeAcceptable(referralCode))) {
-      logger.warn(`Attempt to use unacceptable referral code "${referralCode}".`)
-      return null
-    }
-
-    // Check if code has expired
-    if (codeRecord.expiresAt && codeRecord.expiresAt < new Date()) {
-      // Mark code as inactive
-      await ReferralCodeModel.findByIdAndUpdate(codeRecord._id, {
-        isActive: false
-      })
-      return null
-    }
-
-    return codeRecord.walletAddress
   }
 
   /**
