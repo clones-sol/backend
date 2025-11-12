@@ -195,6 +195,9 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
 // Index to help with querying pending submissions
 demonstrationSubmissionSchema.index({ status: 1, createdAt: 1 })
 
+// Index to help with referral rewards aggregation
+demonstrationSubmissionSchema.index({ 'claimAuthorization.referrals.address': 1 })
+
 export const DemonstrationSubmission = mongoose.model(
   'DemonstrationSubmission',
   demonstrationSubmissionSchema

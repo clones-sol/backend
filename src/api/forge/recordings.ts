@@ -22,7 +22,7 @@ const router: Router = express.Router()
 const upload = multer({
   dest: getUploadsPath('recordings'),
   limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB limit
+    fileSize: 200 * 1024 * 1024, // 200MB limit
     files: 4 // Exactly 4 files expected
   },
   fileFilter: (_req, file, cb) => {

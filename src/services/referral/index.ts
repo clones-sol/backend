@@ -11,7 +11,6 @@ import { type IReferralCode, ReferralCodeModel } from '../../models/ReferralCode
 import { ContentFilterService } from '../validation/contentFilter.ts'
 import { ReferralCleanupService } from './cleanupService.ts'
 import { logger } from "../logger.ts"
-import { coerceDecimalValue } from '../../utils/decimal.ts'
 
 export class ReferralService {
   private cleanupService: ReferralCleanupService
@@ -63,7 +62,6 @@ export class ReferralService {
           walletAddress,
           referralCode,
           isActive: true,
-          totalRewards: 0,
           expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 365 days from now (1 year)
         })
 
@@ -135,12 +133,7 @@ export class ReferralService {
     const doc = await ReferralCodeModel.findOne({ walletAddress, isActive: true }).exec()
     if (!doc) return null
 
-    const referralCodeJson = doc.toJSON() as Omit<IReferralCode, 'totalRewards'> & { totalRewards: unknown }
-
-    return {
-      ...referralCodeJson,
-      totalRewards: coerceDecimalValue(referralCodeJson.totalRewards)
-    }
+    return doc.toJSON() as IReferralCode
   }
 
   /**
@@ -209,7 +202,7 @@ export class ReferralService {
    * Get referral statistics for a wallet
    */
   async getReferralStats(walletAddress: string): Promise<{
-    referralInfo: (IReferralCode & { totalReferrals: number }) | null
+    referralInfo: (IReferralCode & { totalReferrals: number; totalRewards: number }) | null
     referrals: IReferral[]
   }> {
     const [referralCode, referrals] = await Promise.all([
@@ -231,9 +224,82 @@ export class ReferralService {
       referrerAddress: walletAddress
     })
 
-    const referralInfo: IReferralCode & { totalReferrals: number } = {
+    // Calculate total rewards by analyzing DemonstrationSubmission table
+    // Sum up amounts from referrals array where address matches walletAddress (case-insensitive)
+    // Group by token and convert to USD
+    const { DemonstrationSubmission } = await import('../../models/DemonstrationSubmission.ts')
+    const BlockchainService = (await import('../blockchain/index.ts')).default
+    const normalizedWalletAddress = walletAddress.toLowerCase()
+
+    const rewardsByTokenResult = await DemonstrationSubmission.aggregate([
+      {
+        $match: {
+          'claimAuthorization.referrals': { $exists: true, $ne: [] }
+        }
+      },
+      {
+        $unwind: '$claimAuthorization.referrals'
+      },
+      {
+        $addFields: {
+          'claimAuthorization.referrals.addressLower': {
+            $toLower: '$claimAuthorization.referrals.address'
+          }
+        }
+      },
+      {
+        $match: {
+          'claimAuthorization.referrals.addressLower': normalizedWalletAddress
+        }
+      },
+      // Join with Factory collection to get token information
+      {
+        $lookup: {
+          from: 'factories',
+          localField: 'meta.quest.pool_id',
+          foreignField: '_id',
+          as: 'factory'
+        }
+      },
+      {
+        $unwind: {
+          path: '$factory',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Group by token symbol and sum amounts
+      {
+        $group: {
+          _id: '$factory.token.symbol',
+          totalAmount: { $sum: '$claimAuthorization.referrals.amount' }
+        }
+      }
+    ])
+    console.log("rewardsByTokenResult", rewardsByTokenResult);
+
+    // Convert each token amount to USD and sum
+    let totalRewards = 0
+    for (const tokenReward of rewardsByTokenResult) {
+      if (tokenReward._id && tokenReward.totalAmount) {
+        try {
+          const tokenSymbol = tokenReward._id
+          console.log("tokenSymbol", tokenSymbol);
+          const amount = parseFloat(tokenReward.totalAmount.toString())
+          console.log("amount", amount);
+          const priceUSD = await BlockchainService.getTokenPriceUSD(tokenSymbol)
+          console.log("priceUSD", priceUSD);
+          totalRewards += amount * priceUSD
+        } catch (error: any) {
+          logger.warn(`Failed to get price for token ${tokenReward._id}: ${error.message}`)
+          // Continue with other tokens even if one fails
+        }
+      }
+    }
+
+    const referralInfo: IReferralCode & { totalReferrals: number; totalRewards: number } = {
       ...referralCode,
-      totalReferrals
+      totalReferrals,
+      totalRewards
     }
 
     return {
