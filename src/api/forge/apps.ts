@@ -6,6 +6,7 @@ import { ApiError, ErrorCode, successResponse } from '../../middleware/types/err
 import { validateBody, validateParams, validateQuery } from '../../middleware/validator.ts'
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
 import { APP_TASK_GENERATION_PROMPT } from '../../services/forge/index.ts'
+import { randomUUID } from 'crypto'
 import {
   type Factory,
   FactoryStatus,
@@ -484,7 +485,6 @@ router.put(
     const { id } = req.params
     const { apps } = req.body
 
-
     // @ts-expect-error
     const ownerAddress = req.walletAddress.toLowerCase()
 
@@ -503,11 +503,11 @@ router.put(
     const appsWithIds = apps.map((app: any) => ({
       ...app,
       // Only generate new ID if app doesn't have one
-      id: app.id || `app_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+      id: app.id || `app_${randomUUID()}`,
       tasks: app.tasks?.map((task: any) => ({
         ...task,
         // Only generate new ID if task doesn't have one
-        id: task.id || `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+        id: task.id || `task_${randomUUID()}`,
         // Convert rewardLimit to Decimal128 if it exists
         rewardLimit: task.rewardLimit !== undefined
           ? Types.Decimal128.fromString(task.rewardLimit.toString())

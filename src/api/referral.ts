@@ -153,9 +153,10 @@ router.get(
     const referralCode = await referralService.getReferralCode(walletAddress)
     if (!referralCode) throw ApiError.notFound('Referral code not found for this wallet')
 
-    const [referrerInfo, totalReferrals] = await Promise.all([
+    const [referrerInfo, totalReferrals, referralStats] = await Promise.all([
       referralService.getReferrer(walletAddress),
-      ReferralModel.countDocuments({ referrerAddress: walletAddress })
+      ReferralModel.countDocuments({ referrerAddress: walletAddress }),
+      referralService.getReferralStats(walletAddress)
     ])
 
     const referrer = referrerInfo
@@ -170,7 +171,7 @@ router.get(
         referralCode: referralCode.referralCode,
         walletAddress: referralCode.walletAddress,
         totalReferrals,
-        totalRewards: referralCode.totalRewards,
+        totalRewards: referralStats.referralInfo?.totalRewards || 0,
         isActive: referralCode.isActive,
         referrer
       })

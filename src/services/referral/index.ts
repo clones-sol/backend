@@ -232,9 +232,18 @@ export class ReferralService {
     const normalizedWalletAddress = walletAddress.toLowerCase()
 
     const rewardsByTokenResult = await DemonstrationSubmission.aggregate([
+      // Early filtering to reduce document set - check both original and lowercase versions
       {
         $match: {
-          'claimAuthorization.referrals': { $exists: true, $ne: [] }
+          'claimAuthorization.referrals': { 
+            $exists: true, 
+            $ne: [],
+            $elemMatch: {
+              address: { 
+                $in: [walletAddress, walletAddress.toLowerCase(), walletAddress.toUpperCase()] 
+              }
+            }
+          }
         }
       },
       {
@@ -275,23 +284,29 @@ export class ReferralService {
         }
       }
     ])
-    console.log("rewardsByTokenResult", rewardsByTokenResult);
 
-    // Convert each token amount to USD and sum
+    // Convert each token amount to USD and sum - fetch prices in parallel
     let totalRewards = 0
-    for (const tokenReward of rewardsByTokenResult) {
-      if (tokenReward._id && tokenReward.totalAmount) {
-        try {
-          const tokenSymbol = tokenReward._id
-          console.log("tokenSymbol", tokenSymbol);
+    const validTokenRewards = rewardsByTokenResult.filter(
+      tokenReward => tokenReward._id && tokenReward.totalAmount
+    )
+
+    if (validTokenRewards.length > 0) {
+      const pricePromises = validTokenRewards.map(tokenReward => 
+        BlockchainService.getTokenPriceUSD(tokenReward._id)
+      )
+
+      const priceResults = await Promise.allSettled(pricePromises)
+      
+      for (let i = 0; i < validTokenRewards.length; i++) {
+        const tokenReward = validTokenRewards[i]
+        const priceResult = priceResults[i]
+        
+        if (priceResult.status === 'fulfilled') {
           const amount = parseFloat(tokenReward.totalAmount.toString())
-          console.log("amount", amount);
-          const priceUSD = await BlockchainService.getTokenPriceUSD(tokenSymbol)
-          console.log("priceUSD", priceUSD);
-          totalRewards += amount * priceUSD
-        } catch (error: any) {
-          logger.warn(`Failed to get price for token ${tokenReward._id}: ${error.message}`)
-          // Continue with other tokens even if one fails
+          totalRewards += amount * priceResult.value
+        } else {
+          logger.warn(`Failed to get price for token ${tokenReward._id}: ${priceResult.reason?.message || 'Unknown error'}`)
         }
       }
     }
