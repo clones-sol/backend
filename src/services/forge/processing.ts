@@ -238,13 +238,6 @@ export async function processNextInQueue() {
         logger.info('Processing factory reward:', factory.name)
         while (retries > 0) {
           try {
-            // Reward skip conditions:
-            // 1. Missing task_id
-            // 2. Invalid task_id (no corresponding task found)
-            // 3. Previous submission exists with same title/task_id and higher/equal score
-            // 4. Per-task upload limit reached
-            // 5. Per-gym upload limit reached
-            // 6. Score below 50%
 
             // Check 1: Missing task_id
             if (!submission?.meta?.quest.task_id) {
@@ -314,44 +307,7 @@ export async function processNextInQueue() {
               }
             }
 
-            // Check 5: Per-gym upload limit
-            if (factory.uploadLimit) {
-              let gymSubmissionsCount
-              const limitType = factory.uploadLimit.type
-              const limitValue = factory.uploadLimit.value
-
-              if (limitType === UploadLimitType.perDay) {
-                // Get start of today
-                const startOfDay = new Date()
-                startOfDay.setHours(0, 0, 0, 0)
-
-                // Count submissions for today
-                gymSubmissionsCount = await DemonstrationSubmission.countDocuments({
-                  address: submission.address,
-                  'meta.quest.factory_id': factory._id.toString(),
-                  status: ForgeSubmissionProcessingStatus.COMPLETED,
-                  createdAt: { $gte: startOfDay },
-                  _id: { $ne: submission._id }
-                })
-              } else if (limitType === UploadLimitType.total) {
-                // Count all submissions
-                gymSubmissionsCount = await DemonstrationSubmission.countDocuments({
-                  address: submission.address,
-                  'meta.quest.factory_id': factory._id.toString(),
-                  status: ForgeSubmissionProcessingStatus.COMPLETED,
-                  _id: { $ne: submission._id }
-                })
-              }
-
-              if (typeof gymSubmissionsCount === 'number' && gymSubmissionsCount >= limitValue) {
-                reward = 0
-                gradeResult.reasoning = `( system: no reward given - per-gym upload limit of ${limitValue} ${limitType} reached ) ${gradeResult.reasoning}`
-                logger.info('No reward given - per-gym upload limit of', limitValue, limitType, 'reached')
-                break
-              }
-            }
-
-            // Check 6: Score threshold
+            // Check 5: Score threshold
             if (clampedScore < 50) {
               reward = 0
               gradeResult.reasoning = `( system: reward returned to factory due to <50% quality score ) ${gradeResult.reasoning}`

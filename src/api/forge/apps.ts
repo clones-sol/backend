@@ -8,7 +8,6 @@ import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
 import { APP_TASK_GENERATION_PROMPT } from '../../services/forge/index.ts'
 import {
   type Factory,
-  type FactoryApp,
   FactoryStatus,
   type FactoryTask,
   ForgeSubmissionProcessingStatus
@@ -43,11 +42,6 @@ interface TaskQueryParams {
   hide_adult?: string
 }
 
-interface TaskLimitInfo {
-  taskLimitReached: boolean
-  taskSubmissions: number
-  limitReason: string | null
-}
 
 
 interface MongoMatchFilter {
@@ -476,7 +470,7 @@ router.get(
 
 /**
  * @swagger
- * /forge/factories/{id}/apps:
+ * /forge/factories/apps/{id}:
  *   put:
  *     summary: Update factory apps
  *     tags: [Apps]
@@ -489,6 +483,8 @@ router.put(
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { id } = req.params
     const { apps } = req.body
+
+
     // @ts-expect-error
     const ownerAddress = req.walletAddress.toLowerCase()
 
@@ -503,18 +499,20 @@ router.put(
       throw ApiError.forbidden('Not authorized to update this factory')
     }
 
-    // Generate IDs for apps and tasks
-    const appsWithIds = apps.map((app: Omit<FactoryApp, 'id'>) => ({
+    // Generate IDs only for new apps and tasks (preserve existing IDs)
+    const appsWithIds = apps.map((app: any) => ({
       ...app,
-      id: `app_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
-      tasks: app.tasks.map((task: Omit<FactoryTask, 'id'>) => ({
+      // Only generate new ID if app doesn't have one
+      id: app.id || `app_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+      tasks: app.tasks?.map((task: any) => ({
         ...task,
-        id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+        // Only generate new ID if task doesn't have one
+        id: task.id || `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
         // Convert rewardLimit to Decimal128 if it exists
         rewardLimit: task.rewardLimit !== undefined
           ? Types.Decimal128.fromString(task.rewardLimit.toString())
           : undefined
-      }))
+      })) || []
     }))
 
     // Update the factory apps
