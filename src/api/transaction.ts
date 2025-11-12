@@ -928,8 +928,6 @@ router.post(
                 'onChainReward.timestamp': Date.now(),
                 'onChainReward.poolAddress': poolAddress,
                 'onChainReward.amount': grossAmount,
-                'onChainReward.tokenAddress':
-                  session.transactionParams.tokenAddress || '',
                 'onChainReward.grossAmount': grossAmount,
                 'onChainReward.feeAmount': feeAmount,
                 'onChainReward.netAmount': netAmount
