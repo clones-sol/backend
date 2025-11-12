@@ -157,23 +157,6 @@ export interface FactoryAnalytics {
   topTokens: Array<{ token: string; balance: number }>
 }
 
-// Extended app interface with limit information (from forge.ts)
-export interface AppWithLimitInfo {
-  _id: any
-  name: string
-  domain: string
-  description?: string | null
-  categories?: string[]
-  pool_id: any
-  tasks: any[]
-  createdAt?: Date
-  updatedAt?: Date
-  gymLimitReached: boolean
-  gymSubmissions: number
-  gymLimitType?: UploadLimitType
-  gymLimitValue?: number
-}
-
 // Task interface with limit information (from forge.ts)
 export interface TaskWithLimitInfo {
   _id: any

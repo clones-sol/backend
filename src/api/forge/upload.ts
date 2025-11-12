@@ -376,34 +376,34 @@ async function verifyFactoryAndBalance(meta: Record<string, any>): Promise<any> 
 async function checkFactoryUploadLimits(factory: Record<string, any>): Promise<void> {
   if (!factory.uploadLimit?.value) return
 
-  let gymSubmissions: number
+  let demoSubmissions: number
   const factoryId = factory._id.toString()
 
   switch (factory.uploadLimit.type) {
     case UploadLimitType.perDay: {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
-      gymSubmissions = await DemonstrationSubmission.countDocuments({
+      demoSubmissions = await DemonstrationSubmission.countDocuments({
         'meta.factoryId': factoryId,
         createdAt: { $gte: today },
         status: ForgeSubmissionProcessingStatus.COMPLETED,
         reward: { $gt: 0 }
       })
 
-      if (gymSubmissions >= factory.uploadLimit.value) {
+      if (demoSubmissions >= factory.uploadLimit.value) {
         logger.info(`[UPLOAD] Daily upload limit reached for pool.`)
         throw ApiError.forbidden('Daily upload limit reached for this pool')
       }
       break
     }
     case UploadLimitType.total:
-      gymSubmissions = await DemonstrationSubmission.countDocuments({
+      demoSubmissions = await DemonstrationSubmission.countDocuments({
         'meta.factoryId': factoryId,
         status: ForgeSubmissionProcessingStatus.COMPLETED,
         reward: { $gt: 0 }
       })
 
-      if (gymSubmissions >= factory.uploadLimit.value) {
+      if (demoSubmissions >= factory.uploadLimit.value) {
         logger.info(`[UPLOAD] Total upload limit reached for pool.`)
         throw ApiError.forbidden('Total upload limit reached for this pool.')
       }
