@@ -1,4 +1,5 @@
 import express, { type Request, type Response, type Router } from 'express'
+import { Types } from 'mongoose'
 import OpenAI from 'openai'
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
 import { ApiError, ErrorCode, successResponse } from '../../middleware/types/errors.ts'
@@ -6,14 +7,11 @@ import { validateBody, validateParams, validateQuery } from '../../middleware/va
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
 import { APP_TASK_GENERATION_PROMPT } from '../../services/forge/index.ts'
 import {
-  type AppWithLimitInfo,
   type Factory,
   type FactoryApp,
   FactoryStatus,
   type FactoryTask,
-  ForgeSubmissionProcessingStatus,
-  type TaskWithLimitInfo,
-  UploadLimitType
+  ForgeSubmissionProcessingStatus
 } from '../../types/factory.ts'
 import { generateContentSchema, getTasksSchema } from '../schemas/forgeFactory.ts'
 import { factoryIdParamSchema, updateFactoryAppsSchema } from '../schemas/forgeApps.ts'
@@ -51,11 +49,6 @@ interface TaskLimitInfo {
   limitReason: string | null
 }
 
-interface SubmissionMaps {
-  daily: Map<string, number>
-  total: Map<string, number>
-  byTask: Map<string, number>
-}
 
 interface MongoMatchFilter {
   _id?: string
@@ -131,8 +124,6 @@ function buildQueryPipeline(params: TaskQueryParams): PipelineStage[] {
       uploadLimit: '$apps.tasks.uploadLimit',
       rewardLimit: '$apps.tasks.rewardLimit',
       factoryId: '$_id',
-      uploadLimitType: '$uploadLimit.type',
-      uploadLimitValue: '$uploadLimit.value',
       app: {
         _id: '$apps.id',
         name: '$apps.name',
@@ -148,169 +139,44 @@ function buildQueryPipeline(params: TaskQueryParams): PipelineStage[] {
 }
 
 async function fetchSubmissionCounts(
-  factoryIds: string[],
   taskIds: string[]
-): Promise<SubmissionMaps> {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const [dailySubmissions, totalSubmissions, taskSubmissionsList] = await Promise.all([
-    DemonstrationSubmission.aggregate([
-      {
-        $match: {
-          'meta.factoryId': { $in: factoryIds },
-          createdAt: { $gte: today },
-          status: ForgeSubmissionProcessingStatus.COMPLETED,
-          reward: { $gt: 0 }
-        }
-      },
-      { $group: { _id: '$meta.quest.pool_id', count: { $sum: 1 } } }
-    ]),
-    DemonstrationSubmission.aggregate([
-      {
-        $match: {
-          'meta.factoryId': { $in: factoryIds },
-          status: ForgeSubmissionProcessingStatus.COMPLETED,
-          reward: { $gt: 0 }
-        }
-      },
-      { $group: { _id: '$meta.quest.pool_id', count: { $sum: 1 } } }
-    ]),
-    DemonstrationSubmission.aggregate([
-      {
-        $match: {
-          'meta.quest.task_id': { $in: taskIds },
-          status: ForgeSubmissionProcessingStatus.COMPLETED,
-          reward: { $gt: 0 }
-        }
-      },
-      { $group: { _id: '$meta.quest.task_id', count: { $sum: 1 } } }
-    ])
+): Promise<Map<string, number>> {
+  const taskSubmissionsList = await DemonstrationSubmission.aggregate([
+    {
+      $match: {
+        'meta.quest.task_id': { $in: taskIds },
+        status: ForgeSubmissionProcessingStatus.COMPLETED,
+        onChainReward: { $exists: true }
+      }
+    },
+    { $group: { _id: '$meta.quest.task_id', count: { $sum: 1 } } }
   ])
 
-  return {
-    daily: new Map(dailySubmissions.map((item) => [item._id.toString(), item.count])),
-    total: new Map(totalSubmissions.map((item) => [item._id.toString(), item.count])),
-    byTask: new Map(taskSubmissionsList.map((item) => [item._id.toString(), item.count]))
-  }
+  return new Map(taskSubmissionsList.map((item) => [item._id.toString(), item.count]))
 }
 
-function checkGymLimits(
-  taskData: Record<string, any>,
-  submissionMaps: SubmissionMaps
-): {
-  gymLimitReached: boolean
-  gymSubmissions: number
-} {
-  if (!taskData.uploadLimitValue) {
-    return { gymLimitReached: false, gymSubmissions: 0 }
-  }
-
-  const factoryId = taskData.factoryId.toString()
-  let gymSubmissions = 0
-
-  switch (taskData.uploadLimitType) {
-    case UploadLimitType.perDay:
-      gymSubmissions = submissionMaps.daily.get(factoryId) || 0
-      break
-    case UploadLimitType.total:
-      gymSubmissions = submissionMaps.total.get(factoryId) || 0
-      break
-  }
-
-  return {
-    gymLimitReached: gymSubmissions >= taskData.uploadLimitValue,
-    gymSubmissions
-  }
-}
 
 function checkTaskSpecificLimits(
   taskData: Record<string, any>,
-  submissionMaps: SubmissionMaps
+  submissionMap: Map<string, number>
 ): {
   taskLimitReached: boolean
   taskSubmissions: number
   limitReason: string | null
 } {
-  const hasTaskLimit =
-    taskData.uploadLimit ||
-    (taskData.uploadLimitType === UploadLimitType.perTask && taskData.uploadLimitValue)
-
-  if (!hasTaskLimit) {
+  if (!taskData.uploadLimit) {
     return { taskLimitReached: false, taskSubmissions: 0, limitReason: null }
   }
 
-  const taskSubmissions = submissionMaps.byTask.get(taskData._id.toString()) || 0
+  const taskSubmissions = submissionMap.get(taskData._id.toString()) || 0
 
-  if (taskData.uploadLimit && taskSubmissions >= taskData.uploadLimit) {
+  if (taskSubmissions >= taskData.uploadLimit) {
     return { taskLimitReached: true, taskSubmissions, limitReason: 'Task limit reached' }
-  }
-
-  if (
-    taskData.uploadLimitType === UploadLimitType.perTask &&
-    taskData.uploadLimitValue &&
-    taskSubmissions >= taskData.uploadLimitValue
-  ) {
-    return { taskLimitReached: true, taskSubmissions, limitReason: 'Per-task gym limit reached' }
   }
 
   return { taskLimitReached: false, taskSubmissions, limitReason: null }
 }
 
-function calculateTaskLimits(
-  taskData: Record<string, any>,
-  submissionMaps: SubmissionMaps
-): TaskLimitInfo {
-  const gymCheck = checkGymLimits(taskData, submissionMaps)
-  const taskCheck = checkTaskSpecificLimits(taskData, submissionMaps)
-
-  if (gymCheck.gymLimitReached) {
-    return {
-      taskLimitReached: true,
-      taskSubmissions: taskCheck.taskSubmissions,
-      limitReason:
-        taskData.uploadLimitType === UploadLimitType.perDay
-          ? 'Daily gym limit reached'
-          : 'Total gym limit reached'
-    }
-  }
-
-  return taskCheck
-}
-
-// TODO: unused function
-async function _processTasksWithLimitInfo(app: Record<string, any>, _submissions: any[]) {
-  return Promise.all(
-    app.tasks.map(async (task: FactoryTask) => {
-      let taskLimitReached = false
-      let taskSubmissions = 0
-      let taskUniqueSubmissions = 0
-
-      if (task.rewardLimit && task.rewardLimit > 0) {
-        const taskFilter = {
-          'meta.app.id': app.id,
-          'meta.task': task.id
-        }
-
-        const [totalSubmissions, uniqueSubmissions] = await Promise.all([
-          DemonstrationSubmission.countDocuments(taskFilter),
-          DemonstrationSubmission.distinct('meta.id', taskFilter).then((docs) => docs.length)
-        ])
-
-        taskSubmissions = totalSubmissions
-        taskUniqueSubmissions = uniqueSubmissions
-        taskLimitReached = totalSubmissions >= task.rewardLimit
-      }
-
-      return {
-        ...task,
-        limitReached: taskLimitReached,
-        submissions: taskSubmissions,
-        uniqueSubmissions: taskUniqueSubmissions
-      }
-    })
-  )
-}
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -458,9 +324,8 @@ router.get(
       return res.status(200).json(successResponse([]))
     }
 
-    const factoryIds = [...new Set(tasksFromDB.map((t) => t.factoryId.toString()))]
     const taskIds = tasksFromDB.map((t) => t._id.toString())
-    const submissionMaps = await fetchSubmissionCounts(factoryIds, taskIds)
+    const taskSubmissions = await fetchSubmissionCounts(taskIds)
 
     const tasks = []
     for (const taskData of tasksFromDB) {
@@ -468,11 +333,7 @@ router.get(
         continue
       }
 
-      const limitInfo = calculateTaskLimits(taskData, submissionMaps)
-      const gymSubmissions =
-        submissionMaps.daily.get(taskData.factoryId.toString()) ||
-        submissionMaps.total.get(taskData.factoryId.toString()) ||
-        0
+      const limitInfo = checkTaskSpecificLimits(taskData, taskSubmissions)
 
       tasks.push({
         _id: taskData._id,
@@ -482,12 +343,7 @@ router.get(
         uploadLimitReached: limitInfo.taskLimitReached,
         currentSubmissions: limitInfo.taskSubmissions,
         limitReason: limitInfo.limitReason,
-        app: {
-          ...taskData.app,
-          gymLimitType: taskData.uploadLimitType,
-          gymSubmissions: gymSubmissions,
-          gymLimitValue: taskData.uploadLimitValue
-        }
+        app: taskData.app
       })
     }
 
@@ -506,7 +362,7 @@ router.get(
   '/',
   validateQuery(getTasksSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { pool_id, min_reward, max_reward, categories, query } = req.query
+    const { pool_id, categories, query } = req.query as TaskQueryParams
 
     // Build aggregation pipeline for factories
     const pipeline: MongoAggregationPipeline = []
@@ -564,133 +420,56 @@ router.get(
         description: '$apps.description',
         categories: '$apps.categories',
         tasks: '$apps.tasks',
-        factoryId: '$_id',
-        uploadLimit: '$uploadLimit',
         pool_id: '$_id'
       }
     })
 
     const appsFromDB = await FactoryModel.aggregate(pipeline)
 
-    // Process apps and calculate limits
-    const appsWithLimitInfo = await Promise.all(
-      appsFromDB.map(async (app) => {
-        // Create app object with limit info
-        const appObj: AppWithLimitInfo = {
-          _id: app._id,
-          name: app.name,
-          domain: app.domain,
-          description: app.description,
-          categories: app.categories,
-          tasks: app.tasks,
-          pool_id: app.pool_id,
-          gymLimitReached: false,
-          gymSubmissions: 0,
-          gymLimitType: undefined,
-          gymLimitValue: undefined
-        }
+    if (appsFromDB.length === 0) {
+      return res.status(200).json(successResponse([]))
+    }
 
-        // Check factory-wide upload limit
-        let gymLimitReached = false
-        let gymSubmissions = 0
+    // Collect all task IDs for batch submission counting
+    const allTaskIds: string[] = []
+    appsFromDB.forEach(app => {
+      app.tasks.forEach((task: FactoryTask) => {
+        allTaskIds.push(task.id)
+      })
+    })
 
-        if (app.uploadLimit?.value) {
-          switch (app.uploadLimit.type) {
-            case UploadLimitType.perDay: {
-              const today = new Date()
-              today.setHours(0, 0, 0, 0)
-              gymSubmissions = await DemonstrationSubmission.countDocuments({
-                'meta.factoryId': app.factoryId,
-                createdAt: { $gte: today },
-                status: ForgeSubmissionProcessingStatus.COMPLETED,
-                reward: { $gt: 0 }
-              })
-              gymLimitReached = gymSubmissions >= app.uploadLimit.value
-              break
-            }
+    // Fetch all submission counts in one query
+    const submissionMap = allTaskIds.length > 0 ? await fetchSubmissionCounts(allTaskIds) : new Map<string, number>()
 
-            case UploadLimitType.total:
-              gymSubmissions = await DemonstrationSubmission.countDocuments({
-                'meta.factoryId': app.factoryId,
-                status: ForgeSubmissionProcessingStatus.COMPLETED,
-                reward: { $gt: 0 }
-              })
-              gymLimitReached = gymSubmissions >= app.uploadLimit.value
-              break
-          }
-        }
-
-        // Add factory limit info to app object
-        appObj.gymLimitReached = gymLimitReached
-        appObj.gymSubmissions = gymSubmissions
-        appObj.gymLimitType = app.uploadLimit?.type
-        appObj.gymLimitValue = app.uploadLimit?.value
-
-        // Process tasks and add limit information
-        const tasksWithLimitInfo = await Promise.all(
-          app.tasks.map(async (task: FactoryTask) => {
-            let taskLimitReached = false
-            let taskSubmissions = 0
-            let limitReason: string | null = null
-
-            // Count submissions for this specific task
-            if (
-              task.uploadLimit ||
-              (app.uploadLimit?.type === UploadLimitType.perTask && app.uploadLimit?.value)
-            ) {
-              taskSubmissions = await DemonstrationSubmission.countDocuments({
-                'meta.quest.task_id': task.id,
-                status: ForgeSubmissionProcessingStatus.COMPLETED,
-                reward: { $gt: 0 }
-              })
-
-              // Check if task has reached its limit
-              if (task.uploadLimit && taskSubmissions >= task.uploadLimit) {
-                taskLimitReached = true
-                limitReason = 'Task limit reached'
-              }
-
-              // Check factory-wide per-task limit if applicable
-              if (
-                !taskLimitReached &&
-                app.uploadLimit?.type === UploadLimitType.perTask &&
-                app.uploadLimit?.value &&
-                taskSubmissions >= app.uploadLimit.value
-              ) {
-                taskLimitReached = true
-                limitReason = 'Per-task gym limit reached'
-              }
-            }
-
-            // If factory limit is reached, mark all tasks as limited
-            if (gymLimitReached) {
-              taskLimitReached = true
-              limitReason =
-                app.uploadLimit?.type === UploadLimitType.perDay
-                  ? 'Daily gym limit reached'
-                  : 'Total gym limit reached'
-            }
-
-            // Add limit info to task object
-            return {
-              _id: task.id,
-              ...task,
-              uploadLimitReached: taskLimitReached,
-              currentSubmissions: taskSubmissions,
-              limitReason: limitReason
-            } as TaskWithLimitInfo
-          })
+    // Process apps with task limit information
+    const appsWithLimitInfo = appsFromDB.map(app => {
+      // Process tasks and add limit information
+      const tasksWithLimitInfo = app.tasks.map((task: FactoryTask) => {
+        const limitInfo = checkTaskSpecificLimits(
+          { _id: task.id, uploadLimit: task.uploadLimit },
+          submissionMap
         )
 
-        // Return app with all tasks and limit information
         return {
-          ...appObj,
-          tasks: tasksWithLimitInfo
+          _id: task.id,
+          ...task,
+          uploadLimitReached: limitInfo.taskLimitReached,
+          currentSubmissions: limitInfo.taskSubmissions,
+          limitReason: limitInfo.limitReason
         }
       })
-    )
 
-    // Return all apps with limit information
+      return {
+        _id: app._id,
+        name: app.name,
+        domain: app.domain,
+        description: app.description,
+        categories: app.categories,
+        tasks: tasksWithLimitInfo,
+        pool_id: app.pool_id
+      }
+    })
+
     res.status(200).json(successResponse(appsWithLimitInfo))
   })
 )
@@ -725,17 +504,21 @@ router.put(
     }
 
     // Generate IDs for apps and tasks
-    const appsWithIds: FactoryApp[] = apps.map((app: Omit<FactoryApp, 'id'>) => ({
+    const appsWithIds = apps.map((app: Omit<FactoryApp, 'id'>) => ({
       ...app,
       id: `app_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       tasks: app.tasks.map((task: Omit<FactoryTask, 'id'>) => ({
         ...task,
-        id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+        id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+        // Convert rewardLimit to Decimal128 if it exists
+        rewardLimit: task.rewardLimit !== undefined
+          ? Types.Decimal128.fromString(task.rewardLimit.toString())
+          : undefined
       }))
     }))
 
     // Update the factory apps
-    factory.apps = appsWithIds
+    factory.apps = appsWithIds as any
     await factory.save()
 
     // Return updated factory
