@@ -31,6 +31,12 @@ const options: swaggerJsdoc.Options = {
                     name: 'x-connect-token',
                     description: 'Connect token obtained from wallet connection endpoint. Required for authenticated requests.',
                 },
+                WalletAuth: {
+                    type: 'apiKey',
+                    in: 'header',
+                    name: 'x-wallet-address',
+                    description: 'Wallet address for authenticated data marketplace requests.',
+                },
             },
             schemas: {
                 Error: {
