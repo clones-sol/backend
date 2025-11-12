@@ -92,8 +92,7 @@ export async function getLeaderboardData() {
       $group: {
         _id: {
           address: '$address',
-          factoryId: '$meta.quest.pool_id',
-          tokenAddress: '$onChainReward.tokenAddress'
+          factoryId: '$meta.quest.pool_id'
         },
         tasks: { $sum: 1 },
         rewards: { $sum: '$reward' },

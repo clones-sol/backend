@@ -76,7 +76,6 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
     clampedScore: { type: Number, required: false },
     onChainReward: {
       type: {
-        tokenAddress: String,
         poolAddress: String,
         amount: Number,
         grossAmount: {
