@@ -361,8 +361,11 @@ async function verifyFactoryAndBalance(meta: Record<string, any>): Promise<any> 
     throw ApiError.badRequest('Invalid data: missing task')
   }
 
-  const tokenAddress = factory.token.address
-  const currentBalance = await blockchainService.getTokenBalance(tokenAddress, factory.poolAddress)
+  let currentBalance = 0;
+  if (factory.token && factory.poolAddress) {
+    const tokenAddress = factory.token.address
+    currentBalance = await blockchainService.getTokenBalance(tokenAddress, factory.poolAddress)
+  }
 
   const taskRewardLimit = coerceDecimalValue(task.rewardLimit)
   if (task.rewardLimit !== undefined && currentBalance < taskRewardLimit) {

@@ -107,7 +107,7 @@ router.get(
 
 /**
  * @swagger
- * /forge/factories:
+ * /forge/factories/search:
  *   post:
  *     summary: Search factories with advanced filtering
  *     tags: [Factories]
@@ -362,16 +362,19 @@ router.get(
       throw ApiError.notFound('Factory not found')
     }
 
-    const [balance, demonstrations] = await Promise.all([
-      blockchainService.getTokenBalance(factory.token.address, factory.poolAddress),
-      getFactoryDemonstrationCount(id)
-    ])
-
+    let balance = 0;
+    let demonstrations = 0;
+    if (factory.token && factory.poolAddress) {
+      [balance, demonstrations] = await Promise.all([
+        blockchainService.getTokenBalance(factory.token.address, factory.poolAddress),
+        getFactoryDemonstrationCount(id)
+      ])
+    }
     res.json(
       successResponse({
         ...factory.toJSON(),
-        balance,
-        demonstrations
+        balance: balance,
+        demonstrations: demonstrations,
       })
     )
   })

@@ -12,7 +12,8 @@ export enum FactoryStatus {
   active = 'active',
   paused = 'paused',
   error = 'error',
-  noFunds = 'no-funds'
+  noFunds = 'no-funds',
+  archived = 'archived'
 }
 
 export enum TokenType {
@@ -62,7 +63,7 @@ export interface FactoryApp {
 export interface Factory {
   // Core identity
   id: string // factory_{poolAddress}
-  poolAddress: string // Smart contract address
+  poolAddress?: string // Smart contract address (optional for archived factories)
   name: string
   description?: string
 
@@ -79,7 +80,7 @@ export interface Factory {
   skills: string[] // Primary skills array
 
   // Economic model
-  token: FactoryToken
+  token?: FactoryToken // Optional for archived factories
 
   // Statistics
   totalEarned: number // Total rewards paid out
@@ -91,7 +92,7 @@ export interface Factory {
   apps: FactoryApp[]
 
   // Search optimization
-  searchText: string // Computed search string
+  searchText?: string // Computed search string
 }
 
 export interface FactoryWithDemonstrations extends Factory {

@@ -371,6 +371,7 @@ export async function processNextInQueue() {
         factory &&
         reward !== undefined &&
         reward > 0 &&
+        factory.token &&
         claimAuthService &&
         factory.poolAddress
       ) {
@@ -379,7 +380,7 @@ export async function processNextInQueue() {
         )
 
         try {
-          const tokenAddress = getTokenContractAddress(factory.token.symbol)
+          const tokenAddress = getTokenContractAddress(factory.token!.symbol)
 
           // Generate claim authorization signature with referral data
           const claimAuthorization = await claimAuthService.generateClaimAuthorization(
@@ -435,7 +436,7 @@ export async function processNextInQueue() {
           // Add referral info to reasoning if referrals exist
           if (claimAuthorization.referrals && claimAuthorization.referrals.length > 0) {
             const referralInfo = claimAuthorization.referrals
-              .map(r => `${r.type}: ${r.amount.toFixed(4)} ${factory.token.symbol}`)
+              .map(r => `${r.type}: ${r.amount.toFixed(4)} ${factory.token!.symbol}`)
               .join(', ')
             reasoningMessage += `, referral rewards: ${referralInfo}`
           }
