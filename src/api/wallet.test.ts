@@ -62,30 +62,28 @@ describe('Wallet API', () => {
         address: TEST_WALLET_ADDRESS
       })
 
-      ;(
-        referralService.getReferralCode as MockedFunction<typeof referralService.getReferralCode>
-      ).mockResolvedValueOnce({
-        referralCode: 'MYCODE123',
-        walletAddress: TEST_WALLET_ADDRESS,
-        isActive: true,
-        totalRewards: 0,
-        createdAt: new Date()
-      })
-      ;(
-        referralService.getReferrer as MockedFunction<typeof referralService.getReferrer>
-      ).mockResolvedValueOnce({
-        walletAddress: REFERRER_WALLET_ADDRESS,
-        referralCode: REFERRER_CODE
-      })
-      ;(
-        referralService.getReferralCode as MockedFunction<typeof referralService.getReferralCode>
-      ).mockResolvedValueOnce({
-        referralCode: REFERRER_CODE,
-        walletAddress: REFERRER_WALLET_ADDRESS,
-        isActive: true,
-        totalRewards: 0,
-        createdAt: new Date()
-      })
+        ; (
+          referralService.getReferralCode as MockedFunction<typeof referralService.getReferralCode>
+        ).mockResolvedValueOnce({
+          referralCode: 'MYCODE123',
+          walletAddress: TEST_WALLET_ADDRESS,
+          isActive: true,
+          createdAt: new Date()
+        })
+        ; (
+          referralService.getReferrer as MockedFunction<typeof referralService.getReferrer>
+        ).mockResolvedValueOnce({
+          walletAddress: REFERRER_WALLET_ADDRESS,
+          referralCode: REFERRER_CODE
+        })
+        ; (
+          referralService.getReferralCode as MockedFunction<typeof referralService.getReferralCode>
+        ).mockResolvedValueOnce({
+          referralCode: REFERRER_CODE,
+          walletAddress: REFERRER_WALLET_ADDRESS,
+          isActive: true,
+          createdAt: new Date()
+        })
 
       const response = await supertest(app)
         .get('/api/v1/wallet/connection')
@@ -106,18 +104,17 @@ describe('Wallet API', () => {
         address: TEST_WALLET_ADDRESS
       })
 
-      ;(
-        referralService.getReferralCode as MockedFunction<typeof referralService.getReferralCode>
-      ).mockResolvedValueOnce({
-        referralCode: 'MYCODE123',
-        walletAddress: TEST_WALLET_ADDRESS,
-        isActive: true,
-        totalRewards: 0,
-        createdAt: new Date()
-      })
-      ;(
-        referralService.getReferrer as MockedFunction<typeof referralService.getReferrer>
-      ).mockResolvedValueOnce(null)
+        ; (
+          referralService.getReferralCode as MockedFunction<typeof referralService.getReferralCode>
+        ).mockResolvedValueOnce({
+          referralCode: 'MYCODE123',
+          walletAddress: TEST_WALLET_ADDRESS,
+          isActive: true,
+          createdAt: new Date()
+        })
+        ; (
+          referralService.getReferrer as MockedFunction<typeof referralService.getReferrer>
+        ).mockResolvedValueOnce(null)
 
       const response = await supertest(app)
         .get('/api/v1/wallet/connection')

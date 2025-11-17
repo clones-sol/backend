@@ -145,10 +145,11 @@ const factorySchema = new Schema<IFactoryDocument>(
     },
     poolAddress: {
       type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      index: true
+      required: function(this: IFactoryDocument) {
+        // poolAddress is optional for archived factories
+        return this.status !== FactoryStatus.archived
+      },
+      lowercase: true
     },
     name: {
       type: String,
@@ -196,7 +197,10 @@ const factorySchema = new Schema<IFactoryDocument>(
     // Economic model
     token: {
       type: factoryTokenSchema,
-      required: true
+      required: function(this: IFactoryDocument) {
+        // token is optional for archived factories
+        return this.status !== FactoryStatus.archived
+      }
     },
 
     // Statistics
@@ -277,3 +281,14 @@ factorySchema.pre('save', function (next) {
 })
 
 export const FactoryModel = model<IFactoryDocument>('Factory', factorySchema)
+
+// Create unique partial index for poolAddress (only when not null)
+FactoryModel.collection.createIndex(
+  { poolAddress: 1 },
+  { 
+    unique: true,
+    partialFilterExpression: { poolAddress: { $ne: null } }
+  }
+).catch(() => {
+  // Index might already exist, ignore error
+})
