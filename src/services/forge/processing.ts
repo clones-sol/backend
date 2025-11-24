@@ -25,6 +25,36 @@ import { calculateFeeAmounts, getContractFeeConfig } from '../blockchain/contrac
 import { getTokenContractAddress } from '../blockchain/tokens.ts'
 import { createReferralLookupService } from '../referral/referralLookupService.ts'
 import { logger } from "../logger.ts"
+import { DemoStorageService } from '../demo-storage/index.ts'
+import { ObjectStorageService } from '../storage/index.ts'
+
+// Initialize demo storage service
+let demoStorageService: DemoStorageService | null = null
+function getDemoStorageService(): DemoStorageService {
+  if (!demoStorageService) {
+    const {
+      STORAGE_ACCESS_KEY,
+      STORAGE_SECRET_KEY,
+      STORAGE_ENDPOINT,
+      STORAGE_REGION,
+      STORAGE_BUCKET
+    } = process.env
+
+    if (!STORAGE_ACCESS_KEY || !STORAGE_SECRET_KEY || !STORAGE_ENDPOINT || !STORAGE_REGION || !STORAGE_BUCKET) {
+      throw new Error('Storage service environment variables are not properly configured')
+    }
+
+    const objectStorage = new ObjectStorageService(
+      STORAGE_ACCESS_KEY,
+      STORAGE_SECRET_KEY,
+      STORAGE_ENDPOINT,
+      STORAGE_REGION,
+      STORAGE_BUCKET
+    )
+    demoStorageService = new DemoStorageService(objectStorage)
+  }
+  return demoStorageService
+}
 
 // Initialize claim authorization service
 let claimAuthService: ReturnType<typeof createClaimAuthService> | null = null
@@ -99,9 +129,36 @@ export async function processNextInQueue() {
     const extractDir = getUploadsPath(`extract_${submissionId}`)
     logger.info('Running Clones Quality Agent for directory:', extractDir)
     try {
-      // Check if directory exists
-      await fs.access(extractDir)
-      logger.info('Extract directory exists')
+      // Ensure directory exists
+      await fs.mkdir(extractDir, { recursive: true })
+      logger.info('Extract directory ready:', extractDir)
+
+      // Download files from object storage if demoHash exists
+      if (submission.demoHash) {
+        logger.info(`Downloading demo files from object storage (demoHash: ${submission.demoHash})`)
+        const storage = getDemoStorageService()
+
+        // Download all required files from object storage
+        const filesToDownload = ['recording.mp4', 'meta.json', 'sft.json', 'input_log.jsonl', 'input_log_meta.json']
+
+        for (const filename of filesToDownload) {
+          try {
+            const fileBuffer = await storage.getDemoFile(submission.demoHash, filename)
+            const filePath = path.join(extractDir, filename)
+            await fs.writeFile(filePath, fileBuffer)
+            logger.info(`Downloaded ${filename} (${fileBuffer.length} bytes) to ${filePath}`)
+          } catch (downloadError) {
+            logger.error(`Failed to download ${filename}:`, downloadError)
+            throw new Error(`Failed to download ${filename} from object storage: ${(downloadError as Error).message}`)
+          }
+        }
+
+        logger.info('All demo files downloaded from object storage')
+      } else {
+        logger.warn('No demoHash found, expecting files to exist locally')
+        // Check if directory exists for backward compatibility
+        await fs.access(extractDir)
+      }
 
       // List directory contents
       const files = await fs.readdir(extractDir)
@@ -110,14 +167,22 @@ export async function processNextInQueue() {
       await new Promise<void>((resolve, reject) => {
         const absoluteExtractDir = path.resolve(extractDir)
         const args = ['-f', 'desktop', '-i', absoluteExtractDir, '--grade']
+
+        // Enable video mode by default (unless explicitly disabled) or if API key is present
+        const useVideoGrading = process.env.USE_VIDEO_GRADING !== 'false';
+
+        if (useVideoGrading) {
+          args.push('--video-mode')
+          logger.info('Video grading mode enabled (default)')
+        }
+
         if (process.env.CQA_MODEL) {
           args.push('--model', process.env.CQA_MODEL)
         }
-        if (process.env.CQA_EVALUATION_MODEL) {
-          args.push('--evaluation-model', process.env.CQA_EVALUATION_MODEL)
-        }
+
         const pipeline = spawn(process.env.CQA_PATH, args, {
-          cwd: '/app/cqa' // Run CQA from the directory with node_modules
+          cwd: '/app/cqa', // Run CQA from the directory with node_modules
+          env: { ...process.env } // Explicitly pass all environment variables including API keys
         })
 
         let stdout = ''
@@ -200,6 +265,43 @@ export async function processNextInQueue() {
       const gradeResult: ForgeSubmissionGradeResult = JSON.parse(scoresContent)
       logger.info('Parsed grade result:', gradeResult)
 
+      // ENRICHMENT: If video analysis is present, inject into sft.json
+      if (gradeResult.programmaticResults?.videoAnalysis && Array.isArray(gradeResult.programmaticResults.videoAnalysis)) {
+        try {
+          const sftPath = path.join(extractDir, 'sft.json')
+          logger.info('Enriching sft.json with video analysis at:', sftPath)
+
+          // Check if sft.json exists
+          await fs.access(sftPath)
+
+          const sftContent = await fs.readFile(sftPath, 'utf8')
+          const events = JSON.parse(sftContent)
+
+          if (Array.isArray(events)) {
+            const analysis = gradeResult.programmaticResults.videoAnalysis
+            const annotations = analysis.map((step: any) => ({
+              type: 'context_annotation',
+              timestamp: Math.round(step.timestamp_seconds * 1000),
+              data: {
+                description: step.description,
+                status: step.status,
+                source: 'gemini-video-grading'
+              }
+            }))
+
+            events.push(...annotations)
+            // Sort events by timestamp
+            events.sort((a: any, b: any) => (a.timestamp || 0) - (b.timestamp || 0))
+
+            await fs.writeFile(sftPath, JSON.stringify(events, null, 2))
+            logger.info(`Successfully added ${annotations.length} annotations to sft.json`)
+          }
+        } catch (enrichError) {
+          logger.warn('Failed to enrich sft.json:', enrichError)
+          // Don't fail the whole process for this
+        }
+      }
+
       // Read and parse metrics.json
       const metricsPath = path.join(extractDir, 'metrics.json')
       let metricsResult = null
@@ -248,10 +350,7 @@ export async function processNextInQueue() {
             }
 
             // Check 2: Invalid task_id
-            // Find the task within the factory's apps
-            let task = factory.apps
-              .flatMap((app) => app.tasks)
-              .find((t) => t.id === submission?.meta?.quest.task_id)
+            const task = factory.tasks.find((t) => t.id === submission?.meta?.quest.task_id)
 
             if (!task) {
               reward = 0
@@ -342,7 +441,6 @@ export async function processNextInQueue() {
       submission.clampedScore = clampedScore
       submission.onChainReward = onChainReward
       submission.cqaModel = process.env.CQA_MODEL
-      submission.cqaEvaluationModel = process.env.CQA_EVALUATION_MODEL
       submission.status = ForgeSubmissionProcessingStatus.COMPLETED
 
       // Capture referral snapshot before generating claim authorization

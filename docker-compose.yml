@@ -53,6 +53,8 @@ services:
       - ./src:/app/src
       # training data output
       - ./public/screenshots:/app/backend/public/screenshots
+      # uploads directory for processing
+      - ./uploads:/app/uploads
     environment:
       # CORS Configuration
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
@@ -74,6 +76,7 @@ services:
       # External APIs
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
 
       # Internal services
       - CQA_PATH=/app/clones-quality-agent
@@ -88,7 +91,6 @@ services:
 
       # Quality Agent
       - CQA_MODEL=${CQA_MODEL}
-      - CQA_EVALUATION_MODEL=${CQA_EVALUATION_MODEL}
 
       # Price USD API
       - PRICE_USD_API_URL=${PRICE_USD_API_URL:-http://host.docker.internal:8080}

@@ -1103,19 +1103,32 @@ router.post(
         throw ApiError.badRequest('At least one valid skill is required')
       }
 
-      if (!metadata.apps || !Array.isArray(metadata.apps) || metadata.apps.length === 0) {
-        throw ApiError.badRequest('At least one app is required')
+      if (!metadata.tasks || !Array.isArray(metadata.tasks) || metadata.tasks.length === 0) {
+        throw ApiError.badRequest('At least one task is required')
       }
 
-      let nbTasks = 0
-      for (const app of metadata.apps) {
-        if (!app.tasks || !Array.isArray(app.tasks)) {
-          throw ApiError.badRequest('Each app must have a tasks array')
+      // Validate each task structure
+      for (const task of metadata.tasks) {
+        if (!task.prompt || typeof task.prompt !== 'string') {
+          throw ApiError.badRequest('Each task must have a prompt')
         }
-        nbTasks += app.tasks.length
-      }
-      if (nbTasks === 0) {
-        throw ApiError.badRequest('No tasks found in apps')
+        
+        if (!task.apps_used || !Array.isArray(task.apps_used) || task.apps_used.length === 0) {
+          throw ApiError.badRequest('Each task must use at least one app')
+        }
+
+        // Validate apps_used structure
+        for (const app of task.apps_used) {
+          if (!app.name || typeof app.name !== 'string') {
+            throw ApiError.badRequest('Each app must have a name')
+          }
+          if (!app.domain || typeof app.domain !== 'string') {
+            throw ApiError.badRequest('Each app must have a domain')
+          }
+          if (!app.description || typeof app.description !== 'string') {
+            throw ApiError.badRequest('Each app must have a description')
+          }
+        }
       }
       // Query referrer from database using lookup service
       const { createReferralLookupService } = await import('../services/referral/referralLookupService.ts')
@@ -1135,7 +1148,7 @@ router.post(
           creatorAddress,
           sanitizedName,
           skills,
-          metadata.apps,
+          metadata.tasks,
           {
             type: 'ERC20',
             symbol: tokenSymbol,

@@ -156,7 +156,40 @@ describe('Forge Factories API', () => {
           address: '0xusdc',
           decimals: 6,
           type: 'ERC20'
-        }
+        },
+        // NEW: Tasks structure for testing
+        tasks: [
+          {
+            id: 'task_1',
+            task_name: 'Google Docs Document',
+            prompt: 'Write a document in Google Docs',
+            categories: ['productivity', 'writing'],
+            apps_used: [
+              {
+                name: 'Google Docs',
+                domain: 'docs.google.com',
+                description: 'Online document editor'
+              }
+            ],
+            uploadLimit: 10,
+            rewardLimit: 5.0
+          },
+          {
+            id: 'task_2',
+            task_name: 'PowerPoint Presentation',
+            prompt: 'Create a presentation in PowerPoint',
+            categories: ['productivity', 'presentation'],
+            apps_used: [
+              {
+                name: 'Microsoft PowerPoint',
+                domain: 'desktop',
+                description: 'Desktop presentation software'
+              }
+            ],
+            uploadLimit: 5,
+            rewardLimit: 3.0
+          }
+        ]
       },
       {
         _id: new mongoose.Types.ObjectId('60f8e4b4c3b3e4a3b1e8e4a2'),
@@ -173,7 +206,30 @@ describe('Forge Factories API', () => {
           address: '0xweth',
           decimals: 18,
           type: 'ERC20'
-        }
+        },
+        // NEW: Tasks structure for testing
+        tasks: [
+          {
+            id: 'task_3',
+            task_name: 'Poster Design',
+            prompt: 'Design a poster using Photoshop and Figma',
+            categories: ['design', 'graphics'],
+            apps_used: [
+              {
+                name: 'Adobe Photoshop',
+                domain: 'desktop',
+                description: 'Professional image editing software'
+              },
+              {
+                name: 'Figma',
+                domain: 'figma.com',
+                description: 'Collaborative design tool'
+              }
+            ],
+            uploadLimit: 15,
+            rewardLimit: 7.5
+          }
+        ]
       }
     ])
     mockAuth.walletAddress = TEST_WALLET_ADDRESS

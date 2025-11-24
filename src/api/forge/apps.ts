@@ -11,10 +11,13 @@ import {
   type Factory,
   FactoryStatus,
   type FactoryTask,
-  ForgeSubmissionProcessingStatus
+  ForgeSubmissionProcessingStatus,
+  type WorkflowTask,
+  type TaskApp,
+  type WorkflowGenerationResult
 } from '../../types/factory.ts'
 import { generateContentSchema, getTasksSchema } from '../schemas/forgeFactory.ts'
-import { factoryIdParamSchema, updateFactoryAppsSchema } from '../schemas/forgeApps.ts'
+import { factoryIdParamSchema, updateFactoryAppsSchema, updateFactoryWorkflowsSchema } from '../schemas/forgeApps.ts'
 import { requireWalletAddress } from '../../middleware/auth.ts'
 import { logger } from "../../services/logger.ts"
 
@@ -103,34 +106,70 @@ function buildQueryPipeline(params: TaskQueryParams): PipelineStage[] {
   const pipeline: PipelineStage[] = []
 
   pipeline.push({ $match: buildFactoryMatchStage(params) })
-  pipeline.push({ $unwind: '$apps' })
-  pipeline.push({ $unwind: '$apps.tasks' })
 
-  const appTaskMatch = buildAppTaskMatchStage(params)
-  if (Object.keys(appTaskMatch).length > 0) {
-    pipeline.push({ $match: appTaskMatch })
+  pipeline.push({ $unwind: '$tasks' })
+
+  const taskMatch = buildTaskMatchStage(params)
+  if (Object.keys(taskMatch).length > 0) {
+    pipeline.push({ $match: taskMatch })
   }
 
   pipeline.push({ $limit: 1000 })
   pipeline.push({
     $project: {
-      _id: '$apps.tasks.id',
-      prompt: '$apps.tasks.prompt',
-      uploadLimit: '$apps.tasks.uploadLimit',
-      rewardLimit: '$apps.tasks.rewardLimit',
+      _id: '$tasks.id',
+      prompt: '$tasks.prompt',
+      uploadLimit: '$tasks.uploadLimit',
+      rewardLimit: '$tasks.rewardLimit',
+      categories: '$tasks.categories',
+      task_name: '$tasks.task_name',
+      apps_used: '$tasks.apps_used',
       factoryId: '$_id',
-      app: {
-        _id: '$apps.id',
-        name: '$apps.name',
-        domain: '$apps.domain',
-        description: '$apps.description',
-        categories: '$apps.categories',
-        pool_id: '$_id'
-      }
+      pool_id: '$_id'
     }
   })
 
   return pipeline
+}
+
+function buildTaskMatchStage(params: TaskQueryParams): Record<string, unknown> {
+  const taskMatchStage: Record<string, unknown> = {}
+
+  if (params.categories) {
+    try {
+      const categoriesArray =
+        typeof params.categories === 'string' ? params.categories.split(',') : params.categories
+      if (Array.isArray(categoriesArray) && categoriesArray.length > 0) {
+        taskMatchStage['tasks.categories'] = { $in: categoriesArray }
+      }
+    } catch (e) {
+      logger.error('Error parsing categories parameter:', e)
+    }
+  }
+
+  if (params.query && typeof params.query === 'string') {
+    const searchRegex = new RegExp(params.query, 'i')
+    taskMatchStage.$or = [
+      { 'tasks.prompt': searchRegex },
+      { 'tasks.apps_used.name': searchRegex }
+    ]
+  }
+
+  if (params.hide_adult === 'true') {
+    const adultRegex = ADULT_KEYWORDS.join('|')
+    taskMatchStage.$and = [
+      { 'tasks.prompt': { $not: { $regex: adultRegex, $options: 'i' } } },
+      { 'tasks.apps_used.name': { $not: { $regex: adultRegex, $options: 'i' } } },
+      {
+        $or: [
+          { 'tasks.apps_used.description': { $exists: false } },
+          { 'tasks.apps_used.description': { $not: { $regex: adultRegex, $options: 'i' } } }
+        ]
+      }
+    ]
+  }
+
+  return taskMatchStage
 }
 
 async function fetchSubmissionCounts(
@@ -194,12 +233,12 @@ const openai = new OpenAI({
 router.get(
   '/categories',
   errorHandlerAsync(async (_req: Request, res: Response) => {
-    // Aggregate to get unique categories across all factories' apps
+    // Aggregate to get unique categories across all factories' tasks
     const categoriesResult = await FactoryModel.aggregate([
-      { $unwind: '$apps' },
-      { $unwind: '$apps.categories' },
-      { $match: { 'apps.categories': { $type: 'string' } } },
-      { $group: { _id: { $trim: { input: '$apps.categories' } } } },
+      { $unwind: '$tasks' },
+      { $unwind: '$tasks.categories' },
+      { $match: { 'tasks.categories': { $type: 'string' } } },
+      { $group: { _id: { $trim: { input: '$tasks.categories' } } } },
       { $match: { _id: { $ne: '' } } },
       { $sort: { _id: 1 } }
     ])
@@ -208,6 +247,83 @@ router.get(
     const categories = categoriesResult.map((item) => item._id)
 
     res.status(200).json(successResponse(categories))
+  })
+)
+
+/**
+ * @swagger
+ * /forge/factories/workflows:
+ *   post:
+ *     summary: Generate new workflow tasks for factories
+ *     tags: [Apps]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               prompt:
+ *                 type: string
+ *               factoryId:
+ *                 type: string
+ *             required:
+ *               - prompt
+ *               - factoryId
+ */
+router.post(
+  '/workflows',
+  validateBody(generateContentSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { prompt, factoryId } = req.body
+
+    // Generate new workflow tasks using OpenAI
+    const formatted_prompt = APP_TASK_GENERATION_PROMPT.replace('{skill list}', prompt)
+    const response = await openai.chat.completions.create({
+      model: 'o3-mini',
+      reasoning_effort: 'medium' as const,
+      messages: [
+        {
+          role: 'user',
+          content: formatted_prompt
+        }
+      ]
+    })
+    console.log(response)
+    const content = response.choices[0].message.content
+    console.log(content)
+    if (!content) {
+      throw new Error('Empty response from OpenAI')
+    }
+
+    // Parse JSON content and optionally save to factory
+    try {
+      const parsedContent: WorkflowGenerationResult = JSON.parse(content)
+      console.log(parsedContent)
+
+      // If factoryId is provided, add tasks to the factory
+      if (factoryId) {
+        // Generate IDs for new tasks
+        const tasksWithIds = parsedContent.tasks.map((task) => ({
+          ...task,
+          id: `task_${randomUUID()}`
+        }))
+
+        await FactoryModel.findByIdAndUpdate(factoryId, {
+          $push: { tasks: { $each: tasksWithIds } }
+        })
+      }
+
+      res.status(200).json(
+        successResponse({
+          content: parsedContent
+        })
+      )
+    } catch (_parseError) {
+      throw new ApiError(500, ErrorCode.INTERNAL_SERVER_ERROR, 'Failed to parse content as JSON', {
+        content
+      })
+    }
   })
 )
 
@@ -250,8 +366,9 @@ router.post(
         }
       ]
     })
-
+    console.log(response)
     const content = response.choices[0].message.content
+    console.log(content)
     if (!content) {
       throw new Error('Empty response from OpenAI')
     }
@@ -259,8 +376,9 @@ router.post(
     // Parse JSON content and optionally save to factory
     try {
       const parsedContent = JSON.parse(content)
+      console.log(parsedContent)
 
-      // If factoryId is provided, add apps to the factory
+      // Note: This endpoint maintains compatibility with the old apps structure
       if (factoryId) {
         await FactoryModel.findByIdAndUpdate(factoryId, {
           $push: { apps: { $each: parsedContent.apps } }
@@ -335,10 +453,14 @@ router.get(
         prompt: taskData.prompt,
         uploadLimit: taskData.uploadLimit,
         rewardLimit: taskData.rewardLimit,
+        categories: taskData.categories,
+        task_name: taskData.task_name,
+        apps_used: taskData.apps_used,
         uploadLimitReached: limitInfo.taskLimitReached,
         currentSubmissions: limitInfo.taskSubmissions,
         limitReason: limitInfo.limitReason,
-        app: taskData.app
+        factoryId: taskData.factoryId,
+        pool_id: taskData.pool_id
       })
     }
 
@@ -350,7 +472,7 @@ router.get(
  * @swagger
  * /forge/factories/apps:
  *   get:
- *     summary: Get all apps with filtering options
+ *     summary: Get all apps with filtering options (reconstructed from tasks)
  *     tags: [Apps]
  */
 router.get(
@@ -359,65 +481,86 @@ router.get(
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { pool_id, categories, query } = req.query as TaskQueryParams
 
-    // Build aggregation pipeline for factories
+    // Build aggregation pipeline to reconstruct apps view from tasks
     const pipeline: MongoAggregationPipeline = []
 
     // Match stage - filter factories
     const matchStage: MongoMatchStage = {}
-
-    // Filter by pool_id (factory _id) if specified
     if (pool_id) {
       matchStage._id = pool_id.toString()
     } else {
-      // Only include active factories if no specific pool_id
       matchStage.status = FactoryStatus.active
     }
-
     pipeline.push({ $match: matchStage })
 
-    // Unwind apps
-    pipeline.push({ $unwind: '$apps' })
+    // Unwind tasks and apps_used to create app-centric view
+    pipeline.push({ $unwind: { path: '$tasks', preserveNullAndEmptyArrays: false } })
+    pipeline.push({ $unwind: { path: '$tasks.apps_used', preserveNullAndEmptyArrays: false } })
 
-    // Filter apps
-    const appMatchStage: MongoMatchStage = {}
-
-    // Filter by categories if specified
+    // Filter by categories and query
+    const taskFilterStage: MongoMatchStage = {}
     if (categories) {
       try {
         const categoriesArray = typeof categories === 'string' ? categories.split(',') : categories
         if (Array.isArray(categoriesArray) && categoriesArray.length > 0) {
-          appMatchStage['apps.categories'] = { $in: categoriesArray }
+          taskFilterStage['tasks.categories'] = { $in: categoriesArray }
         }
       } catch (e) {
         logger.error('Error parsing categories parameter:', e)
       }
     }
 
-    // Text search for app name and task prompts
     if (query && typeof query === 'string') {
       const searchRegex = new RegExp(query, 'i')
-      appMatchStage.$or = [{ 'apps.name': searchRegex }, { 'apps.tasks.prompt': searchRegex }]
+      taskFilterStage.$or = [
+        { 'tasks.apps_used.name': searchRegex },
+        { 'tasks.prompt': searchRegex }
+      ]
     }
 
-    if (Object.keys(appMatchStage).length > 0) {
-      pipeline.push({ $match: appMatchStage })
+    if (Object.keys(taskFilterStage).length > 0) {
+      pipeline.push({ $match: taskFilterStage })
     }
 
-    // Add pagination to prevent DoS - limit to 500 apps max
-    pipeline.push({ $limit: 500 })
-
-    // Project the required fields for apps
+    // Group by app to reconstruct app-centric view
     pipeline.push({
-      $project: {
-        _id: '$apps.id',
-        name: '$apps.name',
-        domain: '$apps.domain',
-        description: '$apps.description',
-        categories: '$apps.categories',
-        tasks: '$apps.tasks',
-        pool_id: '$_id'
+      $group: {
+        _id: {
+          app_name: '$tasks.apps_used.name',
+          app_domain: '$tasks.apps_used.domain',
+          pool_id: '$_id'
+        },
+        name: { $first: '$tasks.apps_used.name' },
+        domain: { $first: '$tasks.apps_used.domain' },
+        description: { $first: '$tasks.apps_used.description' },
+        categories: { $addToSet: '$tasks.categories' },
+        tasks: {
+          $push: {
+            id: '$tasks.id',
+            prompt: '$tasks.prompt',
+            uploadLimit: '$tasks.uploadLimit',
+            rewardLimit: '$tasks.rewardLimit',
+            categories: '$tasks.categories'
+          }
+        },
+        pool_id: { $first: '$_id' }
       }
     })
+
+    // Project final structure
+    pipeline.push({
+      $project: {
+        _id: { $concat: ['app_', '$name'] },
+        name: 1,
+        domain: 1,
+        description: 1,
+        categories: { $reduce: { input: '$categories', initialValue: [], in: { $setUnion: ['$$value', '$$this'] } } },
+        tasks: 1,
+        pool_id: 1
+      }
+    })
+
+    pipeline.push({ $limit: 500 })
 
     const appsFromDB = await FactoryModel.aggregate(pipeline)
 
@@ -428,7 +571,7 @@ router.get(
     // Collect all task IDs for batch submission counting
     const allTaskIds: string[] = []
     appsFromDB.forEach(app => {
-      app.tasks.forEach((task: FactoryTask) => {
+      app.tasks.forEach((task: any) => {
         allTaskIds.push(task.id)
       })
     })
@@ -438,8 +581,7 @@ router.get(
 
     // Process apps with task limit information
     const appsWithLimitInfo = appsFromDB.map(app => {
-      // Process tasks and add limit information
-      const tasksWithLimitInfo = app.tasks.map((task: FactoryTask) => {
+      const tasksWithLimitInfo = app.tasks.map((task: any) => {
         const limitInfo = checkTaskSpecificLimits(
           { _id: task.id, uploadLimit: task.uploadLimit },
           submissionMap
@@ -466,6 +608,57 @@ router.get(
     })
 
     res.status(200).json(successResponse(appsWithLimitInfo))
+  })
+)
+
+/**
+ * @swagger
+ * /forge/factories/{id}/workflows:
+ *   put:
+ *     summary: Update factory workflow tasks
+ *     tags: [Apps]
+ */
+router.put(
+  '/:id/workflows',
+  requireWalletAddress,
+  validateParams(factoryIdParamSchema),
+  validateBody(updateFactoryWorkflowsSchema),
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { id } = req.params
+    const { tasks } = req.body
+
+    // @ts-expect-error
+    const ownerAddress = req.walletAddress.toLowerCase()
+
+    // Find the factory
+    const factory = await FactoryModel.findById(id)
+
+    if (!factory) {
+      throw ApiError.notFound('Factory not found')
+    }
+
+    if (factory.ownerAddress !== ownerAddress) {
+      throw ApiError.forbidden('Not authorized to update this factory')
+    }
+
+    // Generate IDs only for new tasks (preserve existing IDs)
+    const tasksWithIds = tasks.map((task: any) => ({
+      ...task,
+      // Only generate new ID if task doesn't have one
+      id: task.id || `task_${randomUUID()}`,
+      // Convert rewardLimit to Decimal128 if it exists
+      rewardLimit: task.rewardLimit !== undefined
+        ? Types.Decimal128.fromString(task.rewardLimit.toString())
+        : undefined
+    }))
+
+    // Update the factory tasks
+    factory.tasks = tasksWithIds as any
+    await factory.save()
+
+    // Return updated factory
+    const updatedFactory = await FactoryModel.findById(id)
+    res.json(successResponse(updatedFactory?.toJSON()))
   })
 )
 
@@ -515,8 +708,8 @@ router.put(
       })) || []
     }))
 
-    // Update the factory apps
-    factory.apps = appsWithIds as any
+    // Update the factory tasks
+    factory.tasks = appsWithIds as any
     await factory.save()
 
     // Return updated factory
