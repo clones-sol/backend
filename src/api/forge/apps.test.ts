@@ -283,6 +283,7 @@ describe('Forge Apps API', () => {
 
       const validTasks = [
         {
+          task_name: 'Test Task',
           prompt: 'Test task',
           categories: ['test'],
           apps_used: [
