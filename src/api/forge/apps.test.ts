@@ -103,7 +103,7 @@ describe('Forge Apps API', () => {
   })
 
   beforeEach(async () => {
-    const testFactory = await FactoryModel.create({
+    await FactoryModel.create({
       _id: 'factory_test',
       name: 'Test Factory',
       ownerAddress: TEST_WALLET_ADDRESS.toLowerCase(),
@@ -171,7 +171,7 @@ describe('Forge Apps API', () => {
 
       expect(response.body.success).toBe(true)
       expect(response.body.data.content.name).toBe('Test Workflow')
-      
+
       // Verify task was NOT added to factory
       const factory = await FactoryModel.findById('factory_test')
       expect(factory?.tasks).toHaveLength(1) // Original only
@@ -248,7 +248,7 @@ describe('Forge Apps API', () => {
         .expect(200)
 
       expect(response.body.success).toBe(true)
-      
+
       // Verify factory was updated
       const updatedFactory = await FactoryModel.findById('factory_test')
       expect(updatedFactory?.tasks).toHaveLength(1)
@@ -283,7 +283,6 @@ describe('Forge Apps API', () => {
 
       const validTasks = [
         {
-          task_name: 'Test Task',
           prompt: 'Test task',
           categories: ['test'],
           apps_used: [

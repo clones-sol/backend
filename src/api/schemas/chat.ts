@@ -10,7 +10,7 @@ export const chatRequestSchema: ValidationSchema = {
     rules: [ValidationRules.isString()]
   },
   apps_used: {
-    required: true,
+    required: false,
     rules: [ValidationRules.isArray(), ValidationRules.arrayMinLength(1)]
   },
   // Backward compatibility - keep app for single-app workflows

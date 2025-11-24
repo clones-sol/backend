@@ -13,7 +13,6 @@ import {
   type FactoryTask,
   ForgeSubmissionProcessingStatus,
   type WorkflowTask,
-  type TaskApp,
   type WorkflowGenerationResult
 } from '../../types/factory.ts'
 import { generateContentSchema, getTasksSchema } from '../schemas/forgeFactory.ts'
@@ -267,15 +266,29 @@ router.get(
  *                 type: string
  *               factoryId:
  *                 type: string
+ *                 description: Optional factory ID to add generated tasks to
  *             required:
  *               - prompt
- *               - factoryId
  */
 router.post(
   '/workflows',
+  requireWalletAddress,
   validateBody(generateContentSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { prompt, factoryId } = req.body
+    // @ts-expect-error
+    const ownerAddress = req.walletAddress?.toLowerCase()
+
+    // If factoryId provided, verify factory exists and user is authorized
+    if (factoryId) {
+      const factory = await FactoryModel.findById(factoryId)
+      if (!factory) {
+        throw ApiError.notFound('Factory not found')
+      }
+      if (factory.ownerAddress !== ownerAddress) {
+        throw ApiError.forbidden('Not authorized to modify this factory')
+      }
+    }
 
     // Generate new workflow tasks using OpenAI
     const formatted_prompt = APP_TASK_GENERATION_PROMPT.replace('{skill list}', prompt)
@@ -289,9 +302,9 @@ router.post(
         }
       ]
     })
-    console.log(response)
+    logger.debug('Response:', response)
     const content = response.choices[0].message.content
-    console.log(content)
+    logger.debug('Content:', content)
     if (!content) {
       throw new Error('Empty response from OpenAI')
     }
@@ -299,7 +312,7 @@ router.post(
     // Parse JSON content and optionally save to factory
     try {
       const parsedContent: WorkflowGenerationResult = JSON.parse(content)
-      console.log(parsedContent)
+      logger.debug('Parsed content:', parsedContent)
 
       // If factoryId is provided, add tasks to the factory
       if (factoryId) {
@@ -366,9 +379,9 @@ router.post(
         }
       ]
     })
-    console.log(response)
+    logger.debug('Response:', response)
     const content = response.choices[0].message.content
-    console.log(content)
+    logger.debug('Content:', content)
     if (!content) {
       throw new Error('Empty response from OpenAI')
     }
@@ -376,7 +389,7 @@ router.post(
     // Parse JSON content and optionally save to factory
     try {
       const parsedContent = JSON.parse(content)
-      console.log(parsedContent)
+      logger.debug('Parsed content:', parsedContent)
 
       // Note: This endpoint maintains compatibility with the old apps structure
       if (factoryId) {
