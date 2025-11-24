@@ -41,7 +41,7 @@ export interface FactoryUploadLimit {
   type: UploadLimitType
 }
 
-// Factory task definition
+// Factory task definition (legacy - keeping for compatibility)
 export interface FactoryTask {
   id: string
   prompt: string
@@ -49,7 +49,7 @@ export interface FactoryTask {
   rewardLimit?: number
 }
 
-// Factory app definition (integrated within Factory)
+// Factory app definition (legacy - keeping for compatibility)
 export interface FactoryApp {
   id: string
   name: string
@@ -57,6 +57,26 @@ export interface FactoryApp {
   description?: string
   categories: string[]
   tasks: FactoryTask[]
+}
+
+// NEW TASK-FIRST STRUCTURE
+
+// Simplified app definition for use within tasks
+export interface TaskApp {
+  name: string
+  domain: string // "desktop" for native apps, or actual domain for web apps
+  description: string
+}
+
+// Workflow task definition (tasks-first approach)
+export interface WorkflowTask {
+  id: string
+  prompt: string
+  task_name: string
+  categories: string[]
+  apps_used: TaskApp[]
+  uploadLimit?: number
+  rewardLimit?: number
 }
 
 // Main Factory interface - canonical structure
@@ -88,8 +108,8 @@ export interface Factory {
   // Configuration
   uploadLimit?: FactoryUploadLimit
 
-  // Apps & tasks (integrated, not separate table)
-  apps: FactoryApp[]
+  // Tasks
+  tasks: WorkflowTask[]
 
   // Search optimization
   searchText?: string // Computed search string
@@ -97,6 +117,12 @@ export interface Factory {
 
 export interface FactoryWithDemonstrations extends Factory {
   demonstrations: number
+}
+
+// NEW: Workflow generation response from AI
+export interface WorkflowGenerationResult {
+  name: string
+  tasks: Omit<WorkflowTask, 'id'>[] // Tasks without IDs (will be generated)
 }
 
 // Factory creation input
@@ -109,7 +135,10 @@ export interface CreateFactoryRequest {
     symbol: string
   }
   uploadLimit?: FactoryUploadLimit
+  // Legacy support
   apps?: Omit<FactoryApp, 'id'>[] // Apps without IDs (will be generated)
+  // NEW: Tasks-first support
+  tasks?: Omit<WorkflowTask, 'id'>[] // Tasks without IDs (will be generated)
 }
 
 // Factory update input
@@ -120,7 +149,10 @@ export interface UpdateFactoryRequest {
   skills?: string[]
   status?: FactoryStatus
   uploadLimit?: FactoryUploadLimit
+  // Legacy support
   apps?: Omit<FactoryApp, 'id'>[]
+  // NEW: Tasks-first support
+  tasks?: Omit<WorkflowTask, 'id'>[]
 }
 
 // Factory search/filter criteria
@@ -279,6 +311,14 @@ export interface ForgeSubmissionGradeResult {
   outcomeAchievement: number
   processQuality: number
   efficiency: number
+  programmaticResults?: {
+    videoAnalysis?: Array<{
+      timestamp_seconds: number
+      description: string
+      status?: string
+    }>
+    [key: string]: any
+  }
 }
 
 // On-chain reward interface (from forge.ts)

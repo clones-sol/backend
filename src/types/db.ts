@@ -58,7 +58,6 @@ export interface DBDemonstrationSubmission {
   farmerReferrerAddress?: string
   factoryReferrerAddress?: string
   cqaModel?: string
-  cqaEvaluationModel?: string
   createdAt?: Date
   updatedAt?: Date
 }

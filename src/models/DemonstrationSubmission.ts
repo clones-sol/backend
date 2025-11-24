@@ -179,8 +179,7 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
     // Referral snapshot - captured at submission processing time
     farmerReferrerAddress: { type: String, required: false },
     factoryReferrerAddress: { type: String, required: false },
-    cqaModel: { type: String, required: false },
-    cqaEvaluationModel: { type: String, required: false }
+    cqaModel: { type: String, required: false }
   },
   {
     collection: 'demonstration_submissions',
@@ -195,9 +194,9 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
 demonstrationSubmissionSchema.index({ status: 1, createdAt: 1 })
 
 // Optimized compound index for referral rewards aggregation with factory lookup
-demonstrationSubmissionSchema.index({ 
+demonstrationSubmissionSchema.index({
   'claimAuthorization.referrals.address': 1,
-  'meta.quest.pool_id': 1 
+  'meta.quest.pool_id': 1
 })
 
 export const DemonstrationSubmission = mongoose.model(

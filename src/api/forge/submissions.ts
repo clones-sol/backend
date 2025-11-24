@@ -153,7 +153,6 @@ router.get(
         clampedScore: submission.clampedScore,
         claimAuthorization: submission.claimAuthorization,
         cqaModel: submission.cqaModel,
-        cqaEvaluationModel: submission.cqaEvaluationModel,
         createdAt: submission.createdAt,
         updatedAt: submission.updatedAt
       })

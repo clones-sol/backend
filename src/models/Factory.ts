@@ -7,24 +7,21 @@ import {
   type FactoryToken,
   type FactoryUploadLimit,
   TokenType,
-  UploadLimitType
+  UploadLimitType,
+  type WorkflowTask,
+  type TaskApp
 } from '../types/factory.ts'
 
-// Mongoose-specific task interface with Decimal128
-interface IFactoryTaskDocument extends Omit<FactoryTask, 'rewardLimit'> {
+// Mongoose-specific workflow task interface with Decimal128
+interface IWorkflowTaskDocument extends Omit<WorkflowTask, 'rewardLimit'> {
   rewardLimit?: Types.Decimal128
 }
 
-// Mongoose-specific app interface
-interface IFactoryAppDocument extends Omit<FactoryApp, 'tasks'> {
-  tasks: IFactoryTaskDocument[]
-}
-
 // Mongoose document interface with Decimal128 fields
-export interface IFactoryDocument extends Document, Omit<Factory, 'id' | 'totalEarned' | 'apps'> {
+export interface IFactoryDocument extends Document, Omit<Factory, 'id' | 'totalEarned' | 'tasks'> {
   _id: string
   totalEarned: Types.Decimal128
-  apps: IFactoryAppDocument[]
+  tasks: IWorkflowTaskDocument[]
 }
 
 // Token schema
@@ -73,6 +70,28 @@ const factoryUploadLimitSchema = new Schema<FactoryUploadLimit>(
   { _id: false }
 )
 
+// Task app schema (simplified app for use within tasks)
+const taskAppSchema = new Schema<TaskApp>(
+  {
+    name: {
+      type: String,
+      required: true,
+      maxlength: 100
+    },
+    domain: {
+      type: String,
+      required: true,
+      maxlength: 200
+    },
+    description: {
+      type: String,
+      required: true,
+      maxlength: 500
+    }
+  },
+  { _id: false }
+)
+
 // Task schema
 const factoryTaskSchema = new Schema<FactoryTask>(
   {
@@ -103,27 +122,17 @@ const factoryTaskSchema = new Schema<FactoryTask>(
   { _id: false }
 )
 
-// App schema
-const factoryAppSchema = new Schema<FactoryApp>(
+// Workflow task schema
+const workflowTaskSchema = new Schema<WorkflowTask>(
   {
     id: {
       type: String,
       required: true
     },
-    name: {
+    prompt: {
       type: String,
       required: true,
-      maxlength: 100,
-      index: true
-    },
-    domain: {
-      type: String,
-      required: true,
-      maxlength: 200
-    },
-    description: {
-      type: String,
-      maxlength: 500
+      maxlength: 2000
     },
     categories: [
       {
@@ -131,7 +140,25 @@ const factoryAppSchema = new Schema<FactoryApp>(
         maxlength: 500
       }
     ],
-    tasks: [factoryTaskSchema]
+    task_name: {
+      type: String,
+      required: true,
+    },
+    apps_used: [taskAppSchema],
+    uploadLimit: {
+      type: Number,
+      min: 1
+    },
+    rewardLimit: {
+      type: Schema.Types.Decimal128,
+      min: 0,
+      get: function (value: any) {
+        return value ? parseFloat(value.toString()) : value
+      },
+      set: function (value: any) {
+        return value === null || value === undefined ? value : Types.Decimal128.fromString(value.toString())
+      }
+    }
   },
   { _id: false }
 )
@@ -145,7 +172,7 @@ const factorySchema = new Schema<IFactoryDocument>(
     },
     poolAddress: {
       type: String,
-      required: function(this: IFactoryDocument) {
+      required: function (this: IFactoryDocument) {
         // poolAddress is optional for archived factories
         return this.status !== FactoryStatus.archived
       },
@@ -197,7 +224,7 @@ const factorySchema = new Schema<IFactoryDocument>(
     // Economic model
     token: {
       type: factoryTokenSchema,
-      required: function(this: IFactoryDocument) {
+      required: function (this: IFactoryDocument) {
         // token is optional for archived factories
         return this.status !== FactoryStatus.archived
       }
@@ -219,8 +246,11 @@ const factorySchema = new Schema<IFactoryDocument>(
     // Configuration
     uploadLimit: factoryUploadLimitSchema,
 
-    // Apps integrated directly
-    apps: [factoryAppSchema],
+    // Tasks structure
+    tasks: {
+      type: [workflowTaskSchema],
+      default: []
+    },
 
     // Search optimization
     searchText: {
@@ -252,9 +282,10 @@ factorySchema.virtual('id').get(function () {
 factorySchema.index({ ownerAddress: 1, status: 1 })
 factorySchema.index({ skills: 1, status: 1 })
 factorySchema.index({ totalEarned: -1 })
-// Apps-specific indexes
-factorySchema.index({ 'apps.categories': 1 })
-factorySchema.index({ 'apps.name': 'text', 'apps.tasks.prompt': 'text' })
+factorySchema.index({ 'tasks.categories': 1 })
+factorySchema.index({ 'tasks.prompt': 'text', 'tasks.apps_used.name': 'text' })
+factorySchema.index({ 'tasks.task_name': 1 })
+factorySchema.index({ 'tasks.apps_used.domain': 1 })
 
 // Pre-save middleware to update search text only if relevant fields changed
 factorySchema.pre('save', function (next) {
@@ -262,16 +293,20 @@ factorySchema.pre('save', function (next) {
     this.isModified('name') ||
     this.isModified('description') ||
     this.isModified('skills') ||
-    this.isModified('apps')
+    this.isModified('tasks')
   ) {
     const searchParts: string[] = [
       this.name?.toLowerCase() || '',
       this.description?.toLowerCase() || '',
       ...(this.skills || []).map((s) => s.toLowerCase()),
-      ...(this.apps || []).flatMap((app) => [
-        app.name?.toLowerCase() || '',
-        app.description?.toLowerCase() || '',
-        ...(app.categories || []).map((c) => c.toLowerCase())
+      ...(this.tasks || []).flatMap((task) => [
+        task.prompt?.toLowerCase() || '',
+        ...(task.categories || []).map((c) => c.toLowerCase()),
+        ...(task.apps_used || []).flatMap((app) => [
+          app.name?.toLowerCase() || '',
+          app.description?.toLowerCase() || '',
+          app.domain?.toLowerCase() || ''
+        ])
       ])
     ].filter(Boolean)
 
@@ -285,7 +320,7 @@ export const FactoryModel = model<IFactoryDocument>('Factory', factorySchema)
 // Create unique partial index for poolAddress (only when not null)
 FactoryModel.collection.createIndex(
   { poolAddress: 1 },
-  { 
+  {
     unique: true,
     partialFilterExpression: { poolAddress: { $ne: null } }
   }

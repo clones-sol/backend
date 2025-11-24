@@ -254,9 +254,33 @@ async function moveRequiredFiles(extractDir: string, finalDir: string) {
     const destPath = path.join(finalDir, file)
     logger.info(`[UPLOAD] Copying ${file} from ${sourcePath} to ${destPath}`)
     try {
+      // Check if source file exists
+      const sourceStats = await stat(sourcePath)
+      logger.info(`[UPLOAD] Source file ${file} size: ${sourceStats.size} bytes`)
+
       await copyFile(sourcePath, destPath)
-      logger.info(`[UPLOAD] Successfully copied ${file}`)
+
+      // Verify destination file was written correctly
+      const destStats = await stat(destPath)
+      logger.info(`[UPLOAD] Destination file ${file} size: ${destStats.size} bytes`)
+
+      // Validate recording.mp4 has minimum size (valid MP4 should be at least 1KB)
+      if (file === 'recording.mp4' && destStats.size < 1024) {
+        logger.error(`[UPLOAD] recording.mp4 is too small (${destStats.size} bytes), likely empty or corrupted`)
+        throw ApiError.badRequest(`Invalid recording.mp4: file is empty or corrupted (${destStats.size} bytes)`)
+      }
+
+      // Verify sizes match
+      if (sourceStats.size !== destStats.size) {
+        logger.error(`[UPLOAD] File size mismatch for ${file}: source=${sourceStats.size}, dest=${destStats.size}`)
+        throw ApiError.badRequest(`File copy failed for ${file}: size mismatch`)
+      }
+
+      logger.info(`[UPLOAD] Successfully copied ${file} (${destStats.size} bytes)`)
     } catch (error) {
+      if (error instanceof ApiError) {
+        throw error
+      }
       logger.error(`[UPLOAD] Error copying file ${file}:`, error)
       throw ApiError.badRequest(`Missing required file: ${file}`)
     }
@@ -355,7 +379,7 @@ async function verifyFactoryAndBalance(meta: Record<string, any>): Promise<any> 
     throw ApiError.badRequest(`Factory is not active (status: ${factory.status})`)
   }
 
-  const task = factory.apps.flatMap((app) => app.tasks).find((task) => task.id === meta.quest.task_id)
+  const task = factory.tasks.find((task) => task.id === meta.quest.task_id)
   logger.info(`[UPLOAD] Task: ${JSON.stringify(task)}`)
   if (!task) {
     throw ApiError.badRequest('Invalid data: missing task')
@@ -424,18 +448,14 @@ async function checkTaskUploadLimits(
 
   const taskFactory = await FactoryModel.findOne({
     _id: meta.quest.pool_id,
-    'apps.tasks.id': meta.quest.task_id
+    'tasks.id': meta.quest.task_id
   })
 
   if (!taskFactory) {
     throw ApiError.badRequest('Submission Error: invalid task')
   }
 
-  let task = null
-  for (const app of taskFactory.apps) {
-    task = app.tasks.find((t) => t.id === meta.quest.task_id)
-    if (task) break
-  }
+  const task = taskFactory.tasks.find((t) => t.id === meta.quest.task_id)
 
   const taskSubmissions = await DemonstrationSubmission.countDocuments({
     'meta.quest.task_id': meta.quest.task_id,

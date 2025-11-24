@@ -48,12 +48,32 @@ router.post(
   '/',
   validateBody(chatRequestSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { messages, task_prompt, app } = req.body
+    const { messages, task_prompt, apps_used, app } = req.body
 
-    // Format context message
-    const contextMessage = `Task: ${task_prompt}\nApp: ${app.name} (${app.type}${
-      app.type === 'executable' ? `, Path: ${app.path}` : `, URL: ${app.url}`
-    })`
+    // Support both new multi-app format and legacy single-app format
+    const appsToUse = apps_used || (app ? [app] : [])
+
+    // Format context message with multiple apps
+    let contextMessage = `Task: ${task_prompt}\n`
+
+    if (appsToUse.length > 1) {
+      // Multi-app workflow
+      const appsList = appsToUse.map((appItem: any) =>
+        `${appItem.name} (${appItem.domain === 'desktop' ? 'desktop app' : `web: ${appItem.domain}`})`
+      ).join(', ')
+      contextMessage += `Apps: ${appsList}`
+    } else if (appsToUse.length === 1) {
+      // Single app (legacy format or single-app workflow)
+      const appItem = appsToUse[0]
+      if (appItem.type) {
+        // Legacy format
+        contextMessage += `App: ${appItem.name} (${appItem.type}${appItem.type === 'executable' ? `, Path: ${appItem.path}` : `, URL: ${appItem.url}`
+          })`
+      } else {
+        // New format
+        contextMessage += `App: ${appItem.name} (${appItem.domain === 'desktop' ? 'desktop app' : `web: ${appItem.domain}`})`
+      }
+    }
 
     // Randomly select 3 few-shot examples
     const randomExamples = [...TASK_SHOT_EXAMPLES].sort(() => Math.random() - 0.5).slice(0, 3)
@@ -91,14 +111,10 @@ router.post(
                   type: 'string',
                   description: 'Name of the app being used'
                 },
-                icon_url: {
-                  type: 'string',
-                  description: "URL for the app's favicon"
-                },
                 objectives: {
                   type: 'array',
                   description:
-                    'List of 4 objectives to complete the task (first objective must be opening/navigating to the app with the app name wrapped in <app> tags, stop at checkout for purchases)',
+                    `List of around ${appsToUse.length * 2 + 2} objectives to complete this ${appsToUse.length > 1 ? 'multi-app workflow' : 'single-app'} task. For multi-app workflows, include objectives for navigating between applications, data transfer, and context switching. Each app should have at least 2-3 objectives. Wrap app names in <app> tags and wrap app. Stop at checkout for purchases.`,
                   items: {
                     type: 'string'
                   }

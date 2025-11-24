@@ -97,9 +97,6 @@ async function runCQAProcessing(recordingDir: string): Promise<{
     if (process.env.CQA_MODEL) {
       args.push('--model', process.env.CQA_MODEL)
     }
-    if (process.env.CQA_EVALUATION_MODEL) {
-      args.push('--evaluation-model', process.env.CQA_EVALUATION_MODEL)
-    }
 
     logger.info(`[CQA] Executing: ${process.env.CQA_PATH} ${args.join(' ')}`)
 

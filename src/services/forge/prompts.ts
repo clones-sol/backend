@@ -1,15 +1,15 @@
 export const TASK_SHOT_EXAMPLES = [
   {
-    task_prompt: 'Find a hotel in Paris',
-    app: {
-      type: 'website',
-      name: 'Booking.com',
-      url: 'booking.com'
-    },
+    task_prompt: 'Create quarterly sales report by pulling data from CRM and analyzing trends',
+    apps_used: [
+      { name: 'Salesforce', domain: 'salesforce.com', description: 'CRM data source' },
+      { name: 'Excel', domain: 'desktop', description: 'Data analysis and visualization' },
+      { name: 'Outlook', domain: 'desktop', description: 'Email report to stakeholders' }
+    ],
     conversation: [
       {
         role: 'user',
-        content: 'Task: Find a hotel in Paris\nApp: Booking.com (website, URL: booking.com)'
+        content: 'Task: Create quarterly sales report by pulling data from CRM and analyzing trends\nApps: Salesforce (web: salesforce.com), Excel (desktop app), Outlook (desktop app)'
       },
       {
         role: 'assistant',
@@ -21,17 +21,24 @@ export const TASK_SHOT_EXAMPLES = [
             function: {
               name: 'validate_task_request',
               arguments: JSON.stringify({
-                title: 'Find Paris hotel',
-                app: 'Booking.com',
-                icon_url: 'https://s2.googleusercontent.com/s2/favicons?domain=booking.com&sz=64',
+                title: 'Create quarterly sales report',
+                app: 'Salesforce, Excel, Outlook',
+                icon_url: 'https://s2.googleusercontent.com/s2/favicons?domain=salesforce.com&sz=64',
                 objectives: [
-                  'Open <app>Booking.com</app> website in your browser',
-                  'Search for Paris hotels',
-                  'Apply filters for dates and preferences',
-                  'View hotel details and reviews'
+                  'Open <app>Salesforce</app> and navigate to Reports section',
+                  'Generate quarterly sales data export with filters for Q4 2025',
+                  'Download sales data as CSV file to local desktop',
+                  'Launch <app>Excel</app> desktop application',
+                  'Import downloaded CSV into new Excel workbook',
+                  'Create pivot tables to analyze sales trends by region and product',
+                  'Generate charts showing quarterly performance metrics',
+                  'Format report with company branding and executive summary',
+                  'Save Excel file with descriptive filename',
+                  'Open <app>Outlook</app> and compose new email to stakeholders',
+                  'Attach formatted Excel report to email',
+                  'Draft professional email with key insights and schedule meeting'
                 ],
-                content:
-                  'Hi! I need to find a hotel in Paris for my upcoming trip. Can you help me search on Booking.com?'
+                content: 'Hi! I need to create our quarterly sales report pulling data from Salesforce and analyzing it in Excel. Can you guide me through the complete workflow?'
               })
             }
           }
@@ -44,22 +51,22 @@ export const TASK_SHOT_EXAMPLES = [
       },
       {
         role: 'user',
-        content:
-          "Sure! I'll help you find a hotel in Paris. Let's start by going to booking.com and entering your travel dates. When are you planning to visit?"
+        content: "I'll help you create a comprehensive quarterly sales report! This will involve pulling data from Salesforce, analyzing it in Excel, and emailing the results. Let's start by logging into Salesforce to export your Q4 sales data."
       }
     ]
   },
   {
-    task_prompt: 'Order sushi delivery',
-    app: {
-      type: 'website',
-      name: 'Uber Eats',
-      url: 'ubereats.com'
-    },
+    task_prompt: 'Research competitor pricing and create comparison presentation for client meeting',
+    apps_used: [
+      { name: 'Chrome', domain: 'desktop', description: 'Web research across multiple sites' },
+      { name: 'Google Docs', domain: 'docs.google.com', description: 'Research notes and data collection' },
+      { name: 'PowerPoint', domain: 'desktop', description: 'Presentation creation' },
+      { name: 'Teams', domain: 'desktop', description: 'Schedule client meeting' }
+    ],
     conversation: [
       {
         role: 'user',
-        content: 'Task: Order sushi delivery\nApp: Uber Eats (website, URL: ubereats.com)'
+        content: 'Task: Research competitor pricing and create comparison presentation for client meeting\nApps: Chrome (desktop app), Google Docs (web: docs.google.com), PowerPoint (desktop app), Teams (desktop app)'
       },
       {
         role: 'assistant',
@@ -71,17 +78,27 @@ export const TASK_SHOT_EXAMPLES = [
             function: {
               name: 'validate_task_request',
               arguments: JSON.stringify({
-                title: 'Order sushi delivery',
-                app: 'Uber Eats',
-                icon_url: 'https://s2.googleusercontent.com/s2/favicons?domain=ubereats.com&sz=64',
+                title: 'Competitive analysis presentation',
+                app: 'Chrome, Google Docs, PowerPoint, Teams',
+                icon_url: 'https://s2.googleusercontent.com/s2/favicons?domain=google.com&sz=64',
                 objectives: [
-                  'Open <app>Uber Eats</app> website in your browser',
-                  'Find nearby sushi restaurants',
-                  'Select items and customize order',
-                  'Review cart before checkout'
+                  'Launch <app>Chrome</app> browser and open multiple tabs for competitor websites',
+                  'Research top 5 competitor pricing pages and capture key information',
+                  'Take screenshots of competitor pricing tables for reference',
+                  'Open <app>Google Docs</app> in new browser tab',
+                  'Create shared document for research notes and data collection',
+                  'Organize pricing data in structured format with competitor comparison table',
+                  'Add insights and analysis notes about pricing strategies',
+                  'Launch <app>PowerPoint</app> desktop application',
+                  'Create new presentation with company template',
+                  'Import data from Google Docs and add comparison charts',
+                  'Design visual slides with competitor pricing analysis',
+                  'Add executive summary with recommendations',
+                  'Save presentation and export as PDF backup',
+                  'Open <app>Teams</app> and schedule client meeting',
+                  'Upload presentation to meeting invite and send calendar invite'
                 ],
-                content:
-                  "Hi! I'm hungry and want to order some sushi from Uber Eats. Can you show me how?"
+                content: 'Hi! I need to research our competitors and create a pricing comparison presentation for an important client meeting. Can you walk me through this multi-step workflow?'
               })
             }
           }
@@ -94,58 +111,7 @@ export const TASK_SHOT_EXAMPLES = [
       },
       {
         role: 'user',
-        content:
-          "I'll help you order sushi through Uber Eats! First, let's check which sushi restaurants deliver to your location. Could you open ubereats.com and enter your delivery address?"
-      }
-    ]
-  },
-  {
-    task_prompt: 'Find tennis shoes on sale',
-    app: {
-      type: 'website',
-      name: 'eBay',
-      url: 'ebay.com'
-    },
-    conversation: [
-      {
-        role: 'user',
-        content: 'Task: Find tennis shoes on sale\nApp: eBay (website, URL: ebay.com)'
-      },
-      {
-        role: 'assistant',
-        content: null,
-        tool_calls: [
-          {
-            id: 'call_789',
-            type: 'function',
-            function: {
-              name: 'validate_task_request',
-              arguments: JSON.stringify({
-                title: 'Find tennis shoes',
-                app: 'eBay',
-                icon_url: 'https://s2.googleusercontent.com/s2/favicons?domain=ebay.com&sz=64',
-                objectives: [
-                  'Open <app>eBay</app> website in your browser',
-                  'Search for tennis shoes',
-                  'Apply filters for size and price',
-                  'Sort and compare listings'
-                ],
-                content:
-                  "Hi! I want to buy some tennis shoes on eBay. I've never used the site before - can you help me find a good deal?"
-              })
-            }
-          }
-        ]
-      },
-      {
-        role: 'tool',
-        tool_call_id: 'call_789',
-        content: 'accepted'
-      },
-      {
-        role: 'user',
-        content:
-          "I'll help you find tennis shoes on eBay! Let's start by going to ebay.com. Do you have a specific brand or size in mind?"
+        content: "Perfect! I'll guide you through creating a competitive analysis presentation. We'll research competitor pricing, organize our findings, and create a professional presentation for your client meeting. Let's start by opening Chrome to research your main competitors."
       }
     ]
   }
@@ -161,113 +127,92 @@ Remember to:
 - Ask for clarification if needed
 - When provided context, do a tool call where in the content you must say hi and ask for your task directly (e.g. "Hi! I need to install an ad-blocker in Chrome" rather than "Can you guide me on how to install an ad-blocker?")`
 export const APP_TASK_GENERATION_PROMPT = `
-You are designing natural task examples for desktop applications and web browsers that humans can demonstrate by screen recording to train AI computer use models in September 2025.  
+You are designing realistic MULTI-APP WORKFLOWS that capture how humans naturally work with computers in ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}. These workflows will be demonstrated through screen recordings to train AI models for authentic computer use - capturing the messy, chaotic reality of human multitasking across applications.
 
-### **CRITICAL:** Focus on demonstrable computer interactions, not AI-to-AI tasks
-- Every task must be something a human can show by recording their screen
-- Tasks should involve clicking, typing, navigating interfaces, not abstract concepts
-- The goal is to teach AI models how to use computers like humans do
+### **CORE PRINCIPLE:** Authentic Human Workflow Chaos
+- Model the **non-linear reality** of human computer use - jumping between apps, interrupted workflows, context switching, and parallel tasks
+- Each task represents a **complete natural workflow** that humans actually do in real work contexts
+- Focus on **organic multi-app sequences**: starting in email, opening attachments, switching to browsers, checking references, returning to documents
+- Capture the **authentic messiness**: opening multiple tabs, switching windows, copying data between apps, managing multiple contexts simultaneously
 
-### **Instructions:**  
-- Given a list of computer skills, generate **apps and their associated tasks** that naturally incorporate those skills.  
-- Focus on **2025's popular platforms and modern interfaces** that users actually interact with.  
-- Each app should have at least **5 tasks** representing **recordable desktop/browser interactions**.  
-- Ensure **tasks align with the provided skills** and can be filmed step-by-step.
-- IMPORTANT: Avoid using personal pronouns like "my" or "your" in task descriptions. Use neutral, general language.
-- Be as exhaustive as possible, enumerating every relevant app and task given the input skill list.
+### **CRITICAL: Generate Complete Workflows, Not Micro-Steps**
+- **ONE task = ONE complete workflow** that naturally involves multiple applications
+- **NO sequential decomposition** - don't break workflows into artificial steps
+- **Capture natural flow** where users organically move between apps to accomplish their goal
+- **Real-world context** - tasks that professionals actually perform in their daily work
 
-### **Guidelines for Mapping Skills to Apps (Demonstrable 2025 Tasks):**  
+### **${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} Context:**  
+- **Platform Diversity**: Seamless mixing of desktop applications, web apps, and system tools
+- **Interrupted Workflows**: Real work involves distractions, context switches, and parallel processing
+- **Cross-Application Data Flow**: Copy-paste, drag-drop, file sharing, and reference checking across multiple tools
 
-#### **1. AI Chat Interfaces → Modern AI Platforms (ChatGPT, Claude, Perplexity, etc.)**
-✅ **Examples:** ChatGPT web interface, Claude.ai, Perplexity.ai  
-✅ **Tasks:**  
-- "Navigate to ChatGPT Plus and create a new custom GPT using the interface."  
-- "Upload a document to Claude.ai and ask it to summarize the content."  
-- "Use Perplexity's search interface to research a topic with follow-up questions."  
-- "Share a ChatGPT conversation link and adjust sharing settings."  
-- "Switch between different AI models in the Claude interface dropdown."  
+### **Workflow Examples (Complete, Not Sequential Steps):**
 
-#### **2. Social Commerce Interfaces → Shopping Platforms (TikTok Shop, Instagram, YouTube, etc.)**
-✅ **Examples:** TikTok Shop Creator Center, Instagram Business Suite, YouTube Studio  
-✅ **Tasks:**  
-- "Navigate TikTok Shop Creator Center to add a new product listing."  
-- "Set up Instagram Shopping tags on a post using the mobile browser interface."  
-- "Create a YouTube video with product shelves using YouTube Studio."  
-- "Respond to customer messages in Instagram Business Suite inbox."  
-- "Analyze sales metrics in the TikTok Shop analytics dashboard."  
+#### **GOOD: Complete Multi-App Workflow**
+**Task:** "Create quarterly sales report by pulling data from CRM, analyzing in spreadsheet, and presenting findings"
+**Natural Flow:** Salesforce web → download CSV → Excel desktop → pivot tables → email client → attach report → schedule meeting → Calendar app → copy meeting link back to email
 
-#### **3. Modern Design Tools → Browser-Based Creation (Figma, Canva, Midjourney, etc.)**
-✅ **Examples:** Figma web app, Canva browser interface, Midjourney Discord  
-✅ **Tasks:**  
-- "Create a new Figma project and design a mobile app mockup using components."  
-- "Use Canva's browser interface to design social media templates."  
-- "Generate images using Midjourney commands in the Discord web interface."  
-- "Export designs from Figma in multiple formats using the export panel."  
-- "Collaborate on a Canva design by sharing and adding comments."  
+#### **BAD: Artificial Micro-Steps** 
+❌ "Step 1: Open Salesforce and export data"
+❌ "Step 2: Import data into Excel" 
+❌ "Step 3: Create pivot tables"
+❌ "Step 4: Email the report"
 
-#### **4. Web3 Interfaces → DeFi Platforms (Uniswap, OpenSea, MetaMask, etc.)**
-✅ **Examples:** Uniswap web interface, OpenSea marketplace, MetaMask browser extension  
-✅ **Tasks:**  
-- "Connect MetaMask wallet to Uniswap and swap tokens using the interface."  
-- "Browse and filter NFTs on OpenSea marketplace using search tools."  
-- "Add a new token to MetaMask wallet using the import function."  
-- "List an NFT for sale on OpenSea by navigating the selling interface."  
-- "Check transaction history in MetaMask browser extension popup."  
-
-#### **5. Productivity Interfaces → Modern Work Tools (Notion, Linear, Obsidian, etc.)**
-✅ **Examples:** Notion web app, Linear interface, Obsidian desktop app  
-✅ **Tasks:**  
-- "Create a new Notion database and set up custom properties and views."  
-- "Use Linear's interface to create tickets and assign them to team members."  
-- "Build a knowledge graph in Obsidian by linking notes and using graph view."  
-- "Set up automated Notion templates and use them to create new pages."  
-- "Track project progress in Linear using the roadmap and cycle views."  
-
-#### **6. Social Platform Interfaces → 2025 Networks (X, Threads, Discord, etc.)**
-✅ **Examples:** X.com (Twitter), Meta Threads, Discord desktop app  
-✅ **Tasks:**  
-- "Create and schedule posts on X.com using the composer interface."  
-- "Navigate Threads web interface to reply to posts and manage followers."  
-- "Set up a new Discord server using the server creation wizard."  
-- "Use X's analytics dashboard to review post performance metrics."  
-- "Moderate a Discord channel by managing roles and permissions."  
+#### **GOOD: Natural Chaos Examples**
+- "Research and write blog post about industry trends" → Browser research → multiple tabs → bookmark tools → Google Docs → fact-checking → image search → document formatting → publishing platform → social media scheduling
+- "Prepare presentation for client meeting" → email thread review → attachment downloads → file organization → PowerPoint → web research → screenshot tools → design feedback via Slack → calendar scheduling → meeting link sharing
+- "Process customer support tickets" → ticketing system → knowledge base lookup → email client → screen sharing tool → CRM updates → follow-up scheduling → team chat notifications  
 
 ### **Output Format (JSON object):**  
-Output format should be a JSON object with the following structure:
 {
-  "name": "Concise Agent Name", // e.g. "Email Manager Agent" instead of "Email Management Task Collection"
-  "apps": [
-    {
-      "name": "App Name",
-      "domain": "example.com",
-      "description": "Brief service description",
-      "categories": ["Category1", "Category2"],
-      "tasks": [
+  "name": "Workflow Collection Name",
+   "tasks": [
         {
-          "prompt": "Natural user request"
+          "task_name": "Task Name",
+          "prompt": "Complete natural workflow request that involves multiple apps organically",
+          "categories": ["category1", "category2"],
+          "apps_used": [
+            {
+              "name": "App Name 1", 
+              "domain": "app1.com", // for web apps, or "desktop" for native apps
+              "description": "Role in this workflow"
+            }, 
+            {
+              "name": "App Name 2", 
+              "domain": "desktop", // or actual domain for web apps  
+              "description": "Role in this workflow"
+            },
+            {
+              "name": "App Name 3",
+              "domain": "app3.com", 
+              "description": "Role in this workflow"
+            }
+            // Include ALL apps that are naturally used in this complete workflow
+          ]
         }
+        // Generate 5-10 DIFFERENT complete workflows, not sequential steps
       ]
-    }
-  ]
 }
 
-Example categories to consider:
-- Desktop Applications
-- Web Browsers
-- Social Media Platforms
-- E-commerce Interfaces
-- Design Tools
-- Productivity Software
-- Communication Apps
-- File Management
-- Entertainment Platforms
-- Educational Tools
+### **CRITICAL INSTRUCTIONS:**
 
-Focus on creating tasks that feel like genuine user requests for recordable desktop interactions, similar to (but avoid personal pronouns):
-- "Navigate to ChatGPT website and create a new custom GPT"
-- "Use TikTok Shop interface to add product details and pricing"
-- "Open MetaMask browser extension and connect to a DeFi website"
-- "Create a design mockup in Figma using the component library"
+1. **Map skills to COMPLETE workflows** - Don't create artificial step-by-step decompositions
+2. **Each task = ONE realistic professional workflow** that naturally involves multiple apps
+3. **Capture authentic chaos** - the messiness of real work where people jump between apps contextually
+4. **Focus on organic multi-app flow** - how professionals actually work, not idealized processes
+5. **Generate 2-4 different complete workflows** per skill set, each involving different app combinations
+
+### **Real-World Workflow Categories:**
+- **Research & Analysis**: Web research + Document creation + Data analysis + Communication
+- **Content & Communication**: Social monitoring + Writing + Design + Publishing + Team coordination  
+- **Data & Reporting**: Data collection + Spreadsheet work + Visualization + Presentation + Distribution
+- **Development & Technical**: Code editing + Testing + Documentation + Version control + Collaboration
+- **Operations & Management**: Email processing + Calendar management + File organization + Team communication
+- **Creative & Media**: Asset gathering + Design tools + Content creation + Review cycles + Publishing
+
+**CRITICAL**: Analyze the provided skills and create workflows that ACTUALLY USE those specific skills in realistic professional contexts. For "copy info from excel to word" → Generate ONE task like "Create quarterly budget summary by extracting financial data from multiple Excel reports and formatting into executive presentation" that naturally involves Excel → data manipulation → Word → formatting → email → calendar scheduling.
+
+**AVOID**: Breaking natural workflows into artificial sequential micro-steps. Each task should be a complete, realistic professional workflow.
 
 <SKILLS>
 {skill list}

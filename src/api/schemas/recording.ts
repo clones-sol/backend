@@ -30,7 +30,14 @@ export const RecordingProcessResponseSchema = z.object({
       summary: z.string(),
       observations: z.string(),
       reasoning: z.string(),
-      version: z.string().optional()
+      version: z.string().optional(),
+      programmaticResults: z.object({
+        videoAnalysis: z.array(z.object({
+          timestamp_seconds: z.number(),
+          description: z.string(),
+          status: z.enum(['success', 'failed', 'neutral']).optional()
+        })).optional()
+      }).optional()
     }),
     metrics: z.object({
       sessionId: z.string(),

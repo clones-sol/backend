@@ -95,6 +95,7 @@ export function configureSecureSession(app: Application): void {
     '/api/v1/forge/factories', // Factory list (GET/PUT)
     '/api/v1/forge/factories/search', // Factory search (POST but read-only)
     '/api/v1/forge/factories/apps',  // Factory apps list (POST but read-only)
+    '/api/v1/forge/factories/workflows', // Factory workflows generation (POST)
     '/api/v1/forge/factories/supported-tokens', // Supported tokens list (GET)
     '/api/v1/forge/factories/pools/predict-address', // Address prediction (POST but read-only)
     '/api/v1/forge/chat',            // AI chat interactions from desktop (POST)

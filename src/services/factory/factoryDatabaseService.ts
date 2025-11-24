@@ -104,21 +104,17 @@ export async function createFactory(
   creatorAddress: string,
   name: string,
   skills: string[],
-  apps: FactoryApp[],
+  tasks: any[],
   token: any,
   referrerAddress?: string
 ): Promise<any> {
   // Create factory document
   const factoryId = `factory_${poolAddress}`
 
-  // Generate IDs for apps and their tasks
-  const appsWithIds = apps.map(app => ({
-    ...app,
-    id: randomUUID(),
-    tasks: (app.tasks || []).map(task => ({
-      ...task,
-      id: randomUUID()
-    }))
+  // Generate IDs for tasks
+  const tasksWithIds = tasks.map(task => ({
+    ...task,
+    id: randomUUID()
   }))
 
   const factory = new FactoryModel({
@@ -131,7 +127,7 @@ export async function createFactory(
     status: 'paused',
     skills,
     token,
-    apps: appsWithIds,
+    tasks: tasksWithIds,
     createdAt: new Date(),
     updatedAt: new Date()
   })

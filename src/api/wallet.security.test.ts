@@ -5,6 +5,27 @@ import request from 'supertest';
 import { app, resetAuthAttempts } from '../test-server.ts';
 import { WalletConnectionModel } from '../models/Models.ts';
 
+// Mock ethers to prevent blockchain connection attempts
+vi.mock('ethers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('ethers')>()
+  return {
+    ...actual,
+    ethers: {
+      ...actual.ethers,
+      JsonRpcProvider: vi.fn().mockImplementation(() => ({
+        getNetwork: vi.fn().mockResolvedValue({ chainId: 1n }),
+        getBalance: vi.fn().mockResolvedValue(0n),
+        call: vi.fn().mockResolvedValue('0x'),
+        on: vi.fn()
+      })),
+      Contract: vi.fn().mockImplementation(() => ({
+        balanceOf: vi.fn().mockResolvedValue(0n),
+        decimals: vi.fn().mockResolvedValue(18)
+      }))
+    }
+  }
+});
+
 // Mock referral service to prevent external dependencies
 vi.mock('../services/referral/index.ts', () => ({
   referralService: {
