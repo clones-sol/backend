@@ -114,7 +114,7 @@ router.post(
                 objectives: {
                   type: 'array',
                   description:
-                    `List of around ${appsToUse.length * 2 + 2} objectives to complete this ${appsToUse.length > 1 ? 'multi-app workflow' : 'single-app'} task. For multi-app workflows, include objectives for navigating between applications, data transfer, and context switching. Each app should have at least 2-3 objectives. Wrap app names in <app> tags and wrap app. Stop at checkout for purchases.`,
+                    `List of around ${appsToUse.length * 2 + 2} objectives to complete this ${appsToUse.length > 1 ? 'multi-app workflow' : 'single-app'} task. For multi-app workflows, include objectives for navigating between applications, data transfer, and context switching. Each app should have at least 2-3 objectives. Wrap app names in <app> tags. Stop at checkout for purchases.`,
                   items: {
                     type: 'string'
                   }

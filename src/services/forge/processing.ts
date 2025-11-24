@@ -168,7 +168,7 @@ export async function processNextInQueue() {
         const absoluteExtractDir = path.resolve(extractDir)
         const args = ['-f', 'desktop', '-i', absoluteExtractDir, '--grade']
 
-        // Enable video mode by default (unless explicitly disabled) or if API key is present
+        // Enable video mode by default (unless explicitly disabled)
         const useVideoGrading = process.env.USE_VIDEO_GRADING !== 'false';
 
         if (useVideoGrading) {
