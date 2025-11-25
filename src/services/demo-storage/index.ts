@@ -209,6 +209,58 @@ export class DemoStorageService {
   }
 
   /**
+   * Update a single file in an existing demonstration and refresh integrity manifest
+   * Used for post-processing updates like enriching sft.json with video analysis
+   */
+  async updateDemoFile(demoHash: string, filename: string, fileBuffer: Buffer): Promise<void> {
+    logger.info(`[DemoStorage] Updating ${filename} for demo ${demoHash} (${fileBuffer.length} bytes)`)
+
+    // Get current integrity manifest
+    const integrity = await this.getDemoIntegrity(demoHash)
+    if (!integrity) {
+      throw new Error(`Demo integrity not found: ${demoHash}`)
+    }
+
+    // Calculate new file hash
+    const newFileHash = calculateFileHash(fileBuffer)
+
+    // Upload the updated file
+    const filePath = getDemoStoragePath(demoHash, filename)
+    await this.objectStorage.saveItem({
+      name: filePath,
+      file: fileBuffer
+    })
+
+    logger.info(`[DemoStorage] Updated file ${filename} uploaded with new hash ${newFileHash.substring(0, 16)}...`)
+
+    // Update file integrity in the manifest
+    const fileIndex = integrity.files.findIndex(f => f.filename === filename)
+    if (fileIndex === -1) {
+      throw new Error(`File ${filename} not found in demo integrity manifest`)
+    }
+
+    integrity.files[fileIndex] = {
+      filename,
+      sha256: newFileHash,
+      size: fileBuffer.length,
+      lastModified: new Date().toISOString()
+    }
+
+    // Recalculate overall hash with updated file hashes
+    const fileHashes = integrity.files.map(f => f.sha256)
+    integrity.overallHash = calculateOverallHash(fileHashes)
+
+    // Save updated integrity manifest
+    const integrityPath = getDemoStoragePath(demoHash, 'checksums.json')
+    await this.objectStorage.saveItem({
+      name: integrityPath,
+      file: Buffer.from(JSON.stringify(integrity, null, 2))
+    })
+
+    logger.info(`[DemoStorage] Integrity manifest updated for demo ${demoHash}, new overall hash ${integrity.overallHash.substring(0, 16)}...`)
+  }
+
+  /**
    * Create or update dataset manifest
    */
   async updateDatasetManifest(statistics: DatasetManifest['statistics']): Promise<void> {

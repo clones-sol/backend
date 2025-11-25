@@ -295,6 +295,29 @@ export async function processNextInQueue() {
 
             await fs.writeFile(sftPath, JSON.stringify(events, null, 2))
             logger.info(`Successfully added ${annotations.length} annotations to sft.json`)
+
+            // Re-upload enriched sft.json to storage if demoHash exists
+            if (submission.demoHash) {
+              logger.info(`Re-uploading enriched sft.json to storage for demo ${submission.demoHash}`)
+              const enrichedSftBuffer = await fs.readFile(sftPath)
+              const storage = getDemoStorageService()
+              await storage.updateDemoFile(submission.demoHash, 'sft.json', enrichedSftBuffer)
+              logger.info(`Enriched sft.json successfully re-uploaded to storage`)
+
+              // Update file manifest in submission with new hash
+              const updatedIntegrity = await storage.getDemoIntegrity(submission.demoHash)
+              if (updatedIntegrity) {
+                const sftFileInfo = updatedIntegrity.files.find(f => f.filename === 'sft.json')
+                if (sftFileInfo && submission.fileManifest) {
+                  submission.fileManifest.sft = {
+                    size: sftFileInfo.size,
+                    hash: sftFileInfo.sha256
+                  }
+                  await submission.save()
+                  logger.info(`Updated fileManifest with new sft.json hash: ${sftFileInfo.sha256.substring(0, 16)}...`)
+                }
+              }
+            }
           }
         } catch (enrichError) {
           logger.warn('Failed to enrich sft.json:', enrichError)
