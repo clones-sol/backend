@@ -1,6 +1,7 @@
 import { ethers } from 'ethers'
 import express, { type Request, type Response, type Router } from 'express'
 import mongoose from 'mongoose'
+import { requireWalletAddress } from '../middleware/auth.ts'
 import { authRateLimit } from '../middleware/rateLimiter.ts'
 import { v4 as uuidv4 } from 'uuid'
 import ClaimRouterABI from '../contracts/abis/ClaimRouter.json' with { type: 'json' }
@@ -1008,6 +1009,7 @@ router.post(
 router.post(
   '/validate-factory-metadata',
   authRateLimit,
+  requireWalletAddress,
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { metadata } = req.body
 
@@ -1159,6 +1161,7 @@ router.post(
 router.post(
   '/finalize-factory',
   authRateLimit,
+  requireWalletAddress,
   errorHandlerAsync(async (req: Request, res: Response) => {
     const { txHash, sessionId, metadata } = req.body
 
