@@ -31,18 +31,20 @@ const appSchema = new Schema<IAppDocument>(
     },
     name: {
       type: String,
-      required: true,
-      index: true
+      required: true
+      // No index here - we query via nameLowercase instead
     },
     nameLowercase: {
       type: String,
       required: true,
-      lowercase: true
+      lowercase: true,
+      index: true // Regular index for fast lookups
     },
     domain: {
       type: String,
       required: true,
-      lowercase: true
+      lowercase: true,
+      index: true // Regular index for domain lookups
     },
     description: {
       type: String,
@@ -83,9 +85,15 @@ appSchema.virtual('id').get(function () {
 })
 
 // Indexes for performance
+// Text search index for full-text search across name, domain, description
 appSchema.index({ name: 'text', domain: 'text', description: 'text' })
+
+// Composite index for filtering by category and sorting by popularity
 appSchema.index({ categories: 1, usageCount: -1 })
-appSchema.index({ domain: 1 })
+
+// Unique index for case-insensitive name lookups (primary lookup method)
 appSchema.index({ nameLowercase: 1 }, { unique: true })
+
+// Note: domain and nameLowercase already have regular indexes defined inline above
 
 export const AppModel = model<IAppDocument>('App', appSchema)

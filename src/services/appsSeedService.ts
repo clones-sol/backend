@@ -54,13 +54,33 @@ interface RelationsSeedFile {
  */
 async function seedApps(): Promise<number> {
   const jsonPath = join(__dirname, '../data/apps-seed.json')
-  const jsonData = readFileSync(jsonPath, 'utf-8')
-  const seedData: AppsSeedFile = JSON.parse(jsonData)
+
+  let jsonData: string
+  try {
+    jsonData = readFileSync(jsonPath, 'utf-8')
+  } catch (error) {
+    throw new Error(`Failed to read apps seed file at ${jsonPath}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+
+  let seedData: AppsSeedFile
+  try {
+    seedData = JSON.parse(jsonData)
+  } catch (error) {
+    throw new Error(`Failed to parse apps seed JSON: ${error instanceof Error ? error.message : String(error)}`)
+  }
+
+  if (!seedData.apps || !Array.isArray(seedData.apps)) {
+    throw new Error(`Invalid apps seed data: missing or invalid 'apps' array`)
+  }
 
   logger.info(`Loaded ${seedData.apps.length} apps from JSON (v${seedData.metadata?.version || 'unknown'})`)
 
   // Ensure indexes are created first (idempotent operation)
-  await AppModel.createIndexes()
+  try {
+    await AppModel.createIndexes()
+  } catch (error) {
+    throw new Error(`Failed to create App indexes: ${error instanceof Error ? error.message : String(error)}`)
+  }
 
   let upsertedCount = 0
   let updatedCount = 0
@@ -76,22 +96,26 @@ async function seedApps(): Promise<number> {
       // Note: usageCount is NOT updated to preserve existing usage stats
     }
 
-    // Upsert: update if exists, insert if not
-    const result = await AppModel.updateOne(
-      { _id: app._id },
-      {
-        $set: appData,
-        $setOnInsert: { usageCount: 0 } // Only set usageCount on insert
-      },
-      { upsert: true }
-    )
+    try {
+      // Upsert: update if exists, insert if not
+      const result = await AppModel.updateOne(
+        { _id: app._id },
+        {
+          $set: appData,
+          $setOnInsert: { usageCount: 0 } // Only set usageCount on insert
+        },
+        { upsert: true }
+      )
 
-    if (result.upsertedCount > 0) {
-      upsertedCount++
-    } else if (result.modifiedCount > 0) {
-      updatedCount++
-    } else {
-      skippedCount++
+      if (result.upsertedCount > 0) {
+        upsertedCount++
+      } else if (result.modifiedCount > 0) {
+        updatedCount++
+      } else {
+        skippedCount++
+      }
+    } catch (error) {
+      throw new Error(`Failed to upsert app ${app._id} (${app.name}): ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -105,64 +129,88 @@ async function seedApps(): Promise<number> {
  */
 async function seedAppRelations(): Promise<number> {
   const jsonPath = join(__dirname, '../data/app-relations-seed.json')
-  const jsonData = readFileSync(jsonPath, 'utf-8')
-  const seedData: RelationsSeedFile = JSON.parse(jsonData)
+
+  let jsonData: string
+  try {
+    jsonData = readFileSync(jsonPath, 'utf-8')
+  } catch (error) {
+    throw new Error(`Failed to read relations seed file at ${jsonPath}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+
+  let seedData: RelationsSeedFile
+  try {
+    seedData = JSON.parse(jsonData)
+  } catch (error) {
+    throw new Error(`Failed to parse relations seed JSON: ${error instanceof Error ? error.message : String(error)}`)
+  }
+
+  if (!seedData.relations || !Array.isArray(seedData.relations)) {
+    throw new Error(`Invalid relations seed data: missing or invalid 'relations' array`)
+  }
 
   logger.info(`Loaded ${seedData.relations.length} relations from JSON (v${seedData.metadata?.version || 'unknown'})`)
 
   // Ensure indexes are created first
-  await AppRelationModel.createIndexes()
+  try {
+    await AppRelationModel.createIndexes()
+  } catch (error) {
+    throw new Error(`Failed to create AppRelation indexes: ${error instanceof Error ? error.message : String(error)}`)
+  }
 
   let upsertedCount = 0
   let updatedCount = 0
   let skippedCount = 0
 
   for (const relation of seedData.relations) {
-    // Upsert primary relation
-    const result = await AppRelationModel.updateOne(
-      { _id: relation._id },
-      {
-        $set: {
-          appId: relation.appId,
-          alternativeId: relation.alternativeId,
-          relevanceScore: relation.relevanceScore,
-          bidirectional: relation.bidirectional
-        }
-      },
-      { upsert: true }
-    )
-
-    if (result.upsertedCount > 0) {
-      upsertedCount++
-    } else if (result.modifiedCount > 0) {
-      updatedCount++
-    } else {
-      skippedCount++
-    }
-
-    // Create reverse relation if bidirectional
-    if (relation.bidirectional) {
-      const reverseId = generateRelationId(relation.alternativeId, relation.appId)
-      const reverseResult = await AppRelationModel.updateOne(
-        { _id: reverseId },
+    try {
+      // Upsert primary relation
+      const result = await AppRelationModel.updateOne(
+        { _id: relation._id },
         {
           $set: {
-            appId: relation.alternativeId,
-            alternativeId: relation.appId,
+            appId: relation.appId,
+            alternativeId: relation.alternativeId,
             relevanceScore: relation.relevanceScore,
-            bidirectional: false // Only primary relation controls bidirectionality
+            bidirectional: relation.bidirectional
           }
         },
         { upsert: true }
       )
 
-      if (reverseResult.upsertedCount > 0) {
+      if (result.upsertedCount > 0) {
         upsertedCount++
-      } else if (reverseResult.modifiedCount > 0) {
+      } else if (result.modifiedCount > 0) {
         updatedCount++
       } else {
         skippedCount++
       }
+
+      // Create reverse relation if bidirectional
+      if (relation.bidirectional) {
+        const reverseId = generateRelationId(relation.alternativeId, relation.appId)
+        const reverseResult = await AppRelationModel.updateOne(
+          { _id: reverseId },
+          {
+            $set: {
+              appId: relation.alternativeId,
+              alternativeId: relation.appId,
+              relevanceScore: relation.relevanceScore,
+              bidirectional: false // Only primary relation controls bidirectionality
+            }
+          },
+          { upsert: true }
+        )
+
+        if (reverseResult.upsertedCount > 0) {
+          upsertedCount++
+        } else if (reverseResult.modifiedCount > 0) {
+          updatedCount++
+        } else {
+          skippedCount++
+        }
+      }
+    } catch (error) {
+      throw new Error(`Failed to upsert relation ${relation._id}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 

@@ -580,15 +580,6 @@
       ]
     },
     {
-      "_id": "app_google_sheets",
-      "name": "Google Sheets",
-      "domain": "sheets.google.com",
-      "description": "Cloud-based spreadsheet application with real-time collaboration",
-      "categories": [
-        "webapp"
-      ]
-    },
-    {
       "_id": "app_google_slides",
       "name": "Google Slides",
       "domain": "slides.google.com",
@@ -728,19 +719,11 @@
       "_id": "app_libreoffice_calc",
       "name": "LibreOffice Calc",
       "domain": "libreoffice.org",
-      "description": "LibreOffice Calc application",
-      "categories": [
-        "webapp"
-      ]
-    },
-    {
-      "_id": "app_libreoffice_calc",
-      "name": "LibreOffice Calc",
-      "domain": "libreoffice.org",
       "description": "Free and open-source spreadsheet application",
       "categories": [
         "desktop",
-        "open_source"
+        "open_source",
+        "webapp"
       ]
     },
     {
@@ -1327,15 +1310,6 @@
       "_id": "app_thunderbird",
       "name": "Thunderbird",
       "domain": "thunderbird.net",
-      "description": "Thunderbird application",
-      "categories": [
-        "webapp"
-      ]
-    },
-    {
-      "_id": "app_thunderbird",
-      "name": "Thunderbird",
-      "domain": "thunderbird.net",
       "description": "Free and open-source email client by Mozilla",
       "categories": [
         "desktop",
@@ -1565,7 +1539,7 @@
     "version": "2.0.0",
     "format": "normalized",
     "generated": "2025-11-26T19:17:03Z",
-    "totalApps": 170,
+    "totalApps": 166,
     "description": "Normalized apps collection without embedded alternatives"
   }
 }
