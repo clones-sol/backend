@@ -143,6 +143,7 @@ const workflowTaskSchema = new Schema<WorkflowTask>(
     task_name: {
       type: String,
       required: true,
+      maxlength: 200
     },
     apps_used: [taskAppSchema],
     uploadLimit: {
@@ -216,7 +217,7 @@ const factorySchema = new Schema<IFactoryDocument>(
     skills: [
       {
         type: String,
-        maxlength: 500,
+        maxlength: 1000,
         index: true
       }
     ],

@@ -1,0 +1,1571 @@
+{
+  "apps": [
+    {
+      "_id": "app_1password",
+      "name": "1Password",
+      "domain": "1password.com",
+      "description": "Password manager and secure vault for individuals and teams",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_aws_management_console",
+      "name": "AWS Management Console",
+      "domain": "console.aws.amazon.com",
+      "description": "Web-based interface to manage Amazon Web Services resources",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_adept",
+      "name": "Adept",
+      "domain": "adept.ai",
+      "description": "AI agent platform for automating workflows across web apps",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_adobe_indesign",
+      "name": "Adobe InDesign",
+      "domain": "adobe.com/indesign",
+      "description": "Professional desktop publishing software for print and digital media design",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_adobe_premiere_pro",
+      "name": "Adobe Premiere Pro",
+      "domain": "adobe.com/premiere",
+      "description": "Professional non-linear video editing software by Adobe",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_affinity_publisher",
+      "name": "Affinity Publisher",
+      "domain": "affinity.serif.com",
+      "description": "Professional desktop publishing software as Adobe InDesign alternative",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_airtable",
+      "name": "Airtable",
+      "domain": "airtable.com",
+      "description": "Airtable application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_amazon_bedrock_api",
+      "name": "Amazon Bedrock API",
+      "domain": "amazon.com/bedrock/api",
+      "description": "Amazon Bedrock API application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_anthropic_api",
+      "name": "Anthropic API",
+      "domain": "anthropic.com/api",
+      "description": "Anthropic API application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_appsmith",
+      "name": "Appsmith",
+      "domain": "appsmith.com",
+      "description": "Open-source platform for building internal tools",
+      "categories": [
+        "open_source",
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_asana",
+      "name": "Asana",
+      "domain": "asana.com",
+      "description": "Asana application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_azure_portal",
+      "name": "Azure Portal",
+      "domain": "portal.azure.com",
+      "description": "Web-based management portal for Microsoft Azure services",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_bankview",
+      "name": "BankView",
+      "domain": "bankview.example.com",
+      "description": "Banking and financial account management platform",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_bitwarden",
+      "name": "Bitwarden",
+      "domain": "bitwarden.com",
+      "description": "Open-source password manager with web vault and desktop apps",
+      "categories": [
+        "open_source",
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_bluesky",
+      "name": "Bluesky",
+      "domain": "bsky.app",
+      "description": "Bluesky application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_bluesky_web",
+      "name": "Bluesky Web",
+      "domain": "bsky.app",
+      "description": "Decentralized social media platform with a full-featured web interface",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_brave",
+      "name": "Brave",
+      "domain": "brave.com",
+      "description": "Privacy-focused web browser with built-in ad blocker",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_browserstack",
+      "name": "BrowserStack",
+      "domain": "browserstack.com",
+      "description": "Cloud-based cross-browser testing platform for web and mobile applications",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_bubble",
+      "name": "Bubble",
+      "domain": "bubble.io",
+      "description": "Bubble application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_budibase",
+      "name": "Budibase",
+      "domain": "budibase.com",
+      "description": "Open-source low-code platform for internal apps",
+      "categories": [
+        "open_source",
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_buffer",
+      "name": "Buffer",
+      "domain": "buffer.com",
+      "description": "Buffer application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_buy_me_a_coffee",
+      "name": "Buy Me a Coffee",
+      "domain": "buymeacoffee.com",
+      "description": "Buy Me a Coffee application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_canva",
+      "name": "Canva",
+      "domain": "canva.com",
+      "description": "Canva application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_chatgpt",
+      "name": "ChatGPT",
+      "domain": "chat.openai.com",
+      "description": "Conversational AI assistant by OpenAI for natural language interactions",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_chatgpt_api",
+      "name": "ChatGPT API",
+      "domain": "openai.com/api",
+      "description": "API for the ChatGPT model",
+      "categories": [
+        "api"
+      ]
+    },
+    {
+      "_id": "app_chatgpt_web_interface",
+      "name": "ChatGPT Web Interface",
+      "domain": "chat.openai.com",
+      "description": "Web-based conversational AI interface by OpenAI with GPT-4 and plugins support",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_claude",
+      "name": "Claude",
+      "domain": "claude.ai",
+      "description": "AI assistant by Anthropic focused on helpful, harmless, and honest conversations",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_claude_desktop_app",
+      "name": "Claude Desktop App",
+      "domain": "claude.ai",
+      "description": "Native desktop application for Claude AI with enhanced performance and offline features",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_clickup",
+      "name": "ClickUp",
+      "domain": "clickup.com",
+      "description": "Project management and productivity platform",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_coda",
+      "name": "Coda",
+      "domain": "coda.io",
+      "description": "All-in-one documents combining text, tables, and apps",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_composeai",
+      "name": "Compose.ai",
+      "domain": "compose.ai",
+      "description": "AI writing acceleration and autocomplete assistant",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_confluence",
+      "name": "Confluence",
+      "domain": "atlassian.com/confluence",
+      "description": "Team workspace for documentation and knowledge sharing",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_copyai",
+      "name": "Copy.ai",
+      "domain": "copy.ai",
+      "description": "Copy.ai application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_crisp",
+      "name": "Crisp",
+      "domain": "crisp.chat",
+      "description": "Customer messaging suite with live chat and inbox",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_davinci_resolve",
+      "name": "DaVinci Resolve",
+      "domain": "blackmagicdesign.com/products/davinciresolve",
+      "description": "Professional video editing, color correction, and audio post-production suite",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_dashlane",
+      "name": "Dashlane",
+      "domain": "dashlane.com",
+      "description": "Dashlane application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_descript",
+      "name": "Descript",
+      "domain": "descript.com",
+      "description": "Web and desktop platform for video editing using transcripts",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_drift",
+      "name": "Drift",
+      "domain": "drift.com",
+      "description": "Conversational marketing and sales chat platform",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_dropbox",
+      "name": "Dropbox",
+      "domain": "dropbox.com",
+      "description": "Cloud file storage and sharing service",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_eclipse_ide",
+      "name": "Eclipse IDE",
+      "domain": "eclipse.org/ide",
+      "description": "Eclipse IDE application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_email_client",
+      "name": "Email Client",
+      "domain": "mail.generic.com",
+      "description": "Generic email client for managing multiple email accounts",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_evernote",
+      "name": "Evernote",
+      "domain": "evernote.com",
+      "description": "Note-taking and organization app with web and desktop clients",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_excel",
+      "name": "Excel",
+      "domain": "office.com/excel",
+      "description": "Microsoft's spreadsheet application with advanced formulas, pivot tables, and data analysis",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_excel_online",
+      "name": "Excel Online",
+      "domain": "office.com",
+      "description": "Excel Online application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_fantastical",
+      "name": "Fantastical",
+      "domain": "flexibits.com/fantastical",
+      "description": "Fantastical application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_final_cut_pro",
+      "name": "Final Cut Pro",
+      "domain": "apple.com/final-cut-pro",
+      "description": "Final Cut Pro application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_flutterflow",
+      "name": "FlutterFlow",
+      "domain": "flutterflow.io",
+      "description": "FlutterFlow application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_freshbooks",
+      "name": "FreshBooks",
+      "domain": "freshbooks.com",
+      "description": "Invoicing and accounting platform for freelancers and small businesses",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_freshdesk",
+      "name": "Freshdesk",
+      "domain": "freshdesk.com",
+      "description": "Freshdesk application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_freshservice",
+      "name": "Freshservice",
+      "domain": "freshservice.com",
+      "description": "Cloud-based IT service management and support desk",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_gemini",
+      "name": "Gemini",
+      "domain": "gemini.google.com",
+      "description": "Google's conversational AI assistant with multimodal capabilities",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_ghost",
+      "name": "Ghost",
+      "domain": "ghost.org",
+      "description": "Ghost application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_ghost_cms",
+      "name": "Ghost CMS",
+      "domain": "ghost.org",
+      "description": "Professional publishing and newsletter platform",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_glide",
+      "name": "Glide",
+      "domain": "glideapps.com",
+      "description": "No-code platform to build web applications from spreadsheets",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_gmail",
+      "name": "Gmail",
+      "domain": "mail.google.com",
+      "description": "Web-based email service by Google",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_google_calendar",
+      "name": "Google Calendar",
+      "domain": "calendar.google.com",
+      "description": "Online calendar and scheduling by Google",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_google_chrome",
+      "name": "Google Chrome",
+      "domain": "google.com/chrome",
+      "description": "Cross-platform web browser developed by Google",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_google_cloud_console",
+      "name": "Google Cloud Console",
+      "domain": "console.cloud.google.com",
+      "description": "Web console for managing Google Cloud Platform resources",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_google_docs",
+      "name": "Google Docs",
+      "domain": "docs.google.com",
+      "description": "Online word processor part of Google Workspace",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_google_drive",
+      "name": "Google Drive",
+      "domain": "drive.google.com",
+      "description": "Cloud file storage and synchronization by Google",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_google_gemini_api",
+      "name": "Google Gemini API",
+      "domain": "google.com/gemini/api",
+      "description": "Google Gemini API application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_google_meet",
+      "name": "Google Meet",
+      "domain": "meet.google.com",
+      "description": "Video meetings and conferencing by Google",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_google_sheets",
+      "name": "Google Sheets",
+      "domain": "sheets.google.com",
+      "description": "Google Sheets application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_google_sheets",
+      "name": "Google Sheets",
+      "domain": "sheets.google.com",
+      "description": "Cloud-based spreadsheet application with real-time collaboration",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_google_slides",
+      "name": "Google Slides",
+      "domain": "slides.google.com",
+      "description": "Google Slides application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_grammarly",
+      "name": "Grammarly",
+      "domain": "grammarly.com",
+      "description": "Grammarly application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_groq_api",
+      "name": "Groq API",
+      "domain": "groq.com/api",
+      "description": "Groq API application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_help_scout",
+      "name": "Help Scout",
+      "domain": "helpscout.com",
+      "description": "Support ticketing, knowledge base, and shared inbox",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_hootsuite",
+      "name": "Hootsuite",
+      "domain": "hootsuite.com",
+      "description": "Hootsuite application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_ibm_watson_api",
+      "name": "IBM Watson API",
+      "domain": "ibm.com/watson/api",
+      "description": "IBM Watson API application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_instagram_business_suite",
+      "name": "Instagram Business Suite",
+      "domain": "business.facebook.com",
+      "description": "Unified platform for managing Instagram and Facebook business accounts",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_intellij_idea",
+      "name": "IntelliJ IDEA",
+      "domain": "jetbrains.com/idea",
+      "description": "Java-centric IDE with support for many languages and frameworks",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_intercom",
+      "name": "Intercom",
+      "domain": "intercom.com",
+      "description": "Intercom application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_jasper",
+      "name": "Jasper",
+      "domain": "jasper.ai",
+      "description": "Jasper application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_jira",
+      "name": "Jira",
+      "domain": "atlassian.com/jira",
+      "description": "Issue and project tracking for software teams",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_kofi",
+      "name": "Ko-fi",
+      "domain": "ko-fi.com",
+      "description": "Web-based support and payments platform for creators",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_lambdatest",
+      "name": "LambdaTest",
+      "domain": "lambdatest.com",
+      "description": "Cross-browser testing cloud platform",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_lastpass",
+      "name": "LastPass",
+      "domain": "lastpass.com",
+      "description": "LastPass application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_libreoffice",
+      "name": "LibreOffice",
+      "domain": "libreoffice.org",
+      "description": "Free and open-source office suite for documents, spreadsheets and presentations",
+      "categories": [
+        "open_source",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_libreoffice_calc",
+      "name": "LibreOffice Calc",
+      "domain": "libreoffice.org",
+      "description": "LibreOffice Calc application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_libreoffice_calc",
+      "name": "LibreOffice Calc",
+      "domain": "libreoffice.org",
+      "description": "Free and open-source spreadsheet application",
+      "categories": [
+        "desktop",
+        "open_source"
+      ]
+    },
+    {
+      "_id": "app_libreoffice_writer",
+      "name": "LibreOffice Writer",
+      "domain": "libreoffice.org",
+      "description": "LibreOffice Writer application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_linear",
+      "name": "Linear",
+      "domain": "linear.app",
+      "description": "Linear application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_liveagent",
+      "name": "LiveAgent",
+      "domain": "liveagent.com",
+      "description": "Help desk and omnichannel customer support software",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_logseq",
+      "name": "Logseq",
+      "domain": "logseq.com",
+      "description": "Logseq application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_looker",
+      "name": "Looker",
+      "domain": "looker.com",
+      "description": "Looker application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_looker_studio",
+      "name": "Looker Studio",
+      "domain": "lookerstudio.google.com",
+      "description": "Free dashboard and data visualization tool by Google",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_loom",
+      "name": "Loom",
+      "domain": "loom.com",
+      "description": "Async screen recording and video messaging for teams",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_make",
+      "name": "Make",
+      "domain": "make.com",
+      "description": "Make application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_mastodon",
+      "name": "Mastodon",
+      "domain": "mastodon.social",
+      "description": "Mastodon application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_mastodon_web",
+      "name": "Mastodon Web",
+      "domain": "mastodon.social",
+      "description": "Federated social network with customizable community servers",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_mem",
+      "name": "Mem",
+      "domain": "get.mem.ai",
+      "description": "AI knowledge workspace supporting docs, notes, and connections",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_meta_ai_api",
+      "name": "Meta AI API",
+      "domain": "meta.com/ai/api",
+      "description": "Meta AI API application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_meta_business_suite_web",
+      "name": "Meta Business Suite Web",
+      "domain": "business.facebook.com",
+      "description": "Web suite for managing Facebook and Instagram content",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_metabase",
+      "name": "Metabase",
+      "domain": "metabase.com",
+      "description": "Open-source business intelligence platform for easy analytics",
+      "categories": [
+        "open_source",
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_microsoft_365",
+      "name": "Microsoft 365",
+      "domain": "office.com",
+      "description": "Microsoft 365 application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_microsoft_azure_openai_api",
+      "name": "Microsoft Azure OpenAI API",
+      "domain": "azure.com/openai/api",
+      "description": "Microsoft Azure OpenAI API application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_copilot",
+      "name": "Microsoft Copilot",
+      "domain": "copilot.microsoft.com",
+      "description": "Microsoft's AI assistant integrated across products and web",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_microsoft_edge",
+      "name": "Microsoft Edge",
+      "domain": "microsoft.com/edge",
+      "description": "Chromium-based browser from Microsoft",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_microsoft_excel",
+      "name": "Microsoft Excel",
+      "domain": "office.com",
+      "description": "Spreadsheet software with powerful analysis tools",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_microsoft_onenote",
+      "name": "Microsoft OneNote",
+      "domain": "onenote.com",
+      "description": "Microsoft OneNote application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_microsoft_powerpoint",
+      "name": "Microsoft PowerPoint",
+      "domain": "office.com",
+      "description": "Presentation software for creating slideshows",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_microsoft_teams",
+      "name": "Microsoft Teams",
+      "domain": "teams.microsoft.com",
+      "description": "Team collaboration hub with chat, meetings, and file sharing",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_microsoft_to_do",
+      "name": "Microsoft To Do",
+      "domain": "todo.microsoft.com",
+      "description": "Microsoft To Do application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_microsoft_word",
+      "name": "Microsoft Word",
+      "domain": "office.com",
+      "description": "Word processing software from Microsoft, available on web and desktop",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_mint",
+      "name": "Mint",
+      "domain": "mint.intuit.com",
+      "description": "Free personal finance management and budgeting tool",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_mode",
+      "name": "Mode",
+      "domain": "mode.com",
+      "description": "Mode application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_mode_analytics",
+      "name": "Mode Analytics",
+      "domain": "mode.com",
+      "description": "Collaborative data analysis platform combining SQL, Python and dashboards",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_mondaycom",
+      "name": "Monday.com",
+      "domain": "monday.com",
+      "description": "Work OS for project and task management",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_mozilla_firefox",
+      "name": "Mozilla Firefox",
+      "domain": "mozilla.org/firefox",
+      "description": "Open-source web browser focused on privacy and customization",
+      "categories": [
+        "open_source",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_notion",
+      "name": "Notion",
+      "domain": "notion.so",
+      "description": "Notion application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_obsidian",
+      "name": "Obsidian",
+      "domain": "obsidian.md",
+      "description": "Markdown-based knowledge base and note-taking app",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_onedrive",
+      "name": "OneDrive",
+      "domain": "onedrive.live.com",
+      "description": "Microsoft cloud storage integrated with Windows and Office",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_onlyoffice",
+      "name": "OnlyOffice",
+      "domain": "onlyoffice.com",
+      "description": "Office suite with document editing and collaboration, online and self-hosted",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_openai_api",
+      "name": "OpenAI API",
+      "domain": "openai.com/api",
+      "description": "OpenAI API application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_opera",
+      "name": "Opera",
+      "domain": "opera.com",
+      "description": "Opera application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_outlook",
+      "name": "Outlook",
+      "domain": "outlook.live.com",
+      "description": "Microsoft email and calendar service, web and desktop",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_outlook_calendar",
+      "name": "Outlook Calendar",
+      "domain": "outlook.live.com",
+      "description": "Outlook Calendar application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_parabola",
+      "name": "Parabola",
+      "domain": "parabola.io",
+      "description": "Visual automation platform for data flows and e-commerce operations",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_patreon",
+      "name": "Patreon",
+      "domain": "patreon.com",
+      "description": "Patreon application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_perplexity",
+      "name": "Perplexity",
+      "domain": "perplexity.ai",
+      "description": "AI-powered search and answer engine with cited sources",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_perplexity_research",
+      "name": "Perplexity Research",
+      "domain": "perplexity.ai",
+      "description": "AI-powered research assistant with real-time web search and academic citations",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_power_bi",
+      "name": "Power BI",
+      "domain": "powerbi.microsoft.com",
+      "description": "Power BI application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_power_bi",
+      "name": "Power BI",
+      "domain": "powerbi.microsoft.com",
+      "description": "Microsoft's business analytics platform with interactive visualizations",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_proton_mail",
+      "name": "Proton Mail",
+      "domain": "proton.me",
+      "description": "Privacy-focused encrypted email service",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_pycharm",
+      "name": "PyCharm",
+      "domain": "jetbrains.com/pycharm",
+      "description": "Python IDE with intelligent code assistance and debugging",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_quickbooks",
+      "name": "QuickBooks",
+      "domain": "quickbooks.intuit.com",
+      "description": "Accounting software for small businesses with invoicing, payroll, and tax management",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_quickbooks_online",
+      "name": "QuickBooks Online",
+      "domain": "quickbooks.intuit.com",
+      "description": "Web-based accounting and financial management platform for businesses",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_quillbot",
+      "name": "QuillBot",
+      "domain": "quillbot.com",
+      "description": "QuillBot application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_redash",
+      "name": "Redash",
+      "domain": "redash.io",
+      "description": "Open-source SQL-based dashboarding and visualization",
+      "categories": [
+        "open_source",
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_retool",
+      "name": "Retool",
+      "domain": "retool.com",
+      "description": "Retool application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_sage_accounting",
+      "name": "Sage Accounting",
+      "domain": "sage.com",
+      "description": "Business accounting, invoicing and reporting suite",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_sauce_labs",
+      "name": "Sauce Labs",
+      "domain": "saucelabs.com",
+      "description": "Cloud-based testing platform for web and mobile apps",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_sigma_computing",
+      "name": "Sigma Computing",
+      "domain": "sigmacomputing.com",
+      "description": "Spreadsheet-like cloud analytics platform for business teams",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_skype",
+      "name": "Skype",
+      "domain": "skype.com",
+      "description": "Video calling and messaging application by Microsoft",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_slack",
+      "name": "Slack",
+      "domain": "slack.com",
+      "description": "Slack application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_spyder",
+      "name": "Spyder",
+      "domain": "spyder-ide.org",
+      "description": "Spyder application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_substack",
+      "name": "Substack",
+      "domain": "substack.com",
+      "description": "Substack application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_tability",
+      "name": "Tability",
+      "domain": "tability.io",
+      "description": "Goal-tracking and AI-assisted project reporting",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_tableau",
+      "name": "Tableau",
+      "domain": "tableau.com",
+      "description": "Tableau application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_tableau_online",
+      "name": "Tableau Online",
+      "domain": "online.tableau.com",
+      "description": "Cloud-based business intelligence and data visualization platform",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_tella",
+      "name": "Tella",
+      "domain": "tella.tv",
+      "description": "Browser-based screen recording and editing for tutorials",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_threads",
+      "name": "Threads",
+      "domain": "threads.net",
+      "description": "Threads application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_threads_web",
+      "name": "Threads Web",
+      "domain": "threads.net",
+      "description": "Threads Web application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_thunderbird",
+      "name": "Thunderbird",
+      "domain": "thunderbird.net",
+      "description": "Thunderbird application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_thunderbird",
+      "name": "Thunderbird",
+      "domain": "thunderbird.net",
+      "description": "Free and open-source email client by Mozilla",
+      "categories": [
+        "desktop",
+        "open_source"
+      ]
+    },
+    {
+      "_id": "app_ticktick",
+      "name": "TickTick",
+      "domain": "ticktick.com",
+      "description": "TickTick application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_tiktok_creator_center",
+      "name": "TikTok Creator Center",
+      "domain": "studio.tiktok.com",
+      "description": "Content management and analytics platform for TikTok creators",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_todoist",
+      "name": "Todoist",
+      "domain": "todoist.com",
+      "description": "Task management and to-do list app",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_twitch_dashboard",
+      "name": "Twitch Dashboard",
+      "domain": "dashboard.twitch.tv",
+      "description": "Twitch Dashboard application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_vimeo_record",
+      "name": "Vimeo Record",
+      "domain": "vimeo.com",
+      "description": "Vimeo Record application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_vimeo_studio",
+      "name": "Vimeo Studio",
+      "domain": "vimeo.com",
+      "description": "Vimeo Studio application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_visual_studio",
+      "name": "Visual Studio",
+      "domain": "visualstudio.microsoft.com",
+      "description": "Integrated development environment (IDE) by Microsoft",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_visual_studio_code",
+      "name": "Visual Studio Code",
+      "domain": "code.visualstudio.com",
+      "description": "Visual Studio Code application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_vivaldi",
+      "name": "Vivaldi",
+      "domain": "vivaldi.com",
+      "description": "Highly customizable web browser for power users",
+      "categories": [
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_wave_accounting",
+      "name": "Wave Accounting",
+      "domain": "waveapps.com",
+      "description": "Free web-based accounting software for small businesses",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_weweb",
+      "name": "WeWeb",
+      "domain": "weweb.io",
+      "description": "Frontend visual builder connected to any backend API",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_webflow",
+      "name": "Webflow",
+      "domain": "webflow.com",
+      "description": "Webflow application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_whereby",
+      "name": "Whereby",
+      "domain": "whereby.com",
+      "description": "Browser-based video meeting platform with simple rooms",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_word",
+      "name": "Word",
+      "domain": "office.com/word",
+      "description": "Microsoft's word processing application with collaborative editing and formatting tools",
+      "categories": [
+        "webapp",
+        "desktop"
+      ]
+    },
+    {
+      "_id": "app_wordpress",
+      "name": "WordPress",
+      "domain": "wordpress.com",
+      "description": "WordPress application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_wordpresscom",
+      "name": "WordPress.com",
+      "domain": "wordpress.com",
+      "description": "Web-based CMS for blogs and websites",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_writer",
+      "name": "Writer",
+      "domain": "writer.com",
+      "description": "AI content generation platform for enterprise teams",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_xero",
+      "name": "Xero",
+      "domain": "xero.com",
+      "description": "Cloud accounting platform for SMBs with invoicing and reporting",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_ynab",
+      "name": "YNAB",
+      "domain": "youneedabudget.com",
+      "description": "You Need A Budget - Personal budgeting software based on zero-based budgeting",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_youtube_studio",
+      "name": "YouTube Studio",
+      "domain": "studio.youtube.com",
+      "description": "Video management, analytics, and monetization platform for YouTube creators",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_youtube_studio_web",
+      "name": "YouTube Studio Web",
+      "domain": "studio.youtube.com",
+      "description": "Browser-based dashboard for YouTube creators",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_zapier",
+      "name": "Zapier",
+      "domain": "zapier.com",
+      "description": "Zapier application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_zendesk",
+      "name": "Zendesk",
+      "domain": "zendesk.com",
+      "description": "Zendesk application",
+      "categories": [
+        "webapp"
+      ]
+    },
+    {
+      "_id": "app_zoom",
+      "name": "Zoom",
+      "domain": "zoom.us",
+      "description": "Zoom application",
+      "categories": [
+        "webapp"
+      ]
+    }
+  ],
+  "metadata": {
+    "version": "2.0.0",
+    "format": "normalized",
+    "generated": "2025-11-26T19:17:03Z",
+    "totalApps": 170,
+    "description": "Normalized apps collection without embedded alternatives"
+  }
+}
