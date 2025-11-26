@@ -4,7 +4,7 @@ import OpenAI from 'openai'
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
 import { ApiError, ErrorCode, successResponse } from '../../middleware/types/errors.ts'
 import { validateBody, validateParams, validateQuery } from '../../middleware/validator.ts'
-import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
+import { AppModel, AppRelationModel, DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
 import { APP_TASK_GENERATION_PROMPT } from '../../services/forge/index.ts'
 import { randomUUID } from 'crypto'
 import {
@@ -728,6 +728,132 @@ router.put(
     // Return updated factory
     const updatedFactory = await FactoryModel.findById(id)
     res.json(successResponse(updatedFactory?.toJSON()))
+  })
+)
+
+/**
+ * @swagger
+ * /forge/factories/apps/alternatives/{identifier}:
+ *   get:
+ *     summary: Get alternative apps for a given app by name or domain
+ *     tags: [Apps]
+ *     parameters:
+ *       - in: path
+ *         name: identifier
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Name or domain of the app to find alternatives for
+ *       - in: query
+ *         name: categories
+ *         schema:
+ *           type: string
+ *         description: Comma-separated list of categories to filter by (open_source, webapp, desktop, api)
+ */
+router.get(
+  '/alternatives/:identifier',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { identifier } = req.params
+    const { categories } = req.query as { categories?: string }
+
+    // Try to find by name first (case-insensitive), then fallback to domain
+    let app = await AppModel.findOne({ nameLowercase: identifier.toLowerCase() })
+
+    if (!app) {
+      // Fallback: try to find by domain
+      app = await AppModel.findOne({ domain: identifier.toLowerCase() })
+    }
+
+    if (!app) {
+      throw ApiError.notFound(`App with identifier '${identifier}' not found`)
+    }
+
+    // Find all relations for this app
+    const relations = await AppRelationModel.find({ appId: app._id })
+      .sort({ relevanceScore: -1 })
+      .lean()
+
+    if (relations.length === 0) {
+      return res.status(200).json(successResponse([]))
+    }
+
+    // Get alternative app IDs
+    const alternativeIds = relations.map((rel) => rel.alternativeId)
+
+    // Build query to fetch full app details for alternatives
+    const query: Record<string, unknown> = {
+      _id: { $in: alternativeIds }
+    }
+
+    // Filter by categories if specified
+    if (categories) {
+      const categoryArray = categories.split(',')
+      query.categories = { $in: categoryArray }
+    }
+
+    // Fetch alternative apps with full details
+    const alternativeApps = await AppModel.find(query).lean()
+
+    // Map to include relevance scores from relations
+    const alternativesWithScores = alternativeApps.map((altApp) => {
+      const relation = relations.find((rel) => rel.alternativeId === altApp._id)
+      return {
+        id: altApp._id,
+        name: altApp.name,
+        domain: altApp.domain,
+        description: altApp.description,
+        categories: altApp.categories,
+        relevanceScore: relation?.relevanceScore || 50
+      }
+    })
+
+    // Sort by relevance score descending
+    alternativesWithScores.sort((a, b) => b.relevanceScore - a.relevanceScore)
+
+    res.status(200).json(successResponse(alternativesWithScores))
+  })
+)
+
+/**
+ * @swagger
+ * /forge/factories/apps/increment-usage/{identifier}:
+ *   post:
+ *     summary: Increment usage count for an app (called when app is selected in a task)
+ *     tags: [Apps]
+ *     parameters:
+ *       - in: path
+ *         name: identifier
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Name or domain of the app
+ */
+router.post(
+  '/increment-usage/:identifier',
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { identifier } = req.params
+
+    // Try to find by name first (case-insensitive), then fallback to domain
+    let app = await AppModel.findOneAndUpdate(
+      { nameLowercase: identifier.toLowerCase() },
+      { $inc: { usageCount: 1 } },
+      { new: true }
+    )
+
+    if (!app) {
+      // Fallback: try to find by domain
+      app = await AppModel.findOneAndUpdate(
+        { domain: identifier.toLowerCase() },
+        { $inc: { usageCount: 1 } },
+        { new: true }
+      )
+    }
+
+    if (!app) {
+      throw ApiError.notFound(`App with identifier '${identifier}' not found`)
+    }
+
+    res.status(200).json(successResponse({ usageCount: app.usageCount }))
   })
 )
 

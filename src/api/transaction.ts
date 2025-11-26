@@ -69,13 +69,6 @@ const router: Router = express.Router()
 
 // Rate limiting for transaction endpoints
 
-const CLAIM_ROUTER_ABI = ClaimRouterABI
-
-const CONTRACT_ADDRESSES = {
-  REWARD_POOL_FACTORY: process.env.REWARD_POOL_FACTORY_ADDRESS,
-  CLAIM_ROUTER: process.env.CLAIM_ROUTER_ADDRESS
-}
-
 /**
  * @swagger
  * tags:
@@ -983,6 +976,149 @@ router.post(
 
 /**
  * @swagger
+ * /transaction/validate-factory-metadata:
+ *   post:
+ *     summary: Validate factory metadata before transaction
+ *     description: Pre-validates factory metadata to prevent orphaned smart contracts
+ *     tags: [Transaction]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - metadata
+ *             properties:
+ *               metadata:
+ *                 type: object
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *                   skills:
+ *                     type: string
+ *                   tasks:
+ *                     type: array
+ *     responses:
+ *       200:
+ *         description: Metadata is valid
+ *       400:
+ *         description: Metadata validation failed
+ */
+router.post(
+  '/validate-factory-metadata',
+  authRateLimit,
+  errorHandlerAsync(async (req: Request, res: Response) => {
+    const { metadata } = req.body
+
+    if (!metadata) {
+      throw ApiError.badRequest('Metadata is required')
+    }
+
+    // Validate name
+    if (!metadata.name || typeof metadata.name !== 'string') {
+      throw ApiError.badRequest('Factory name is required')
+    }
+
+    const sanitizedName = ContentFilterService.sanitizeInput(metadata.name)
+    if (sanitizedName.length === 0) {
+      throw ApiError.badRequest('Factory name cannot be empty after sanitization')
+    }
+
+    // Validate skills
+    if (!metadata.skills || typeof metadata.skills !== 'string') {
+      throw ApiError.badRequest('Skills are required')
+    }
+
+    const skills = metadata.skills
+      .split(',')
+      .map((s: string) => ContentFilterService.sanitizeInput(s))
+      .filter((s: string) => s.length > 0)
+
+    if (skills.length === 0) {
+      throw ApiError.badRequest('At least one valid skill is required')
+    }
+
+    // CRITICAL: Validate skill length to prevent orphaned contracts
+    for (const skill of skills) {
+      if (skill.length > 1000) {
+        throw ApiError.badRequest(
+          `Skill "${skill.substring(0, 50)}..." exceeds maximum length of 1000 characters (${skill.length} chars)`
+        )
+      }
+    }
+
+    // Validate tasks
+    if (!metadata.tasks || !Array.isArray(metadata.tasks) || metadata.tasks.length === 0) {
+      throw ApiError.badRequest('At least one task is required')
+    }
+
+    for (const task of metadata.tasks) {
+      if (!task.prompt || typeof task.prompt !== 'string') {
+        throw ApiError.badRequest('Each task must have a prompt')
+      }
+
+      // Validate prompt length
+      if (task.prompt.length > 2000) {
+        throw ApiError.badRequest(
+          `Task prompt exceeds maximum length of 2000 characters (${task.prompt.length} chars)`
+        )
+      }
+
+      // Validate task_name if present
+      if (task.task_name && typeof task.task_name === 'string' && task.task_name.length > 200) {
+        throw ApiError.badRequest(
+          `Task name exceeds maximum length of 200 characters (${task.task_name.length} chars)`
+        )
+      }
+
+      if (!task.apps_used || !Array.isArray(task.apps_used) || task.apps_used.length === 0) {
+        throw ApiError.badRequest('Each task must use at least one app')
+      }
+
+      for (const app of task.apps_used) {
+        if (!app.name || typeof app.name !== 'string') {
+          throw ApiError.badRequest('Each app must have a name')
+        }
+        if (app.name.length > 100) {
+          throw ApiError.badRequest(
+            `App name exceeds maximum length of 100 characters (${app.name.length} chars)`
+          )
+        }
+
+        if (!app.domain || typeof app.domain !== 'string') {
+          throw ApiError.badRequest('Each app must have a domain')
+        }
+        if (app.domain.length > 200) {
+          throw ApiError.badRequest(
+            `App domain exceeds maximum length of 200 characters (${app.domain.length} chars)`
+          )
+        }
+
+        if (!app.description || typeof app.description !== 'string') {
+          throw ApiError.badRequest('Each app must have a description')
+        }
+        if (app.description.length > 500) {
+          throw ApiError.badRequest(
+            `App description exceeds maximum length of 500 characters (${app.description.length} chars)`
+          )
+        }
+      }
+    }
+
+    res.status(200).json(
+      successResponse({
+        valid: true,
+        sanitizedName,
+        skillsCount: skills.length,
+        tasksCount: metadata.tasks.length
+      })
+    )
+  })
+)
+
+/**
+ * @swagger
  * /transaction/finalize-factory:
  *   post:
  *     summary: Finalize factory creation and save metadata
@@ -1103,6 +1239,15 @@ router.post(
         throw ApiError.badRequest('At least one valid skill is required')
       }
 
+      // CRITICAL: Validate skill length BEFORE database insertion to prevent orphaned contracts
+      for (const skill of skills) {
+        if (skill.length > 1000) {
+          throw ApiError.badRequest(
+            `Skill "${skill.substring(0, 50)}..." exceeds maximum length of 1000 characters (${skill.length} chars)`
+          )
+        }
+      }
+
       if (!metadata.tasks || !Array.isArray(metadata.tasks) || metadata.tasks.length === 0) {
         throw ApiError.badRequest('At least one task is required')
       }
@@ -1112,7 +1257,21 @@ router.post(
         if (!task.prompt || typeof task.prompt !== 'string') {
           throw ApiError.badRequest('Each task must have a prompt')
         }
-        
+
+        // Validate prompt length
+        if (task.prompt.length > 2000) {
+          throw ApiError.badRequest(
+            `Task prompt exceeds maximum length of 2000 characters (${task.prompt.length} chars)`
+          )
+        }
+
+        // Validate task_name if present
+        if (task.task_name && typeof task.task_name === 'string' && task.task_name.length > 200) {
+          throw ApiError.badRequest(
+            `Task name exceeds maximum length of 200 characters (${task.task_name.length} chars)`
+          )
+        }
+
         if (!task.apps_used || !Array.isArray(task.apps_used) || task.apps_used.length === 0) {
           throw ApiError.badRequest('Each task must use at least one app')
         }
@@ -1122,11 +1281,27 @@ router.post(
           if (!app.name || typeof app.name !== 'string') {
             throw ApiError.badRequest('Each app must have a name')
           }
+          if (app.name.length > 100) {
+            throw ApiError.badRequest(
+              `App name exceeds maximum length of 100 characters (${app.name.length} chars)`
+            )
+          }
           if (!app.domain || typeof app.domain !== 'string') {
             throw ApiError.badRequest('Each app must have a domain')
           }
+          if (app.domain.length > 200) {
+            throw ApiError.badRequest(
+              `App domain exceeds maximum length of 200 characters (${app.domain.length} chars)`
+            )
+          }
+
           if (!app.description || typeof app.description !== 'string') {
             throw ApiError.badRequest('Each app must have a description')
+          }
+          if (app.description.length > 500) {
+            throw ApiError.badRequest(
+              `App description exceeds maximum length of 500 characters (${app.description.length} chars)`
+            )
           }
         }
       }

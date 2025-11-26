@@ -1,0 +1,1376 @@
+{
+  "relations": [
+    {
+      "_id": "app_1password__app_bitwarden",
+      "appId": "app_1password",
+      "alternativeId": "app_bitwarden",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_1password__app_dashlane",
+      "appId": "app_1password",
+      "alternativeId": "app_dashlane",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_adept__app_make",
+      "appId": "app_adept",
+      "alternativeId": "app_make",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_adept__app_zapier",
+      "appId": "app_adept",
+      "alternativeId": "app_zapier",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_adobe_indesign__app_affinity_publisher",
+      "appId": "app_adobe_indesign",
+      "alternativeId": "app_affinity_publisher",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_adobe_indesign__app_canva",
+      "appId": "app_adobe_indesign",
+      "alternativeId": "app_canva",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_adobe_premiere_pro__app_davinci_resolve",
+      "appId": "app_adobe_premiere_pro",
+      "alternativeId": "app_davinci_resolve",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_adobe_premiere_pro__app_final_cut_pro",
+      "appId": "app_adobe_premiere_pro",
+      "alternativeId": "app_final_cut_pro",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_appsmith__app_budibase",
+      "appId": "app_appsmith",
+      "alternativeId": "app_budibase",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_appsmith__app_retool",
+      "appId": "app_appsmith",
+      "alternativeId": "app_retool",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_aws_management_console__app_azure_portal",
+      "appId": "app_aws_management_console",
+      "alternativeId": "app_azure_portal",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_aws_management_console__app_google_cloud_console",
+      "appId": "app_aws_management_console",
+      "alternativeId": "app_google_cloud_console",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_azure_portal__app_aws_management_console",
+      "appId": "app_azure_portal",
+      "alternativeId": "app_aws_management_console",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_azure_portal__app_google_cloud_console",
+      "appId": "app_azure_portal",
+      "alternativeId": "app_google_cloud_console",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_bankview__app_mint",
+      "appId": "app_bankview",
+      "alternativeId": "app_mint",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_bankview__app_ynab",
+      "appId": "app_bankview",
+      "alternativeId": "app_ynab",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_bitwarden__app_1password",
+      "appId": "app_bitwarden",
+      "alternativeId": "app_1password",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_bitwarden__app_lastpass",
+      "appId": "app_bitwarden",
+      "alternativeId": "app_lastpass",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_bluesky_web__app_mastodon",
+      "appId": "app_bluesky_web",
+      "alternativeId": "app_mastodon",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_bluesky_web__app_threads_web",
+      "appId": "app_bluesky_web",
+      "alternativeId": "app_threads_web",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_brave__app_google_chrome",
+      "appId": "app_brave",
+      "alternativeId": "app_google_chrome",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_brave__app_mozilla_firefox",
+      "appId": "app_brave",
+      "alternativeId": "app_mozilla_firefox",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_browserstack__app_lambdatest",
+      "appId": "app_browserstack",
+      "alternativeId": "app_lambdatest",
+      "relevanceScore": 88,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_browserstack__app_sauce_labs",
+      "appId": "app_browserstack",
+      "alternativeId": "app_sauce_labs",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_budibase__app_appsmith",
+      "appId": "app_budibase",
+      "alternativeId": "app_appsmith",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_budibase__app_retool",
+      "appId": "app_budibase",
+      "alternativeId": "app_retool",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt__app_claude",
+      "appId": "app_chatgpt",
+      "alternativeId": "app_claude",
+      "relevanceScore": 95,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt__app_copilot",
+      "appId": "app_chatgpt",
+      "alternativeId": "app_copilot",
+      "relevanceScore": 88,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt__app_gemini",
+      "appId": "app_chatgpt",
+      "alternativeId": "app_gemini",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt__app_perplexity",
+      "appId": "app_chatgpt",
+      "alternativeId": "app_perplexity",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_api__app_amazon_bedrock_api",
+      "appId": "app_chatgpt_api",
+      "alternativeId": "app_amazon_bedrock_api",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_api__app_anthropic_api",
+      "appId": "app_chatgpt_api",
+      "alternativeId": "app_anthropic_api",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_api__app_google_gemini_api",
+      "appId": "app_chatgpt_api",
+      "alternativeId": "app_google_gemini_api",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_api__app_groq_api",
+      "appId": "app_chatgpt_api",
+      "alternativeId": "app_groq_api",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_api__app_ibm_watson_api",
+      "appId": "app_chatgpt_api",
+      "alternativeId": "app_ibm_watson_api",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_api__app_meta_ai_api",
+      "appId": "app_chatgpt_api",
+      "alternativeId": "app_meta_ai_api",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_api__app_microsoft_azure_openai_api",
+      "appId": "app_chatgpt_api",
+      "alternativeId": "app_microsoft_azure_openai_api",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_api__app_openai_api",
+      "appId": "app_chatgpt_api",
+      "alternativeId": "app_openai_api",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_web_interface__app_claude",
+      "appId": "app_chatgpt_web_interface",
+      "alternativeId": "app_claude",
+      "relevanceScore": 95,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_web_interface__app_copilot",
+      "appId": "app_chatgpt_web_interface",
+      "alternativeId": "app_copilot",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_web_interface__app_gemini",
+      "appId": "app_chatgpt_web_interface",
+      "alternativeId": "app_gemini",
+      "relevanceScore": 92,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_chatgpt_web_interface__app_perplexity",
+      "appId": "app_chatgpt_web_interface",
+      "alternativeId": "app_perplexity",
+      "relevanceScore": 88,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_claude_desktop_app__app_chatgpt",
+      "appId": "app_claude_desktop_app",
+      "alternativeId": "app_chatgpt",
+      "relevanceScore": 93,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_claude_desktop_app__app_gemini",
+      "appId": "app_claude_desktop_app",
+      "alternativeId": "app_gemini",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_clickup__app_asana",
+      "appId": "app_clickup",
+      "alternativeId": "app_asana",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_clickup__app_mondaycom",
+      "appId": "app_clickup",
+      "alternativeId": "app_mondaycom",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_coda__app_airtable",
+      "appId": "app_coda",
+      "alternativeId": "app_airtable",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_coda__app_notion",
+      "appId": "app_coda",
+      "alternativeId": "app_notion",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_composeai__app_grammarly",
+      "appId": "app_composeai",
+      "alternativeId": "app_grammarly",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_composeai__app_quillbot",
+      "appId": "app_composeai",
+      "alternativeId": "app_quillbot",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_confluence__app_coda",
+      "appId": "app_confluence",
+      "alternativeId": "app_coda",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_confluence__app_notion",
+      "appId": "app_confluence",
+      "alternativeId": "app_notion",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_crisp__app_drift",
+      "appId": "app_crisp",
+      "alternativeId": "app_drift",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_crisp__app_intercom",
+      "appId": "app_crisp",
+      "alternativeId": "app_intercom",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_davinci_resolve__app_adobe_premiere_pro",
+      "appId": "app_davinci_resolve",
+      "alternativeId": "app_adobe_premiere_pro",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_davinci_resolve__app_final_cut_pro",
+      "appId": "app_davinci_resolve",
+      "alternativeId": "app_final_cut_pro",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_descript__app_adobe_premiere_pro",
+      "appId": "app_descript",
+      "alternativeId": "app_adobe_premiere_pro",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_descript__app_davinci_resolve",
+      "appId": "app_descript",
+      "alternativeId": "app_davinci_resolve",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_drift__app_crisp",
+      "appId": "app_drift",
+      "alternativeId": "app_crisp",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_drift__app_intercom",
+      "appId": "app_drift",
+      "alternativeId": "app_intercom",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_dropbox__app_google_drive",
+      "appId": "app_dropbox",
+      "alternativeId": "app_google_drive",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_dropbox__app_onedrive",
+      "appId": "app_dropbox",
+      "alternativeId": "app_onedrive",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_email_client__app_gmail",
+      "appId": "app_email_client",
+      "alternativeId": "app_gmail",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_email_client__app_outlook",
+      "appId": "app_email_client",
+      "alternativeId": "app_outlook",
+      "relevanceScore": 88,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_email_client__app_thunderbird",
+      "appId": "app_email_client",
+      "alternativeId": "app_thunderbird",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_evernote__app_microsoft_onenote",
+      "appId": "app_evernote",
+      "alternativeId": "app_microsoft_onenote",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_evernote__app_notion",
+      "appId": "app_evernote",
+      "alternativeId": "app_notion",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_excel__app_google_sheets",
+      "appId": "app_excel",
+      "alternativeId": "app_google_sheets",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_excel__app_libreoffice_calc",
+      "appId": "app_excel",
+      "alternativeId": "app_libreoffice_calc",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_excel__app_tableau_online",
+      "appId": "app_excel",
+      "alternativeId": "app_tableau_online",
+      "relevanceScore": 65,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_freshbooks__app_quickbooks_online",
+      "appId": "app_freshbooks",
+      "alternativeId": "app_quickbooks_online",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_freshbooks__app_xero",
+      "appId": "app_freshbooks",
+      "alternativeId": "app_xero",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_freshservice__app_freshdesk",
+      "appId": "app_freshservice",
+      "alternativeId": "app_freshdesk",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_freshservice__app_zendesk",
+      "appId": "app_freshservice",
+      "alternativeId": "app_zendesk",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_ghost_cms__app_substack",
+      "appId": "app_ghost_cms",
+      "alternativeId": "app_substack",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_ghost_cms__app_wordpress",
+      "appId": "app_ghost_cms",
+      "alternativeId": "app_wordpress",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_glide__app_bubble",
+      "appId": "app_glide",
+      "alternativeId": "app_bubble",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_glide__app_flutterflow",
+      "appId": "app_glide",
+      "alternativeId": "app_flutterflow",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_gmail__app_outlook",
+      "appId": "app_gmail",
+      "alternativeId": "app_outlook",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_gmail__app_proton_mail",
+      "appId": "app_gmail",
+      "alternativeId": "app_proton_mail",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_calendar__app_fantastical",
+      "appId": "app_google_calendar",
+      "alternativeId": "app_fantastical",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_calendar__app_outlook_calendar",
+      "appId": "app_google_calendar",
+      "alternativeId": "app_outlook_calendar",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_chrome__app_microsoft_edge",
+      "appId": "app_google_chrome",
+      "alternativeId": "app_microsoft_edge",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_chrome__app_mozilla_firefox",
+      "appId": "app_google_chrome",
+      "alternativeId": "app_mozilla_firefox",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_cloud_console__app_aws_management_console",
+      "appId": "app_google_cloud_console",
+      "alternativeId": "app_aws_management_console",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_cloud_console__app_azure_portal",
+      "appId": "app_google_cloud_console",
+      "alternativeId": "app_azure_portal",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_docs__app_microsoft_word",
+      "appId": "app_google_docs",
+      "alternativeId": "app_microsoft_word",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_docs__app_onlyoffice",
+      "appId": "app_google_docs",
+      "alternativeId": "app_onlyoffice",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_drive__app_dropbox",
+      "appId": "app_google_drive",
+      "alternativeId": "app_dropbox",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_drive__app_onedrive",
+      "appId": "app_google_drive",
+      "alternativeId": "app_onedrive",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_meet__app_microsoft_teams",
+      "appId": "app_google_meet",
+      "alternativeId": "app_microsoft_teams",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_google_meet__app_zoom",
+      "appId": "app_google_meet",
+      "alternativeId": "app_zoom",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_help_scout__app_intercom",
+      "appId": "app_help_scout",
+      "alternativeId": "app_intercom",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_help_scout__app_zendesk",
+      "appId": "app_help_scout",
+      "alternativeId": "app_zendesk",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_instagram_business_suite__app_meta_business_suite_web",
+      "appId": "app_instagram_business_suite",
+      "alternativeId": "app_meta_business_suite_web",
+      "relevanceScore": 95,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_intellij_idea__app_eclipse_ide",
+      "appId": "app_intellij_idea",
+      "alternativeId": "app_eclipse_ide",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_intellij_idea__app_visual_studio_code",
+      "appId": "app_intellij_idea",
+      "alternativeId": "app_visual_studio_code",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_jira__app_asana",
+      "appId": "app_jira",
+      "alternativeId": "app_asana",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_jira__app_linear",
+      "appId": "app_jira",
+      "alternativeId": "app_linear",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_kofi__app_buy_me_a_coffee",
+      "appId": "app_kofi",
+      "alternativeId": "app_buy_me_a_coffee",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_kofi__app_patreon",
+      "appId": "app_kofi",
+      "alternativeId": "app_patreon",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_libreoffice__app_microsoft_365",
+      "appId": "app_libreoffice",
+      "alternativeId": "app_microsoft_365",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_libreoffice__app_onlyoffice",
+      "appId": "app_libreoffice",
+      "alternativeId": "app_onlyoffice",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_liveagent__app_freshdesk",
+      "appId": "app_liveagent",
+      "alternativeId": "app_freshdesk",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_liveagent__app_zendesk",
+      "appId": "app_liveagent",
+      "alternativeId": "app_zendesk",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_looker_studio__app_power_bi",
+      "appId": "app_looker_studio",
+      "alternativeId": "app_power_bi",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_looker_studio__app_tableau",
+      "appId": "app_looker_studio",
+      "alternativeId": "app_tableau",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_loom__app_descript",
+      "appId": "app_loom",
+      "alternativeId": "app_descript",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_loom__app_vimeo_record",
+      "appId": "app_loom",
+      "alternativeId": "app_vimeo_record",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_mastodon_web__app_bluesky",
+      "appId": "app_mastodon_web",
+      "alternativeId": "app_bluesky",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_mastodon_web__app_threads",
+      "appId": "app_mastodon_web",
+      "alternativeId": "app_threads",
+      "relevanceScore": 65,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_mem__app_notion",
+      "appId": "app_mem",
+      "alternativeId": "app_notion",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_mem__app_obsidian",
+      "appId": "app_mem",
+      "alternativeId": "app_obsidian",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_meta_business_suite_web__app_buffer",
+      "appId": "app_meta_business_suite_web",
+      "alternativeId": "app_buffer",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_meta_business_suite_web__app_hootsuite",
+      "appId": "app_meta_business_suite_web",
+      "alternativeId": "app_hootsuite",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_metabase__app_looker",
+      "appId": "app_metabase",
+      "alternativeId": "app_looker",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_metabase__app_tableau",
+      "appId": "app_metabase",
+      "alternativeId": "app_tableau",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_microsoft_edge__app_google_chrome",
+      "appId": "app_microsoft_edge",
+      "alternativeId": "app_google_chrome",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_microsoft_edge__app_mozilla_firefox",
+      "appId": "app_microsoft_edge",
+      "alternativeId": "app_mozilla_firefox",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_microsoft_excel__app_google_sheets",
+      "appId": "app_microsoft_excel",
+      "alternativeId": "app_google_sheets",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_microsoft_excel__app_libreoffice_calc",
+      "appId": "app_microsoft_excel",
+      "alternativeId": "app_libreoffice_calc",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_microsoft_powerpoint__app_canva",
+      "appId": "app_microsoft_powerpoint",
+      "alternativeId": "app_canva",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_microsoft_powerpoint__app_google_slides",
+      "appId": "app_microsoft_powerpoint",
+      "alternativeId": "app_google_slides",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_microsoft_teams__app_slack",
+      "appId": "app_microsoft_teams",
+      "alternativeId": "app_slack",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_microsoft_teams__app_zoom",
+      "appId": "app_microsoft_teams",
+      "alternativeId": "app_zoom",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_microsoft_word__app_google_docs",
+      "appId": "app_microsoft_word",
+      "alternativeId": "app_google_docs",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_microsoft_word__app_libreoffice_writer",
+      "appId": "app_microsoft_word",
+      "alternativeId": "app_libreoffice_writer",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_mode_analytics__app_looker_studio",
+      "appId": "app_mode_analytics",
+      "alternativeId": "app_looker_studio",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_mode_analytics__app_tableau",
+      "appId": "app_mode_analytics",
+      "alternativeId": "app_tableau",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_mondaycom__app_asana",
+      "appId": "app_mondaycom",
+      "alternativeId": "app_asana",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_mondaycom__app_clickup",
+      "appId": "app_mondaycom",
+      "alternativeId": "app_clickup",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_mozilla_firefox__app_brave",
+      "appId": "app_mozilla_firefox",
+      "alternativeId": "app_brave",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_mozilla_firefox__app_google_chrome",
+      "appId": "app_mozilla_firefox",
+      "alternativeId": "app_google_chrome",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_obsidian__app_logseq",
+      "appId": "app_obsidian",
+      "alternativeId": "app_logseq",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_obsidian__app_notion",
+      "appId": "app_obsidian",
+      "alternativeId": "app_notion",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_onedrive__app_dropbox",
+      "appId": "app_onedrive",
+      "alternativeId": "app_dropbox",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_onedrive__app_google_drive",
+      "appId": "app_onedrive",
+      "alternativeId": "app_google_drive",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_onlyoffice__app_google_docs",
+      "appId": "app_onlyoffice",
+      "alternativeId": "app_google_docs",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_onlyoffice__app_libreoffice",
+      "appId": "app_onlyoffice",
+      "alternativeId": "app_libreoffice",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_outlook__app_gmail",
+      "appId": "app_outlook",
+      "alternativeId": "app_gmail",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_outlook__app_thunderbird",
+      "appId": "app_outlook",
+      "alternativeId": "app_thunderbird",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_parabola__app_make",
+      "appId": "app_parabola",
+      "alternativeId": "app_make",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_parabola__app_zapier",
+      "appId": "app_parabola",
+      "alternativeId": "app_zapier",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_perplexity_research__app_chatgpt_web_interface",
+      "appId": "app_perplexity_research",
+      "alternativeId": "app_chatgpt_web_interface",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_perplexity_research__app_gemini",
+      "appId": "app_perplexity_research",
+      "alternativeId": "app_gemini",
+      "relevanceScore": 82,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_proton_mail__app_gmail",
+      "appId": "app_proton_mail",
+      "alternativeId": "app_gmail",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_proton_mail__app_outlook",
+      "appId": "app_proton_mail",
+      "alternativeId": "app_outlook",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_pycharm__app_spyder",
+      "appId": "app_pycharm",
+      "alternativeId": "app_spyder",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_pycharm__app_visual_studio_code",
+      "appId": "app_pycharm",
+      "alternativeId": "app_visual_studio_code",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_quickbooks__app_freshbooks",
+      "appId": "app_quickbooks",
+      "alternativeId": "app_freshbooks",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_quickbooks__app_wave_accounting",
+      "appId": "app_quickbooks",
+      "alternativeId": "app_wave_accounting",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_quickbooks__app_xero",
+      "appId": "app_quickbooks",
+      "alternativeId": "app_xero",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_quickbooks_online__app_freshbooks",
+      "appId": "app_quickbooks_online",
+      "alternativeId": "app_freshbooks",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_quickbooks_online__app_xero",
+      "appId": "app_quickbooks_online",
+      "alternativeId": "app_xero",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_redash__app_metabase",
+      "appId": "app_redash",
+      "alternativeId": "app_metabase",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_redash__app_mode",
+      "appId": "app_redash",
+      "alternativeId": "app_mode",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_sage_accounting__app_quickbooks_online",
+      "appId": "app_sage_accounting",
+      "alternativeId": "app_quickbooks_online",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_sage_accounting__app_xero",
+      "appId": "app_sage_accounting",
+      "alternativeId": "app_xero",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_sigma_computing__app_excel_online",
+      "appId": "app_sigma_computing",
+      "alternativeId": "app_excel_online",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_sigma_computing__app_google_sheets",
+      "appId": "app_sigma_computing",
+      "alternativeId": "app_google_sheets",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_skype__app_google_meet",
+      "appId": "app_skype",
+      "alternativeId": "app_google_meet",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_skype__app_zoom",
+      "appId": "app_skype",
+      "alternativeId": "app_zoom",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_tability__app_asana",
+      "appId": "app_tability",
+      "alternativeId": "app_asana",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_tability__app_linear",
+      "appId": "app_tability",
+      "alternativeId": "app_linear",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_tableau_online__app_looker_studio",
+      "appId": "app_tableau_online",
+      "alternativeId": "app_looker_studio",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_tableau_online__app_metabase",
+      "appId": "app_tableau_online",
+      "alternativeId": "app_metabase",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_tableau_online__app_power_bi",
+      "appId": "app_tableau_online",
+      "alternativeId": "app_power_bi",
+      "relevanceScore": 92,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_tella__app_descript",
+      "appId": "app_tella",
+      "alternativeId": "app_descript",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_tella__app_loom",
+      "appId": "app_tella",
+      "alternativeId": "app_loom",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_tiktok_creator_center__app_instagram_business_suite",
+      "appId": "app_tiktok_creator_center",
+      "alternativeId": "app_instagram_business_suite",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_tiktok_creator_center__app_youtube_studio",
+      "appId": "app_tiktok_creator_center",
+      "alternativeId": "app_youtube_studio",
+      "relevanceScore": 88,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_todoist__app_microsoft_to_do",
+      "appId": "app_todoist",
+      "alternativeId": "app_microsoft_to_do",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_todoist__app_ticktick",
+      "appId": "app_todoist",
+      "alternativeId": "app_ticktick",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_visual_studio__app_intellij_idea",
+      "appId": "app_visual_studio",
+      "alternativeId": "app_intellij_idea",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_visual_studio__app_visual_studio_code",
+      "appId": "app_visual_studio",
+      "alternativeId": "app_visual_studio_code",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_vivaldi__app_mozilla_firefox",
+      "appId": "app_vivaldi",
+      "alternativeId": "app_mozilla_firefox",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_vivaldi__app_opera",
+      "appId": "app_vivaldi",
+      "alternativeId": "app_opera",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_wave_accounting__app_freshbooks",
+      "appId": "app_wave_accounting",
+      "alternativeId": "app_freshbooks",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_wave_accounting__app_sage_accounting",
+      "appId": "app_wave_accounting",
+      "alternativeId": "app_sage_accounting",
+      "relevanceScore": 70,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_weweb__app_bubble",
+      "appId": "app_weweb",
+      "alternativeId": "app_bubble",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_weweb__app_webflow",
+      "appId": "app_weweb",
+      "alternativeId": "app_webflow",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_whereby__app_google_meet",
+      "appId": "app_whereby",
+      "alternativeId": "app_google_meet",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_whereby__app_zoom",
+      "appId": "app_whereby",
+      "alternativeId": "app_zoom",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_word__app_google_docs",
+      "appId": "app_word",
+      "alternativeId": "app_google_docs",
+      "relevanceScore": 90,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_word__app_libreoffice",
+      "appId": "app_word",
+      "alternativeId": "app_libreoffice",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_word__app_onlyoffice",
+      "appId": "app_word",
+      "alternativeId": "app_onlyoffice",
+      "relevanceScore": 78,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_wordpresscom__app_ghost",
+      "appId": "app_wordpresscom",
+      "alternativeId": "app_ghost",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_wordpresscom__app_webflow",
+      "appId": "app_wordpresscom",
+      "alternativeId": "app_webflow",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_writer__app_copyai",
+      "appId": "app_writer",
+      "alternativeId": "app_copyai",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_writer__app_jasper",
+      "appId": "app_writer",
+      "alternativeId": "app_jasper",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_xero__app_quickbooks_online",
+      "appId": "app_xero",
+      "alternativeId": "app_quickbooks_online",
+      "relevanceScore": 85,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_xero__app_sage_accounting",
+      "appId": "app_xero",
+      "alternativeId": "app_sage_accounting",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_youtube_studio__app_meta_business_suite_web",
+      "appId": "app_youtube_studio",
+      "alternativeId": "app_meta_business_suite_web",
+      "relevanceScore": 80,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_youtube_studio_web__app_twitch_dashboard",
+      "appId": "app_youtube_studio_web",
+      "alternativeId": "app_twitch_dashboard",
+      "relevanceScore": 75,
+      "bidirectional": true
+    },
+    {
+      "_id": "app_youtube_studio_web__app_vimeo_studio",
+      "appId": "app_youtube_studio_web",
+      "alternativeId": "app_vimeo_studio",
+      "relevanceScore": 60,
+      "bidirectional": true
+    }
+  ],
+  "metadata": {
+    "version": "2.0.0",
+    "format": "normalized",
+    "generated": "2025-11-26T19:18:20Z",
+    "totalRelations": 195,
+    "description": "App relationships with relevance scores"
+  }
+}

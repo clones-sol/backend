@@ -103,6 +103,7 @@ export function configureSecureSession(app: Application): void {
     '/api/v1/transaction/status',    // Transaction status (GET)
     '/api/v1/transaction/complete',    // Transaction complete (POST)
     '/api/v1/transaction/estimate-gas', // Gas estimation (POST but read-only)
+    '/api/v1/transaction/validate-factory-metadata', // Factory metadata validation (POST but read-only)
     '/api/v1/transaction/prepare-tx', // Transaction preparation (POST but read-only)
     '/api/v1/transaction/finalize-factory', // Factory finalization from desktop (POST)
     '/api/v1/forge/upload/init', // Upload init (POST)

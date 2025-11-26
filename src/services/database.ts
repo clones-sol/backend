@@ -14,7 +14,8 @@ export const connectToDatabase = async () => {
     logger.info('Database connected!')
   } catch (err) {
     logger.error('Error connecting to MongoDB:', err)
-    // Set exit code to 1 for graceful shutdown in case of database connection error
-    process.exitCode = 1
+    logger.error('FATAL: Cannot start backend without database connection. Exiting.')
+    // Exit immediately - the application cannot function without database
+    process.exit(1)
   }
 }

@@ -25,6 +25,7 @@ import { generalRateLimit } from './middleware/rateLimiter.ts'
 import { startClaimLockCleanupService, stopClaimLockCleanupService } from './services/claimLockCleanupService.ts'
 import { logger } from './services/logger.ts'
 import { createLoggingMiddleware, errorLoggingMiddleware, userContextMiddleware } from './middleware/loggingMiddleware.ts'
+import { seedAppsFromJson } from './services/appsSeedService.ts'
 
 const app = express()
 const port = parseInt(process.env.PORT || '8001', 10)
@@ -143,7 +144,15 @@ if (shouldStartServer) {
 
     // Connect to database asynchronously - don't block server startup
     connectToDatabase()
-      .then(() => logger.info('Database connected successfully'))
+      .then(async () => {
+        logger.info('Database connected successfully')
+        // Seed apps collection from JSON on every startup
+        try {
+          await seedAppsFromJson()
+        } catch (error) {
+          logger.error('Failed to seed apps collection:', error)
+        }
+      })
       .catch(error => logger.error('Database connection failed:', error))
 
     connectToRedis()
