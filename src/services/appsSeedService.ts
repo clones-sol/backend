@@ -2,15 +2,31 @@
  * Apps seed service - Auto-seeds apps and app relations collections on server startup
  */
 
-import { readFileSync } from 'fs'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import { AppModel, type AppCategory } from '../models/App.ts'
 import { AppRelationModel, generateRelationId } from '../models/AppRelation.ts'
 import { logger } from './logger.ts'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+// Resolve data directory - works in both dev and production
+// Production uses environment variable or fallback to build/data
+// Dev uses src/data relative to cwd
+function getDataPath(filename: string): string {
+  // Try production path first (set by Dockerfile or process.cwd())
+  const prodPath = join(process.cwd(), 'build/data', filename)
+  if (existsSync(prodPath)) {
+    return prodPath
+  }
+
+  // Fallback to dev path
+  const devPath = join(process.cwd(), 'src/data', filename)
+  if (existsSync(devPath)) {
+    return devPath
+  }
+
+  // If neither exists, return prod path for error message clarity
+  return prodPath
+}
 
 interface AppSeedData {
   _id: string
@@ -53,7 +69,7 @@ interface RelationsSeedFile {
  * Uses upsert operations to be idempotent - safe to run on each server start
  */
 async function seedApps(): Promise<number> {
-  const jsonPath = join(__dirname, '../data/apps-seed.json')
+  const jsonPath = getDataPath('apps-seed.json')
 
   let jsonData: string
   try {
@@ -79,7 +95,14 @@ async function seedApps(): Promise<number> {
   try {
     await AppModel.createIndexes()
   } catch (error) {
-    throw new Error(`Failed to create App indexes: ${error instanceof Error ? error.message : String(error)}`)
+    // If index already exists with different options, log warning but continue
+    // MongoDB doesn't allow recreating an index with different options
+    if (error instanceof Error && error.message.includes('An existing index has the same name')) {
+      logger.warn(`Index conflict detected - existing indexes will be used: ${error.message}`)
+      // Continue with seed - indexes exist but may have different options
+    } else {
+      throw new Error(`Failed to create App indexes: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   let upsertedCount = 0
@@ -128,7 +151,7 @@ async function seedApps(): Promise<number> {
  * Creates bidirectional relations when specified
  */
 async function seedAppRelations(): Promise<number> {
-  const jsonPath = join(__dirname, '../data/app-relations-seed.json')
+  const jsonPath = getDataPath('app-relations-seed.json')
 
   let jsonData: string
   try {
@@ -154,7 +177,12 @@ async function seedAppRelations(): Promise<number> {
   try {
     await AppRelationModel.createIndexes()
   } catch (error) {
-    throw new Error(`Failed to create AppRelation indexes: ${error instanceof Error ? error.message : String(error)}`)
+    // If index already exists with different options, log warning but continue
+    if (error instanceof Error && error.message.includes('An existing index has the same name')) {
+      logger.warn(`Index conflict detected - existing indexes will be used: ${error.message}`)
+    } else {
+      throw new Error(`Failed to create AppRelation indexes: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   let upsertedCount = 0

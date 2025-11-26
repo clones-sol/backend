@@ -47,7 +47,7 @@ RUN apt-get update -qq && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy built application
+# Copy built application (includes /app/build/data copied by esbuild.js)
 COPY --from=build /app/build /app/build
 COPY --from=build /app/node_modules /app/node_modules
 # Copy source files for Swagger documentation (esbuild strips comments)
