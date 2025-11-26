@@ -147,13 +147,20 @@ if (shouldStartServer) {
       .then(async () => {
         logger.info('Database connected successfully')
         // Seed apps collection from JSON on every startup
+        // This is CRITICAL - app endpoints will fail without this data
         try {
           await seedAppsFromJson()
         } catch (error) {
-          logger.error('Failed to seed apps collection:', error)
+          logger.error('CRITICAL: Failed to seed apps collection. App endpoints will not function correctly.', error)
+          // Re-throw to ensure the error is visible and can be monitored
+          throw error
         }
       })
-      .catch(error => logger.error('Database connection failed:', error))
+      .catch(error => {
+        logger.error('CRITICAL: Database initialization failed:', error)
+        // Don't exit process - let container orchestrator handle restart
+        // But ensure monitoring can detect this critical failure
+      })
 
     connectToRedis()
 

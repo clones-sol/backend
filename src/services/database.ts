@@ -15,7 +15,8 @@ export const connectToDatabase = async () => {
   } catch (err) {
     logger.error('Error connecting to MongoDB:', err)
     logger.error('FATAL: Cannot start backend without database connection. Exiting.')
-    // Exit immediately - the application cannot function without database
-    process.exit(1)
+    // Set exit code - the application cannot function without database
+    process.exitCode = 1
+    return
   }
 }
