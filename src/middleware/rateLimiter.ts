@@ -63,3 +63,35 @@ export const forgeReadRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+/**
+ * Strict rate limiter for expensive grading operations
+ * CQA grading involves LLM API calls and significant compute resources
+ */
+export const gradingRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 grading requests per hour per IP
+  message: {
+    success: false,
+    error: 'Too many grading requests. Grading operations are resource-intensive. Please try again later.',
+    code: 'GRADING_RATE_LIMIT_EXCEEDED'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
+ * Very strict rate limiter for batch grading operations
+ * Batch grading can process multiple submissions and is extremely expensive
+ */
+export const batchGradingRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // 3 batch operations per hour per IP
+  message: {
+    success: false,
+    error: 'Too many batch grading requests. This operation is extremely resource-intensive. Please try again later.',
+    code: 'BATCH_GRADING_RATE_LIMIT_EXCEEDED'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

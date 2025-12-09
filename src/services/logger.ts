@@ -131,7 +131,7 @@ function createRedactConfig() {
 function getBaseLabels() {
   return {
     service: process.env.SERVICE_NAME || 'clones-backend',
-    environment: process.env.NODE_ENV || 'development', 
+    environment: process.env.NODE_ENV || 'development',
     version: process.env.npm_package_version || '1.0.0',
     instance: process.env.FLY_ALLOC_ID || process.env.HOSTNAME || 'local'
   }
@@ -225,7 +225,7 @@ function createTransport() {
       colorize: true,
       translateTime: 'HH:mm:ss Z',
       // Hide technical metadata in dev for cleaner output
-      ignore: 'pid,hostname,service,version,environment,instance,correlationId,requestId,traceId,spanId,cqaOutput,exitcode'
+      ignore: 'pid,hostname,service,version,environment,instance,correlationId,requestId,traceId,spanId,cqaOutput,exitCode'
     }
   }
 }
@@ -327,12 +327,12 @@ export class ContextLogger {
       // Create a more descriptive message based on the object type and context
       const context = getCurrentLogContext()
       const objectType = objOrMsg?.constructor?.name || typeof objOrMsg
-      const scope = context.requestId && context.requestId.length >= 8 ? `[req:${context.requestId.slice(-8)}]` : 
-                   context.requestId ? `[req:${context.requestId}]` :
-                   context.correlationId && context.correlationId.length >= 8 ? `[corr:${context.correlationId.slice(-8)}]` : 
-                   context.correlationId ? `[corr:${context.correlationId}]` :
-                   '[no-context]'
-      
+      const scope = context.requestId && context.requestId.length >= 8 ? `[req:${context.requestId.slice(-8)}]` :
+        context.requestId ? `[req:${context.requestId}]` :
+          context.correlationId && context.correlationId.length >= 8 ? `[corr:${context.correlationId.slice(-8)}]` :
+            context.correlationId ? `[corr:${context.correlationId}]` :
+              '[no-context]'
+
       const message = `${scope} Logged ${objectType} without explicit message`
       this.pino[level]({ data: objOrMsg }, message)
     } else {
