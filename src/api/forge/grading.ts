@@ -1,6 +1,11 @@
 /**
  * Grading endpoints for demonstration submissions
  * These endpoints are used by migration scripts and admin tools
+ *
+ * SECURITY: These endpoints are protected by admin authentication only.
+ * Rate limiting is NOT applied because these endpoints are designed for batch operations
+ * by migration scripts that may need to process hundreds of submissions.
+ * Access control via x-admin-token header is sufficient protection.
  */
 
 import { Router } from 'express'
@@ -11,8 +16,12 @@ import { runCQAGrading, prepareDemoForGrading } from '../../services/grading/cqa
 import { DemoStorageService } from '../../services/demo-storage/index.ts'
 import { ObjectStorageService } from '../../services/storage/index.ts'
 import { logger } from '../../services/logger.ts'
+import { requireAdminAuth } from '../../middleware/auth.ts'
 
 const router = Router()
+
+// Apply admin authentication to all grading endpoints
+router.use(requireAdminAuth)
 
 // Initialize storage service
 let demoStorageService: DemoStorageService | null = null
@@ -89,7 +98,8 @@ router.post('/grade-submission/:submissionId', async (req, res) => {
     }
 
     // Create temporary directory for grading
-    const tempDir = path.join(process.cwd(), 'temp', 'grading', submissionId)
+    const sanitizedId = submissionId.replace(/[^a-zA-Z0-9_-]/g, '')
+    const tempDir = path.join(process.cwd(), 'temp', 'grading', sanitizedId)
 
     try {
       await fs.mkdir(tempDir, { recursive: true })
@@ -180,7 +190,7 @@ router.post('/grade-submission/:submissionId', async (req, res) => {
  * Grade multiple submissions in batch
  *
  * Body:
- * - submissionIds: string[]
+ * - submissionIds: string[] (max 500 per request)
  * - useVideoGrading: boolean (default: true)
  * - model: string (default: from env CQA_MODEL)
  *
@@ -193,6 +203,16 @@ router.post('/batch-grade', async (req, res) => {
 
   if (!Array.isArray(submissionIds) || submissionIds.length === 0) {
     return res.status(400).json({ error: 'submissionIds must be a non-empty array' })
+  }
+
+  // Reasonable limit to prevent accidental abuse even with admin auth
+  const MAX_BATCH_SIZE = 500
+  if (submissionIds.length > MAX_BATCH_SIZE) {
+    return res.status(400).json({
+      error: `Batch size exceeds maximum allowed (${MAX_BATCH_SIZE}). Please split into smaller batches.`,
+      maxBatchSize: MAX_BATCH_SIZE,
+      receivedSize: submissionIds.length
+    })
   }
 
   logger.info('Batch grading request', { count: submissionIds.length, useVideoGrading, model })
@@ -267,7 +287,7 @@ router.post('/batch-grade', async (req, res) => {
         // Clean up
         try {
           await fs.rm(tempDir, { recursive: true, force: true })
-        } catch {}
+        } catch { }
 
         results.push({
           submissionId,
@@ -281,7 +301,7 @@ router.post('/batch-grade', async (req, res) => {
         // Clean up on error
         try {
           await fs.rm(tempDir, { recursive: true, force: true })
-        } catch {}
+        } catch { }
 
         throw error
       }

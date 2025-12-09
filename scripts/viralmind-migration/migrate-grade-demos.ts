@@ -6,6 +6,10 @@
  * This script calls the backend API to grade demonstrations, which handles all CQA logic.
  * This approach works regardless of where the script is run (local macOS, Docker, etc.)
  *
+ * Required environment variables:
+ * - ADMIN_TOKEN: Admin authentication token for grading API endpoints
+ * - DB_URI: MongoDB connection string
+ *
  * Usage: npx tsx scripts/migrate-grade-demos-api.ts [environment] [--limit N] [--backend-url URL]
  * Environment: development (default), test, production
  * --limit N: Process only first N submissions (default: 1 for testing)
@@ -51,10 +55,16 @@ async function gradeSubmissionViaAPI(submissionId: string): Promise<any> {
 
   console.log(`📡 Calling API: POST ${url}`)
 
+  const adminToken = process.env.ADMIN_TOKEN
+  if (!adminToken) {
+    throw new Error('ADMIN_TOKEN environment variable is required for grading API')
+  }
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'x-admin-token': adminToken
     }
   })
 
@@ -136,7 +146,6 @@ async function grade() {
       demoHash: {
         $exists: true,
         $ne: null,
-        $eq: "46cc5603156ccb88770570416dfdd642b9cfe21f0b11da6f3d5ed0a299bd8b78",
       },
       $or: [
         { grade_result: { $exists: false } },
