@@ -9,8 +9,8 @@
 
 import { readFileSync } from 'fs'
 import mongoose, { Types } from 'mongoose'
-import { FactoryModel, type IFactoryDocument } from '../src/models/Factory.ts'
-import { FactoryStatus } from '../src/types/factory.ts'
+import { FactoryModel, type IFactoryDocument } from '../../src/models/Factory.ts'
+import { FactoryStatus } from '../../src/types/factory.ts'
 
 // Get environment from command line or default to development
 const environment = process.argv[2] || 'development'
@@ -29,9 +29,7 @@ const TRAINING_POOLS_PATH = '/Users/SSe/SSe/app/Clones-workspace/clones-quality-
 const FORGE_APPS_PATH = '/Users/SSe/SSe/app/Clones-workspace/clones-quality-agent/data/stats_viralmind/viralmind.forge_apps.json'
 
 // Owner address based on environment
-const OWNER_ADDRESS = environment === 'development' 
-  ? '0x243eDd6b1F48636568476c8167CBe63C7Fe0ac8D'
-  : '0x6E60D7b7b1587863dE6D2078C020d61F65781d7e'
+const OWNER_ADDRESS = '0x6E60D7b7b1587863dE6D2078C020d61F65781d7e'
 
 // Note: For archived factories, we don't set poolAddress or token
 
@@ -51,9 +49,6 @@ function formatSkills(skillsText) {
     .map(skill => skill.charAt(0).toUpperCase() + skill.slice(1))
 }
 
-/**
- * Transform training pool data to factory format
- */
 function transformTrainingPool(pool: any, appsMap: Map<string, any[]>) {
   const poolId = pool._id.$oid
   const factoryId = `factory_${poolId}`
@@ -61,20 +56,35 @@ function transformTrainingPool(pool: any, appsMap: Map<string, any[]>) {
   // Get associated apps for this pool
   const poolApps = appsMap.get(poolId) || []
 
-  // Transform apps to factory app format
-  const apps = poolApps.map((app: any) => ({
-    id: app._id.$oid,
-    name: app.name,
-    domain: app.domain,
-    description: app.description || '',
-    categories: app.categories || [],
-    tasks: app.tasks.map((task: any) => ({
-      id: task._id.$oid,
-      prompt: task.prompt,
-      uploadLimit: undefined,
-      rewardLimit: undefined
-    }))
-  }))
+  // Transform to tasks-centric structure
+  // For each app, create tasks with that app in apps_used
+  const tasks: any[] = []
+
+  poolApps.forEach((app: any) => {
+    const taskApp = {
+      name: app.name,
+      domain: app.domain,
+      description: app.description || ''
+    }
+
+    // Each task from the app becomes a workflow task
+    if (app.tasks && Array.isArray(app.tasks)) {
+      app.tasks.forEach((task: any) => {
+        // Generate a task name from prompt if not available
+        const taskName = task.name || task.prompt?.substring(0, 50) || app.name
+
+        tasks.push({
+          id: task._id.$oid,
+          prompt: task.prompt,
+          categories: app.categories || [],
+          task_name: taskName,
+          apps_used: [taskApp], // App is used by this task
+          uploadLimit: undefined,
+          rewardLimit: undefined
+        })
+      })
+    }
+  })
 
   return {
     _id: factoryId,
@@ -85,7 +95,7 @@ function transformTrainingPool(pool: any, appsMap: Map<string, any[]>) {
     status: FactoryStatus.archived,
     skills: formatSkills(pool.skills),
     totalEarned: Types.Decimal128.fromString('0'),
-    apps: apps,
+    tasks: tasks,
     createdAt: new Date(pool.createdAt.$date),
     updatedAt: new Date(pool.updatedAt.$date)
   }
@@ -106,7 +116,7 @@ function loadData() {
   // Create map of apps by pool_id for efficient lookup
   const appsMap = new Map()
 
-  forgeAppsData.forEach(app => {
+  forgeAppsData.forEach((app: any) => {
     const poolId = app.pool_id?.$oid
     if (poolId) {
       if (!appsMap.has(poolId)) {

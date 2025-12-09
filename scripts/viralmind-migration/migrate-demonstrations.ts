@@ -2,17 +2,29 @@
 
 /**
  * Migration script to import ViralMind demonstration submissions into new DemonstrationSubmission collection
- * 
+ *
  * Usage: npx tsx scripts/migrate-demonstrations.ts [environment]
  * Environment: development (default), test, production
+ *
+ * COMPATIBILITY NOTE (task-centric model):
+ * This script remains compatible with the new Factory.tasks[] structure because:
+ * - Task IDs are preserved during factory migration (Task.id field)
+ * - This script only references task IDs from submission metadata
+ * - No factory structure modifications are performed here
+ * - The meta.quest.task_id field is passed through as-is
  */
 
+import { config } from 'dotenv'
 import { readFileSync } from 'fs'
+
+// Load environment variables from .env file
+config()
 import mongoose from 'mongoose'
-import { FactoryModel } from '../src/models/Factory.ts'
-import { DemonstrationSubmission } from '../src/models/DemonstrationSubmission.ts'
-import { ForgeSubmissionProcessingStatus } from '../src/types/index.ts'
-import { generateDemoHash } from '../src/services/demo-storage/hash.ts'
+import { FactoryModel } from '../../src/models/Factory.ts'
+import { DemonstrationSubmission } from '../../src/models/DemonstrationSubmission.ts'
+import { ForgeSubmissionProcessingStatus } from '../../src/types/index.ts'
+import { generateDemoHash } from '../../src/services/demo-storage/hash.ts'
+import { ObjectStorageService } from '../../src/services/storage/index.ts'
 
 // Get environment from command line or default to development
 const environment = process.argv[2] || 'development'
@@ -30,12 +42,100 @@ console.log(`🚀 Running demonstration migration for environment: ${environment
 const SUBMISSIONS_PATH = '/Users/SSe/SSe/app/Clones-workspace/clones-quality-agent/data/stats_viralmind/viralmind.forge_race_submissions.json'
 
 // Owner address based on environment
-const OWNER_ADDRESS = environment === 'development'
-  ? '0x243eDd6b1F48636568476c8167CBe63C7Fe0ac8D'
-  : '0x6E60D7b7b1587863dE6D2078C020d61F65781d7e'
+const OWNER_ADDRESS = '0x6E60D7b7b1587863dE6D2078C020d61F65781d7e'
 
 // MongoDB connection
 const MONGODB_URI = process.env.DB_URI || 'mongodb://admin:admin@localhost:27017/dev?authSource=admin'
+
+// ViralMind Tigris storage configuration
+const VIRAL_ACCESS_KEY = process.env.VIRAL_ACCESS_KEY
+const VIRAL_SECRET_ACCESS_KEY = process.env.VIRAL_SECRET_ACCESS_KEY
+const VIRAL_ENDPOINT = process.env.VIRAL_ENDPOINT
+const VIRAL_BUCKET = 'clones-bucket-prod'
+const VIRAL_REGION = 'auto'
+
+// Initialize ViralMind storage service
+let viralStorageService: ObjectStorageService | null = null
+
+function getViralStorageService(): ObjectStorageService {
+  if (!viralStorageService) {
+    if (!VIRAL_ACCESS_KEY || !VIRAL_SECRET_ACCESS_KEY || !VIRAL_ENDPOINT) {
+      throw new Error('ViralMind Tigris credentials not configured. Please set VIRAL_ACCESS_KEY, VIRAL_SECRET_ACCESS_KEY, and VIRAL_ENDPOINT environment variables.')
+    }
+    viralStorageService = new ObjectStorageService(
+      VIRAL_ACCESS_KEY,
+      VIRAL_SECRET_ACCESS_KEY,
+      VIRAL_ENDPOINT,
+      VIRAL_REGION,
+      VIRAL_BUCKET
+    )
+  }
+  return viralStorageService
+}
+
+/**
+ * Build fileManifest from ViralMind files array
+ * Checks file existence on ViralMind Tigris and populates size
+ */
+async function buildFileManifest(files: any[]): Promise<{
+  fileManifest: any
+  legacyStoragePaths: Record<string, string>
+  missingFiles: string[]
+}> {
+  const fileManifest: any = {}
+  const legacyStoragePaths: Record<string, string> = {}
+  const missingFiles: string[] = []
+
+  if (!files || files.length === 0) {
+    return { fileManifest, legacyStoragePaths, missingFiles }
+  }
+
+  const storage = getViralStorageService()
+
+  for (const file of files) {
+    const fileName = file.file
+    const s3Key = file.s3Key
+    const sizeFromJson = file.size
+
+    // Map file names to fileManifest keys
+    let manifestKey: string | null = null
+    if (fileName === 'input_log.jsonl') {
+      manifestKey = 'input_log'
+    } else if (fileName === 'meta.json') {
+      manifestKey = 'meta'
+    } else if (fileName === 'recording.mp4') {
+      manifestKey = 'recording'
+    }
+
+    if (!manifestKey) {
+      console.warn(`⚠️  Unknown file type: ${fileName}, skipping`)
+      continue
+    }
+
+    // Store legacy path
+    legacyStoragePaths[manifestKey] = s3Key
+
+    try {
+      // Check if file exists on ViralMind Tigris
+      const fileInfo = await storage.checkFileExists({ name: s3Key })
+
+      if (fileInfo.exists) {
+        fileManifest[manifestKey] = {
+          size: fileInfo.size || sizeFromJson,
+          hash: null // Hash will be calculated in future migration phase
+        }
+      } else {
+        missingFiles.push(`${fileName} (${s3Key})`)
+        console.warn(`⚠️  File not found in ViralMind storage: ${s3Key}`)
+      }
+    } catch (error: any) {
+      missingFiles.push(`${fileName} (${s3Key})`)
+      console.error(`❌ Error checking file ${s3Key}:`, error.message)
+    }
+  }
+
+  return { fileManifest, legacyStoragePaths, missingFiles }
+}
 
 /**
  * Load archived factories and create pool_id mapping
@@ -63,23 +163,21 @@ async function getPoolIdMapping(): Promise<Map<string, string>> {
 /**
  * Transform ViralMind submission to DemonstrationSubmission format
  */
-function transformSubmission(submission: any, poolIdMap: Map<string, string>) {
-  const poolId = submission.meta?.quest?.pool_id
+function transformSubmission(
+  submission: any,
+  _poolIdMap: Map<string, string>,
+  fileManifest: any,
+  legacyStoragePaths: Record<string, string>
+) {
   const taskId = submission.meta?.quest?.task_id
 
-  if (!poolId || !poolIdMap.has(poolId)) {
-    throw new Error(`Pool ID ${poolId} not found in archived factories`)
-  }
-
-  if (!taskId) {
-    throw new Error(`Task ID missing in submission ${submission._id}`)
-  }
+  // Note: poolId and taskId are already validated by caller
 
   // Generate demo hash using submission ID, address, and timestamp
   const timestamp = submission.meta?.timestamp ? new Date(submission.meta.timestamp).getTime() : Date.now()
   const demoHash = generateDemoHash(submission._id, OWNER_ADDRESS, timestamp)
 
-  // Create meta object with task_id properly set
+  // Create meta object with task_id properly set and legacy storage paths
   const meta = {
     ...submission.meta,
     quest: {
@@ -90,7 +188,8 @@ function transformSubmission(submission: any, poolIdMap: Map<string, string>) {
       major: 1,
       minor: 0,
       patch: 0
-    }
+    },
+    legacy_storage_paths: legacyStoragePaths
   }
 
   // Handle dates properly - use meta.timestamp or current time
@@ -116,8 +215,8 @@ function transformSubmission(submission: any, poolIdMap: Map<string, string>) {
     meta: meta,
     status: ForgeSubmissionProcessingStatus.COMPLETED,
     demoHash: demoHash,
-    fileManifest: null,
-    integrityVerified: false,
+    fileManifest: Object.keys(fileManifest).length > 0 ? fileManifest : null,
+    integrityVerified: false, // Files not yet migrated to new paths
     integrityLastCheck: null,
     grade_result: null,
     grading_metrics: null,
@@ -176,16 +275,30 @@ async function migrate() {
     const submissionsData = loadSubmissions()
 
     console.log('Starting demonstration migration...')
+    console.log('Initializing ViralMind storage service...')
+
+    // Initialize storage service early to validate credentials
+    try {
+      getViralStorageService()
+      console.log('✅ ViralMind storage service initialized successfully')
+    } catch (error: any) {
+      console.error('❌ Failed to initialize ViralMind storage service:', error.message)
+      console.error('Migration aborted. Please configure VIRAL_ACCESS_KEY, VIRAL_SECRET_ACCESS_KEY, and VIRAL_ENDPOINT environment variables.')
+      process.exit(1)
+    }
 
     const demonstrations: any[] = []
     let processed = 0
     let errors = 0
     let skippedNoPool = 0
+    let totalMissingFiles = 0
+    let submissionsWithMissingFiles = 0
     const errorStats = new Map<string, number>() // Track error types
 
     for (const submission of submissionsData) {
       try {
         const poolId = submission.meta?.quest?.pool_id
+        const taskId = submission.meta?.quest?.task_id
 
         // Skip submissions without valid pool_id mapping
         if (!poolId || !poolIdMap.has(poolId)) {
@@ -193,7 +306,21 @@ async function migrate() {
           continue
         }
 
-        const demonstration = transformSubmission(submission, poolIdMap)
+        // Validate task_id exists BEFORE making network calls
+        if (!taskId) {
+          throw new Error(`Task ID missing in submission ${submission._id}`)
+        }
+
+        // Build file manifest from ViralMind files (makes network calls)
+        const { fileManifest, legacyStoragePaths, missingFiles } = await buildFileManifest(submission.files || [])
+
+        if (missingFiles.length > 0) {
+          submissionsWithMissingFiles++
+          totalMissingFiles += missingFiles.length
+          console.warn(`⚠️  Submission ${submission._id}: ${missingFiles.length} missing file(s)`)
+        }
+
+        const demonstration = transformSubmission(submission, poolIdMap, fileManifest, legacyStoragePaths)
         demonstrations.push(demonstration)
         processed++
 
@@ -206,7 +333,12 @@ async function migrate() {
             'transformation_error'
 
         errorStats.set(errorType, (errorStats.get(errorType) || 0) + 1)
-        console.error(`Error processing submission ${submission._id}:`, error.message)
+
+        // Only log first 10 errors of each type to avoid spam
+        const errorCount = errorStats.get(errorType) || 0
+        if (errorCount <= 10) {
+          console.error(`Error processing submission ${submission._id}:`, error.message)
+        }
         errors++
       }
     }
@@ -216,6 +348,8 @@ async function migrate() {
     console.log(`- Processed: ${processed}`)
     console.log(`- Skipped (no pool mapping): ${skippedNoPool}`)
     console.log(`- Errors: ${errors}`)
+    console.log(`- Submissions with missing files: ${submissionsWithMissingFiles}`)
+    console.log(`- Total missing files: ${totalMissingFiles}`)
 
     // Error breakdown
     if (errorStats.size > 0) {
