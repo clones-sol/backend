@@ -290,7 +290,7 @@ export async function processNextInQueue() {
 
             // Check 3: Previous submission with higher/equal score
             const previousSubmission = await DemonstrationSubmission.findOne({
-              address: submission.address,
+              address: new RegExp(`^${submission.address}$`, 'i'),
               'meta.quest.factory_id': factory._id.toString(),
               $or: [
                 { 'meta.quest.title': submission?.meta?.quest.title },
@@ -311,7 +311,7 @@ export async function processNextInQueue() {
             // Check 4: Per-task upload limit
             if (task.uploadLimit) {
               const taskSubmissionsCount = await DemonstrationSubmission.countDocuments({
-                address: submission.address,
+                address: new RegExp(`^${submission.address}$`, 'i'),
                 'meta.quest.task_id': submission?.meta?.quest.task_id,
                 status: ForgeSubmissionProcessingStatus.COMPLETED,
                 _id: { $ne: submission._id }

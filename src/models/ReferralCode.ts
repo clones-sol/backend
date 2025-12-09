@@ -15,7 +15,8 @@ const ReferralCodeSchema = new mongoose.Schema<IReferralCode>(
     walletAddress: {
       type: String,
       required: true,
-      unique: true // Creates unique index automatically
+      unique: true, // Creates unique index automatically
+      set: (v: string) => v.toLowerCase() // Always store addresses in lowercase
     },
     referralCode: {
       type: String,

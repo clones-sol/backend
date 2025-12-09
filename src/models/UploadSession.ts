@@ -25,7 +25,11 @@ const chunkSchema = new Schema<UploadChunk>(
 const uploadSessionSchema = new Schema<IUploadSessionDocument>(
   {
     _id: { type: String, required: true },
-    address: { type: String, required: true },
+    address: {
+      type: String,
+      required: true,
+      set: (v: string) => v.toLowerCase() // Always store addresses in lowercase
+    },
     totalChunks: { type: Number, required: true },
     receivedChunks: {
       type: Map,

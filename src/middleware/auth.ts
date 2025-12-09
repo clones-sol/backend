@@ -51,8 +51,8 @@ export async function requireWalletAddress(
       }
     }
 
-    // Add the wallet address to the request object
-    req.walletAddress = connection.address
+    // Add the wallet address to the request object (normalized to lowercase)
+    req.walletAddress = connection.address.toLowerCase()
     next()
   } catch (e) {
     next(e)

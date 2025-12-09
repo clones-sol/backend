@@ -19,6 +19,7 @@ const ReferralSchema = new mongoose.Schema<IReferral>(
       type: String,
       required: true,
       index: true,
+      set: (v: string) => v.toLowerCase(), // Always store addresses in lowercase
       validate: [mongooseAddressValidator, 'referrerAddress must be a valid EVM address']
     },
     referreeAddress: {
@@ -26,6 +27,7 @@ const ReferralSchema = new mongoose.Schema<IReferral>(
       required: true,
       index: true,
       unique: true, // each wallet can only be referred once
+      set: (v: string) => v.toLowerCase(), // Always store addresses in lowercase
       validate: [mongooseAddressValidator, 'referreeAddress must be a valid EVM address']
     },
     onChainTxHash: {

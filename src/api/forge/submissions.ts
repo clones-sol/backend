@@ -4,10 +4,22 @@ import express, { type Request, type Response, type Router } from 'express'
 import { requireWalletAddress } from '../../middleware/auth.ts'
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
 import { ApiError, successResponse } from '../../middleware/types/errors.ts'
-import { ValidationRules, validateParams } from '../../middleware/validator.ts'
+import { ValidationRules, validateParams, validateQuery, type ValidationSchema } from '../../middleware/validator.ts'
 import { DemonstrationSubmission, FactoryModel } from '../../models/Models.ts'
 import { logger } from "../../services/logger.ts"
 export { router as forgeSubmissionsApi }
+
+// Validation schema for user submissions query
+const getUserSubmissionsSchema: ValidationSchema = {
+  limit: {
+    required: false,
+    rules: [ValidationRules.isQueryNumber(1, 100)]
+  },
+  offset: {
+    required: false,
+    rules: [ValidationRules.isQueryNumber(0)]
+  }
+}
 
 /**
  * @swagger
@@ -20,11 +32,49 @@ export { router as forgeSubmissionsApi }
  * @swagger
  * /forge/submissions/user:
  *   get:
- *     summary: Get submissions for authenticated user
+ *     summary: Get submissions for authenticated user with pagination
  *     tags: [Submissions]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Number of submissions to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Number of submissions to skip
  *     responses:
  *       '200':
- *         description: Submissions for the user
+ *         description: Paginated submissions for the user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     submissions:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     total:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     offset:
+ *                       type: integer
+ *                     hasMore:
+ *                       type: boolean
  *       '403':
  *         description: Not authorized to view submissions for this user
  *       '500':
@@ -34,17 +84,36 @@ export { router as forgeSubmissionsApi }
 router.get(
   '/user',
   requireWalletAddress,
+  validateQuery(getUserSubmissionsSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
     // @ts-expect-error - Get walletAddress from the request object
     const address = req.walletAddress
+    const limit = parseInt(req.query.limit as string, 10) || 20
+    const offset = parseInt(req.query.offset as string, 10) || 0
 
-    const submissions = await DemonstrationSubmission.find({ address })
+    const query = {
+      address: new RegExp(`^${address}$`, 'i')
+    }
+
+    const submissions = await DemonstrationSubmission.find(query)
       .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(limit)
       .select('-__v')
+      .lean()
 
+    const total = await DemonstrationSubmission.countDocuments(query)
 
-    logger.info('Submissions:', submissions)
-    res.status(200).json(successResponse(submissions))
+    const result = {
+      submissions,
+      total,
+      limit,
+      offset,
+      hasMore: offset + limit < total
+    }
+
+    logger.debug(`Fetched ${submissions.length} submissions for user ${address} (offset: ${offset}, total: ${total})`)
+    res.status(200).json(successResponse(result))
   })
 )
 

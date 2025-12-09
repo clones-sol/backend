@@ -1,10 +1,131 @@
 import mongoose from 'mongoose'
 import { type DBDemonstrationSubmission, ForgeSubmissionProcessingStatus } from '../types/index.ts'
 
+// Schema for referral entries in claimAuthorization
+const referralEntrySchema = new mongoose.Schema({
+  address: {
+    type: String,
+    set: (v: string | undefined) => v ? v.toLowerCase() : v
+  },
+  amount: {
+    type: mongoose.Schema.Types.Decimal128,
+    get: function (value: any) {
+      return value ? parseFloat(value.toString()) : value
+    },
+    set: function (value: any) {
+      return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+    }
+  },
+  type: { type: String, enum: ['farmer_referrer', 'factory_referrer'] }
+}, { _id: false })
+
+// Schema for onChainReward
+const onChainRewardSchema = new mongoose.Schema({
+  poolAddress: {
+    type: String,
+    set: (v: string | undefined) => v ? v.toLowerCase() : v
+  },
+  amount: Number,
+  grossAmount: {
+    type: mongoose.Schema.Types.Decimal128,
+    get: function (value: any) {
+      return value ? parseFloat(value.toString()) : value
+    },
+    set: function (value: any) {
+      return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+    }
+  },
+  feeAmount: {
+    type: mongoose.Schema.Types.Decimal128,
+    get: function (value: any) {
+      return value ? parseFloat(value.toString()) : value
+    },
+    set: function (value: any) {
+      return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+    }
+  },
+  netAmount: {
+    type: mongoose.Schema.Types.Decimal128,
+    get: function (value: any) {
+      return value ? parseFloat(value.toString()) : value
+    },
+    set: function (value: any) {
+      return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+    }
+  },
+  taskId: String,
+  txHash: String,
+  timestamp: Number,
+  cumulativeAmount: {
+    type: mongoose.Schema.Types.Decimal128,
+    get: function (value: any) {
+      return value ? parseFloat(value.toString()) : value
+    },
+    set: function (value: any) {
+      return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+    }
+  }
+}, { _id: false })
+
+// Schema for claimAuthorization
+const claimAuthorizationSchema = new mongoose.Schema({
+  // Smart contract parameters
+  account: {
+    type: String,
+    set: (v: string | undefined) => v ? v.toLowerCase() : v
+  },
+  cumulativeAmount: String,
+  nonce: Number,
+  signature: String,
+  // Additional context
+  publisherUsed: String,
+  poolAddress: {
+    type: String,
+    set: (v: string | undefined) => v ? v.toLowerCase() : v
+  },
+  tokenAddress: {
+    type: String,
+    set: (v: string | undefined) => v ? v.toLowerCase() : v
+  },
+  alreadyClaimed: {
+    type: mongoose.Schema.Types.Decimal128,
+    get: function (value: any) {
+      return value ? parseFloat(value.toString()) : value
+    },
+    set: function (value: any) {
+      return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+    }
+  },
+  newClaimableAmount: {
+    type: mongoose.Schema.Types.Decimal128,
+    get: function (value: any) {
+      return value ? parseFloat(value.toString()) : value
+    },
+    set: function (value: any) {
+      return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+    }
+  },
+  feePercentage: {
+    type: mongoose.Schema.Types.Decimal128,
+    get: function (value: any) {
+      return value ? parseFloat(value.toString()) : value
+    },
+    set: function (value: any) {
+      return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
+    }
+  },
+  // Referral data for multi-recipient payouts
+  referrals: [referralEntrySchema]
+}, { _id: false })
+
 export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstrationSubmission>(
   {
     _id: { type: String },
-    address: { type: String, required: true },
+    address: {
+      type: String,
+      required: true,
+      set: (v: string) => v.toLowerCase() // Always store addresses in lowercase
+    },
     meta: { type: mongoose.Schema.Types.Mixed, required: true },
     status: {
       type: String,
@@ -75,110 +196,25 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
     },
     clampedScore: { type: Number, required: false },
     onChainReward: {
-      type: {
-        poolAddress: String,
-        amount: Number,
-        grossAmount: {
-          type: mongoose.Schema.Types.Decimal128,
-          get: function (value: any) {
-            return value ? parseFloat(value.toString()) : value
-          },
-          set: function (value: any) {
-            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
-          }
-        },
-        feeAmount: {
-          type: mongoose.Schema.Types.Decimal128,
-          get: function (value: any) {
-            return value ? parseFloat(value.toString()) : value
-          },
-          set: function (value: any) {
-            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
-          }
-        },
-        netAmount: {
-          type: mongoose.Schema.Types.Decimal128,
-          get: function (value: any) {
-            return value ? parseFloat(value.toString()) : value
-          },
-          set: function (value: any) {
-            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
-          }
-        },
-        taskId: String,
-        txHash: String,
-        timestamp: Number,
-        cumulativeAmount: {
-          type: mongoose.Schema.Types.Decimal128,
-          get: function (value: any) {
-            return value ? parseFloat(value.toString()) : value
-          },
-          set: function (value: any) {
-            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
-          }
-        }
-      },
+      type: onChainRewardSchema,
       required: false
     },
     claimAuthorization: {
-      type: {
-        // Smart contract parameters
-        account: String,
-        cumulativeAmount: String,
-        nonce: Number,
-        signature: String,
-        // Additional context
-        publisherUsed: String,
-        poolAddress: String,
-        tokenAddress: String,
-        alreadyClaimed: {
-          type: mongoose.Schema.Types.Decimal128,
-          get: function (value: any) {
-            return value ? parseFloat(value.toString()) : value
-          },
-          set: function (value: any) {
-            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
-          }
-        },
-        newClaimableAmount: {
-          type: mongoose.Schema.Types.Decimal128,
-          get: function (value: any) {
-            return value ? parseFloat(value.toString()) : value
-          },
-          set: function (value: any) {
-            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
-          }
-        },
-        feePercentage: {
-          type: mongoose.Schema.Types.Decimal128,
-          get: function (value: any) {
-            return value ? parseFloat(value.toString()) : value
-          },
-          set: function (value: any) {
-            return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
-          }
-        },
-        // Referral data for multi-recipient payouts
-        referrals: [{
-          address: String,
-          amount: {
-            type: mongoose.Schema.Types.Decimal128,
-            get: function (value: any) {
-              return value ? parseFloat(value.toString()) : value
-            },
-            set: function (value: any) {
-              return value === null || value === undefined ? value : mongoose.Types.Decimal128.fromString(value.toString())
-            }
-          },
-          type: { type: String, enum: ['farmer_referrer', 'factory_referrer'] }
-        }]
-      },
+      type: claimAuthorizationSchema,
       required: false
     },
 
     // Referral snapshot - captured at submission processing time
-    farmerReferrerAddress: { type: String, required: false },
-    factoryReferrerAddress: { type: String, required: false },
+    farmerReferrerAddress: {
+      type: String,
+      required: false,
+      set: (v: string | undefined) => v ? v.toLowerCase() : v // Always store addresses in lowercase
+    },
+    factoryReferrerAddress: {
+      type: String,
+      required: false,
+      set: (v: string | undefined) => v ? v.toLowerCase() : v // Always store addresses in lowercase
+    },
     cqaModel: { type: String, required: false }
   },
   {
@@ -192,6 +228,9 @@ export const demonstrationSubmissionSchema = new mongoose.Schema<DBDemonstration
 
 // Index to help with querying pending submissions
 demonstrationSubmissionSchema.index({ status: 1, createdAt: 1 })
+
+// Index for user submissions queries (optimized for pagination)
+demonstrationSubmissionSchema.index({ address: 1, createdAt: -1 })
 
 // Optimized compound index for referral rewards aggregation with factory lookup
 demonstrationSubmissionSchema.index({
