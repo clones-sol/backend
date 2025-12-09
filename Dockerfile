@@ -33,7 +33,7 @@ RUN npm prune --omit=dev
 # Final stage for app image
 FROM base
 
-ARG CQA_VERSION=3.0.4
+ARG CQA_VERSION=3.0.12
 ADD https://releases.clones-ai.com/cqa/clones-quality-agent-linux-x64-package-v${CQA_VERSION}.tar.gz ./cqa-package.tar.gz
 RUN mkdir ./cqa && \
     tar -xzf cqa-package.tar.gz -C ./cqa && \
