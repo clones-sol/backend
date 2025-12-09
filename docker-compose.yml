@@ -106,7 +106,6 @@ services:
       - redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
-      - "deb.debian.org:host-gateway"
 
 networks:
   default:
