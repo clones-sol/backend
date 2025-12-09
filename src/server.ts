@@ -9,6 +9,7 @@ import helmet from 'helmet'
 import mongoose from 'mongoose'
 import swaggerUi from 'swagger-ui-express'
 import swaggerSpec from '../swagger.ts'
+import forgeGradingApi from './api/forge/grading.ts'
 import { demonstrationApi } from './api/demonstration.ts'
 import { forgeApi } from './api/forge/index.ts'
 import { referralApi } from './api/referral.ts'
@@ -114,6 +115,9 @@ app.use('/api/v1/wallet', walletApi)
 app.use('/api/v1/referral', referralApi)
 app.use('/api/v1/transaction', transactionApi)
 app.use('/api/v1/withdrawal', withdrawalApi)
+
+// Grading endpoints
+app.use('/api/v1/forge/grading', forgeGradingApi)
 
 // Swagger API documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))

@@ -47,3 +47,19 @@ export const strictRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+/**
+ * Relaxed rate limiter for forge/factory read operations
+ * Higher limits to support loading multiple factories and their metadata
+ */
+export const forgeReadRateLimit = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 300, // 300 requests per minute per IP
+  message: {
+    success: false,
+    error: 'Too many forge requests. Please slow down.',
+    code: 'RATE_LIMIT_EXCEEDED'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

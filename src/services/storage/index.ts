@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs'
-import { PutObjectCommand, S3Client, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { PutObjectCommand, S3Client, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
 
 export class ObjectStorageService {
   private client: S3Client
@@ -90,6 +90,50 @@ export class ObjectStorageService {
     return response.Body as NodeJS.ReadableStream
   }
 
+  async getItemStreamWithRange(options: {
+    name: string
+    bucket?: string
+    range?: string // HTTP Range header value (e.g., "bytes=0-1023")
+  }): Promise<{
+    stream: NodeJS.ReadableStream
+    contentLength: number
+    contentRange?: string
+    totalSize: number
+  }> {
+    const command = new GetObjectCommand({
+      Bucket: options.bucket || this.bucket,
+      Key: options.name,
+      Range: options.range
+    })
+
+    const response = await this.client.send(command)
+
+    if (!response.Body) {
+      throw new Error(`Object not found: ${options.name}`)
+    }
+
+    // For range requests, S3 returns ContentRange header
+    // Format: "bytes start-end/total"
+    const contentRange = response.ContentRange
+    const contentLength = response.ContentLength || 0
+
+    // Extract total size from ContentRange or use ContentLength for full requests
+    let totalSize = contentLength
+    if (contentRange) {
+      const match = contentRange.match(/bytes \d+-\d+\/(\d+)/)
+      if (match) {
+        totalSize = parseInt(match[1], 10)
+      }
+    }
+
+    return {
+      stream: response.Body as NodeJS.ReadableStream,
+      contentLength,
+      contentRange,
+      totalSize
+    }
+  }
+
   async deleteItem(options: { name: string; bucket?: string }): Promise<void> {
     const command = new DeleteObjectCommand({
       Bucket: options.bucket || this.bucket,
@@ -97,5 +141,26 @@ export class ObjectStorageService {
     })
 
     await this.client.send(command)
+  }
+
+  async checkFileExists(options: { name: string; bucket?: string }): Promise<{ exists: boolean; size?: number }> {
+    try {
+      const command = new HeadObjectCommand({
+        Bucket: options.bucket || this.bucket,
+        Key: options.name
+      })
+
+      const response = await this.client.send(command)
+
+      return {
+        exists: true,
+        size: response.ContentLength
+      }
+    } catch (error: any) {
+      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+        return { exists: false }
+      }
+      throw error
+    }
   }
 }

@@ -123,6 +123,7 @@ function buildQueryPipeline(params: TaskQueryParams): PipelineStage[] {
       categories: '$tasks.categories',
       task_name: '$tasks.task_name',
       apps_used: '$tasks.apps_used',
+      objectives: '$tasks.objectives',
       factoryId: '$_id',
       pool_id: '$_id'
     }
@@ -469,6 +470,7 @@ router.get(
         categories: taskData.categories,
         task_name: taskData.task_name,
         apps_used: taskData.apps_used,
+        objectives: taskData.objectives,
         uploadLimitReached: limitInfo.taskLimitReached,
         currentSubmissions: limitInfo.taskSubmissions,
         limitReason: limitInfo.limitReason,
@@ -553,7 +555,8 @@ router.get(
             prompt: '$tasks.prompt',
             uploadLimit: '$tasks.uploadLimit',
             rewardLimit: '$tasks.rewardLimit',
-            categories: '$tasks.categories'
+            categories: '$tasks.categories',
+            objectives: '$tasks.objectives'
           }
         },
         pool_id: { $first: '$_id' }

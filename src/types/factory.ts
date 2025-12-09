@@ -59,8 +59,6 @@ export interface FactoryApp {
   tasks: FactoryTask[]
 }
 
-// NEW TASK-FIRST STRUCTURE
-
 // Simplified app definition for use within tasks
 export interface TaskApp {
   name: string
@@ -77,6 +75,7 @@ export interface WorkflowTask {
   apps_used: TaskApp[]
   uploadLimit?: number
   rewardLimit?: number
+  objectives?: string[]
 }
 
 // Main Factory interface - canonical structure
@@ -115,11 +114,23 @@ export interface Factory {
   searchText?: string // Computed search string
 }
 
-export interface FactoryWithDemonstrations extends Factory {
-  demonstrations: number
+// Grading result summary for a single submission
+export interface GradingResultSummary {
+  submissionId: string
+  createdAt: Date
+  score: number
+  confidence?: number
+  outcomeAchievement?: number
+  processQuality?: number
+  efficiency?: number
 }
 
-// NEW: Workflow generation response from AI
+export interface FactoryWithDemonstrations extends Factory {
+  demonstrations: number
+  balance?: number // Optional pool balance (in tokens)
+  gradingResults?: GradingResultSummary[] // Optional grading results for completed demonstrations
+}
+
 export interface WorkflowGenerationResult {
   name: string
   tasks: Omit<WorkflowTask, 'id'>[] // Tasks without IDs (will be generated)
@@ -135,9 +146,6 @@ export interface CreateFactoryRequest {
     symbol: string
   }
   uploadLimit?: FactoryUploadLimit
-  // Legacy support
-  apps?: Omit<FactoryApp, 'id'>[] // Apps without IDs (will be generated)
-  // NEW: Tasks-first support
   tasks?: Omit<WorkflowTask, 'id'>[] // Tasks without IDs (will be generated)
 }
 
@@ -149,9 +157,6 @@ export interface UpdateFactoryRequest {
   skills?: string[]
   status?: FactoryStatus
   uploadLimit?: FactoryUploadLimit
-  // Legacy support
-  apps?: Omit<FactoryApp, 'id'>[]
-  // NEW: Tasks-first support
   tasks?: Omit<WorkflowTask, 'id'>[]
 }
 

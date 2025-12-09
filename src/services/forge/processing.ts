@@ -27,6 +27,7 @@ import { createReferralLookupService } from '../referral/referralLookupService.t
 import { logger } from "../logger.ts"
 import { DemoStorageService } from '../demo-storage/index.ts'
 import { ObjectStorageService } from '../storage/index.ts'
+import { runCQAGrading } from '../grading/cqaGradingService.ts'
 
 // Initialize demo storage service
 let demoStorageService: DemoStorageService | null = null
@@ -164,106 +165,13 @@ export async function processNextInQueue() {
       const files = await fs.readdir(extractDir)
       logger.info('Directory contents:', files)
 
-      await new Promise<void>((resolve, reject) => {
-        const absoluteExtractDir = path.resolve(extractDir)
-        const args = ['-f', 'desktop', '-i', absoluteExtractDir, '--grade']
-
-        // Enable video mode by default (unless explicitly disabled)
-        const useVideoGrading = process.env.USE_VIDEO_GRADING !== 'false';
-
-        if (useVideoGrading) {
-          args.push('--video-mode')
-          logger.info('Video grading mode enabled (default)')
-        }
-
-        if (process.env.CQA_MODEL) {
-          args.push('--model', process.env.CQA_MODEL)
-        }
-
-        const pipeline = spawn(process.env.CQA_PATH, args, {
-          cwd: '/app/cqa', // Run CQA from the directory with node_modules
-          env: { ...process.env } // Explicitly pass all environment variables including API keys
-        })
-
-        let stdout = ''
-        let stderr = ''
-        let stdoutLineBuffer = ''
-        let stderrLineBuffer = ''
-
-        pipeline.stdout.on('data', (data) => {
-          stdout += data
-          stdoutLineBuffer += data.toString()
-
-          // Log complete lines as they come
-          const lines = stdoutLineBuffer.split('\n')
-          stdoutLineBuffer = lines.pop() || '' // Keep incomplete line in buffer
-
-          lines.forEach(line => {
-            if (line.trim()) {
-              logger.info({ cqaOutput: 'stdout', line }, 'CQA stdout')
-            }
-          })
-        })
-
-        pipeline.stderr.on('data', (data) => {
-          stderr += data
-          stderrLineBuffer += data.toString()
-
-          // Log complete lines as they come
-          const lines = stderrLineBuffer.split('\n')
-          stderrLineBuffer = lines.pop() || '' // Keep incomplete line in buffer
-
-          lines.forEach(line => {
-            if (line.trim()) {
-              logger.warn({ cqaOutput: 'stderr', line }, 'CQA stderr')
-            }
-          })
-        })
-
-        pipeline.on('close', (code: number) => {
-          // Log any remaining buffer content
-          if (stdoutLineBuffer.trim()) {
-            logger.info({ cqaOutput: 'stdout', line: stdoutLineBuffer.trim() }, 'CQA stdout (final)')
-          }
-          if (stderrLineBuffer.trim()) {
-            logger.warn({ cqaOutput: 'stderr', line: stderrLineBuffer.trim() }, 'CQA stderr (final)')
-          }
-
-          if (code === 0) {
-            logger.info({ exitCode: code, stdoutLength: stdout.length, stderrLength: stderr.length }, 'CQA process completed successfully')
-            resolve()
-          } else {
-            logger.error({
-              exitCode: code,
-              fullStdout: stdout,
-              fullStderr: stderr
-            }, 'CQA process failed')
-            reject(new Error(`Clones Quality Agent failed:\nstdout: ${stdout}\nstderr: ${stderr}`))
-          }
-        })
-
-        pipeline.on('error', (err) => {
-          logger.error('Clones Quality Agent spawn error:', err)
-          reject(err)
-        })
+      // Run CQA grading using the shared service
+      const { gradeResult, gradingMetrics: metricsResult } = await runCQAGrading(extractDir, {
+        useVideoGrading: process.env.USE_VIDEO_GRADING !== 'false',
+        model: process.env.CQA_MODEL,
+        cleanupOnSuccess: false,
+        cleanupOnError: false
       })
-
-      // Check if scores.json exists
-      const scoresPath = path.join(extractDir, 'scores.json')
-      try {
-        await fs.access(scoresPath)
-        logger.info('scores.json exists')
-      } catch (error) {
-        logger.error('scores.json not found:', error)
-        throw new Error('scores.json not found after Clones Quality Agent run')
-      }
-
-      // Read and parse scores.json
-      logger.info('Reading scores.json')
-      const scoresContent = await fs.readFile(scoresPath, 'utf8')
-      logger.info('scores.json content:', scoresContent)
-      const gradeResult: ForgeSubmissionGradeResult = JSON.parse(scoresContent)
-      logger.info('Parsed grade result:', gradeResult)
 
       // ENRICHMENT: If video analysis is present, inject into sft.json
       if (gradeResult.programmaticResults?.videoAnalysis && Array.isArray(gradeResult.programmaticResults.videoAnalysis)) {
@@ -325,18 +233,6 @@ export async function processNextInQueue() {
         }
       }
 
-      // Read and parse metrics.json
-      const metricsPath = path.join(extractDir, 'metrics.json')
-      let metricsResult = null
-      try {
-        await fs.access(metricsPath)
-        logger.info('metrics.json exists')
-        const metricsContent = await fs.readFile(metricsPath, 'utf8')
-        metricsResult = JSON.parse(metricsContent)
-        logger.info('Parsed metrics result:', metricsResult)
-      } catch (_error) {
-        logger.info('metrics.json not found or could not be parsed, continuing without metrics.')
-      }
 
       // Get factory details and calculate reward
       let reward

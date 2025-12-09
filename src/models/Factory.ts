@@ -159,7 +159,13 @@ const workflowTaskSchema = new Schema<WorkflowTask>(
       set: function (value: any) {
         return value === null || value === undefined ? value : Types.Decimal128.fromString(value.toString())
       }
-    }
+    },
+    objectives: [
+      {
+        type: String,
+        maxlength: 500
+      }
+    ]
   },
   { _id: false }
 )

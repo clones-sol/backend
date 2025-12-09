@@ -7,6 +7,7 @@ import { DemoStorageService } from '../../services/demo-storage/index.ts'
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
 import { generalRateLimit } from '../../middleware/rateLimiter.ts'
 import { logger } from "../../services/logger.ts"
+import { WalletConnectionModel } from '../../models/Models.ts'
 
 const router = express.Router()
 
@@ -178,8 +179,14 @@ router.get('/:submissionId/verify',
  * @swagger
  * /forge/demo-files/{submissionId}/{filename}:
  *   get:
- *     summary: Download a specific demo file
- *     description: Download a file from a demonstration submission. Only the owner can access their files.
+ *     summary: Download or stream a specific demo file
+ *     description: |
+ *       Download a file from a demonstration submission. Only the owner or factory creator can access files.
+ *
+ *       For video files (recording.mp4), supports HTTP Range requests for efficient streaming:
+ *       - Send `Range: bytes=0-1023` header to request partial content
+ *       - Server responds with 206 Partial Content
+ *       - Enables video seeking, progressive loading, and bandwidth optimization
  *     tags: [Demo Files]
  *     security:
  *       - sessionAuth: []
@@ -196,27 +203,51 @@ router.get('/:submissionId/verify',
  *         schema:
  *           type: string
  *         description: The filename to download
- *         example: "meta.json"
- *       - in: query
- *         name: asBase64
+ *         example: "recording.mp4"
+ *       - in: header
+ *         name: Range
  *         required: false
  *         schema:
  *           type: string
- *           enum: ["true"]
- *         description: Return MP4 files as base64 encoded text instead of binary. Only works for recording.mp4 files.
- *         example: "true"
+ *         description: HTTP Range header for partial content requests (e.g., "bytes=0-1023")
+ *         example: "bytes=0-1048575"
  *     responses:
  *       200:
- *         description: File downloaded successfully
+ *         description: File downloaded successfully (full content)
  *         content:
  *           application/json:
  *             description: JSON files (meta.json, sft.json)
  *           video/mp4:
- *             description: Recording video files (binary)
+ *             description: Recording video files (binary stream with Accept-Ranges support)
  *           application/x-ndjson:
  *             description: Input log files (jsonl)
- *           text/plain:
- *             description: MP4 files encoded as base64 text (when asBase64=true)
+ *         headers:
+ *           Accept-Ranges:
+ *             schema:
+ *               type: string
+ *             description: Indicates server accepts Range requests (for video files)
+ *           Cache-Control:
+ *             schema:
+ *               type: string
+ *             description: Cache directives (immutable for videos)
+ *       206:
+ *         description: Partial content (Range request successful)
+ *         content:
+ *           video/mp4:
+ *             description: Partial video content
+ *         headers:
+ *           Content-Range:
+ *             schema:
+ *               type: string
+ *             description: Range of bytes returned (e.g., "bytes 0-1048575/52428800")
+ *           Content-Length:
+ *             schema:
+ *               type: integer
+ *             description: Size of partial content
+ *           Accept-Ranges:
+ *             schema:
+ *               type: string
+ *             description: Server accepts Range requests
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -227,17 +258,39 @@ router.get('/:submissionId/verify',
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
+ *       416:
+ *         description: Range Not Satisfiable (invalid range request)
  *       429:
  *         $ref: '#/components/responses/RateLimit'
  */
 // GET /api/v1/forge/demo-files/:submissionId/:filename
 router.get('/:submissionId/:filename',
   generalRateLimit, // Rate limit file downloads
-  requireWalletAddress,
   errorHandlerAsync(async (req: any, res: Response) => {
     const { submissionId, filename } = req.params
-    const { asBase64 } = req.query
-    const userAddress = req.walletAddress
+    const tokenQuery = req.query.token as string | undefined
+
+    // Try token from query param first (for media players without custom headers)
+    let userAddress: string | undefined
+    const tokenToCheck = tokenQuery || req.headers['x-connect-token']
+
+    if (!tokenToCheck) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required (token missing)'
+      })
+    }
+
+    // Validate connect token
+    const connection = await WalletConnectionModel.findOne({ token: tokenToCheck })
+    if (!connection || !connection.address) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or expired token'
+      })
+    }
+
+    userAddress = connection.address
 
     if (!submissionId || !filename) {
       return res.status(400).json({
@@ -245,11 +298,13 @@ router.get('/:submissionId/:filename',
         error: 'Submission ID and filename are required'
       })
     }
+
+    // Check user access to submission
     logger.info('Searching for submission:', submissionId)
     logger.info('User address:', userAddress)
 
     const accessCheck = await hasAccessToSubmission(submissionId, userAddress)
-    
+
     logger.info('Access check result:', {
       hasAccess: accessCheck.hasAccess,
       accessType: accessCheck.accessType,
@@ -306,21 +361,47 @@ router.get('/:submissionId/:filename',
         return 'application/octet-stream'
       }
 
-      if (asBase64 === 'true' && filename.endsWith('recording.mp4')) {
-        const fileBuffer = await demoStorageService.getDemoFile(submission.demoHash, filename)
-        const base64Data = fileBuffer.toString('base64')
-        res.setHeader('Content-Type', 'text/plain')
-        res.setHeader('Content-Length', base64Data.length)
-        res.setHeader('Content-Disposition', `inline; filename="${filename}.txt"`)
-        res.send(base64Data)
+      // Check for Range request header
+      const rangeHeader = req.headers.range
+
+      // For video files, support Range requests for efficient streaming
+      if (filename.endsWith('recording.mp4') && rangeHeader) {
+        const { stream, contentLength, contentRange, totalSize } =
+          await demoStorageService.getDemoFileStreamWithRange(
+            submission.demoHash,
+            filename,
+            rangeHeader
+          )
+
+        // Set headers for partial content response (206)
+        res.status(206) // Partial Content
+        res.setHeader('Content-Type', getContentType(filename))
+        res.setHeader('Content-Length', contentLength)
+        res.setHeader('Content-Range', contentRange || `bytes 0-${contentLength - 1}/${totalSize}`)
+        res.setHeader('Accept-Ranges', 'bytes')
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`)
+
+        // Enable caching for video chunks (helps with seeking)
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+
+        // Stream the partial content
+        stream.pipe(res)
         return
       }
 
+      // Regular streaming for non-range requests or non-video files
       const fileStream = await demoStorageService.getDemoFileStream(submission.demoHash, filename)
 
       // Set appropriate headers
       res.setHeader('Content-Type', getContentType(filename))
       res.setHeader('Content-Disposition', `inline; filename="${filename}"`)
+
+      // For video files, advertise Range support even without Range request
+      if (filename.endsWith('recording.mp4')) {
+        res.setHeader('Accept-Ranges', 'bytes')
+        // Cache video files aggressively
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+      }
 
       // Stream the file directly (no memory buffering)
       fileStream.pipe(res)

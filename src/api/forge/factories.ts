@@ -2,6 +2,7 @@ import express, { type Request, type Response, type Router } from 'express'
 import { requireWalletAddress } from '../../middleware/auth.ts'
 import { errorHandlerAsync } from '../../middleware/errorHandler.ts'
 import { ApiError, successResponse } from '../../middleware/types/errors.ts'
+import { forgeReadRateLimit } from '../../middleware/rateLimiter.ts'
 import {
   ValidationRules,
   validateBody,
@@ -62,6 +63,106 @@ const router: Router = express.Router()
 const blockchainService = new BlockchainService(process.env.RPC_URL || '')
 
 /**
+ * Helper function to get grading results for multiple factories in batch
+ */
+async function getBatchGradingResults(factoryIds: string[]) {
+  const submissions = await DemonstrationSubmission.find(
+    {
+      'meta.quest.pool_id': { $in: factoryIds },
+      status: 'completed',
+      'grade_result.score': { $exists: true, $ne: null }
+    },
+    {
+      'meta.quest.pool_id': 1,
+      'grade_result.score': 1,
+      'grade_result.confidence': 1,
+      'grade_result.outcomeAchievement': 1,
+      'grade_result.processQuality': 1,
+      'grade_result.efficiency': 1,
+      createdAt: 1,
+      _id: 1
+    }
+  )
+    .sort({ createdAt: -1 })
+    .lean()
+
+  // Group results by factory ID
+  const resultsByFactory = new Map<string, any[]>()
+
+  for (const sub of submissions) {
+    if (!sub.grade_result) continue
+
+    const factoryId = sub.meta?.quest?.pool_id
+    if (!factoryId) continue
+
+    if (!resultsByFactory.has(factoryId)) {
+      resultsByFactory.set(factoryId, [])
+    }
+
+    resultsByFactory.get(factoryId)!.push({
+      submissionId: sub._id,
+      createdAt: sub.createdAt,
+      score: sub.grade_result.score,
+      confidence: sub.grade_result.confidence,
+      outcomeAchievement: sub.grade_result.outcomeAchievement,
+      processQuality: sub.grade_result.processQuality,
+      efficiency: sub.grade_result.efficiency
+    })
+  }
+
+  return resultsByFactory
+}
+
+/**
+ * Helper function to enrich factories with demonstrations, balances, and grading results
+ */
+async function enrichFactoriesWithMetadata(
+  factories: any[]
+): Promise<FactoryWithDemonstrations[]> {
+  const factoryIds = factories.map(f => (f as unknown as IFactoryDocument)._id.toString())
+
+  // Fetch all metadata in parallel
+  const [demonstrationCounts, balancesArray, gradingResultsMap] = await Promise.all([
+    getFactoriesDemonstrationCounts(factoryIds),
+    // Fetch balances for all factories in parallel (only for factories with poolAddress and token)
+    Promise.all(factories.map(async factory => {
+      const factoryDocument = factory as unknown as IFactoryDocument
+      if (factoryDocument.token && factoryDocument.poolAddress) {
+        try {
+          const balance = await blockchainService.getTokenBalance(
+            factoryDocument.token.address,
+            factoryDocument.poolAddress
+          )
+          return { id: factoryDocument._id.toString(), balance }
+        } catch (error) {
+          logger.error(`Failed to fetch balance for factory ${factoryDocument._id}:`, error)
+          return { id: factoryDocument._id.toString(), balance: 0 }
+        }
+      }
+      return { id: factoryDocument._id.toString(), balance: 0 }
+    })),
+    getBatchGradingResults(factoryIds)
+  ])
+
+  const balancesMap = new Map(balancesArray.map(b => [b.id, b.balance]))
+
+  return factories.map(factory => {
+    const factoryDocument = factory as unknown as IFactoryDocument
+    const factoryJson = factoryDocument.toJSON() as Omit<Factory, 'totalEarned'> & { totalEarned: unknown }
+    const id = factoryDocument._id.toString()
+
+    return {
+      ...factoryJson,
+      id,
+      totalEarned: coerceDecimalValue(factoryJson.totalEarned),
+      demonstrations: demonstrationCounts.get(id) ?? 0,
+      balance: balancesMap.get(id) ?? 0,
+      gradingResults: gradingResultsMap.get(id) ?? []
+    }
+  })
+}
+
+/**
  * @swagger
  * tags:
  *   name: Factories
@@ -104,6 +205,9 @@ router.get(
     res.status(200).json(successResponse(tokens))
   })
 )
+
+// Apply relaxed rate limiting to all factory read routes
+router.use(forgeReadRateLimit)
 
 /**
  * @swagger
@@ -222,22 +326,8 @@ router.post(
 
     const total = await FactoryModel.countDocuments(query)
 
-    // Add demonstration counts to factories
-    const factoryIds = factories.map(f => (f as unknown as IFactoryDocument)._id.toString())
-    const demonstrationCounts = await getFactoriesDemonstrationCounts(factoryIds)
-
-    const factoriesWithDemonstrations: FactoryWithDemonstrations[] = factories.map(factory => {
-      const factoryDocument = factory as unknown as IFactoryDocument
-      const factoryJson = factoryDocument.toJSON() as Omit<Factory, 'totalEarned'> & { totalEarned: unknown }
-      const id = factoryDocument._id.toString()
-
-      return {
-        ...factoryJson,
-        id,
-        totalEarned: coerceDecimalValue(factoryJson.totalEarned),
-        demonstrations: demonstrationCounts.get(id) ?? 0
-      }
-    })
+    // Add demonstration counts and balances to factories
+    const factoriesWithDemonstrations = await enrichFactoriesWithMetadata(factories)
 
     const result: FactorySearchResult = {
       factories: factoriesWithDemonstrations,
@@ -300,22 +390,8 @@ router.get(
 
     const total = await FactoryModel.countDocuments(query)
 
-    // Add demonstration counts to factories
-    const factoryIds = factories.map(f => (f as unknown as IFactoryDocument)._id.toString())
-    const demonstrationCounts = await getFactoriesDemonstrationCounts(factoryIds)
-
-    const factoriesWithDemonstrations: FactoryWithDemonstrations[] = factories.map(factory => {
-      const factoryDocument = factory as unknown as IFactoryDocument
-      const factoryJson = factoryDocument.toJSON() as Omit<Factory, 'totalEarned'> & { totalEarned: unknown }
-      const id = factoryDocument._id.toString()
-
-      return {
-        ...factoryJson,
-        id,
-        totalEarned: coerceDecimalValue(factoryJson.totalEarned),
-        demonstrations: demonstrationCounts.get(id) ?? 0
-      }
-    })
+    // Add demonstration counts and balances to factories
+    const factoriesWithDemonstrations = await enrichFactoriesWithMetadata(factories)
 
     const result: FactorySearchResult = {
       factories: factoriesWithDemonstrations,

@@ -218,13 +218,14 @@ function createTransport() {
     return undefined // Let Pino default to stdout
   }
 
-  // Development: Pretty print
+  // Development: Pretty print with minimal noise
   return {
     target: 'pino-pretty',
     options: {
       colorize: true,
       translateTime: 'HH:mm:ss Z',
-      ignore: 'pid,hostname,service,version,environment,instance'
+      // Hide technical metadata in dev for cleaner output
+      ignore: 'pid,hostname,service,version,environment,instance,correlationId,requestId,traceId,spanId,cqaOutput,exitcode'
     }
   }
 }

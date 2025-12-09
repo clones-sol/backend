@@ -100,29 +100,82 @@ export class DemoStorageService {
 
   /**
    * Retrieve a file from a demonstration
+   * Tries v1 first (current), then fallback to v0 (legacy migrated data)
    */
   async getDemoFile(demoHash: string, filename: string): Promise<Buffer> {
-    const filePath = getDemoStoragePath(demoHash, filename)
-
+    // Try v1 first (current production)
     try {
-      return await this.objectStorage.getItem({ name: filePath })
-    } catch (error) {
-      logger.error(`[DemoStorage] Failed to get ${filename} for demo ${demoHash}: ${error}`)
-      throw new Error(`Demo file not found: ${filename}`)
+      const filePathV1 = getDemoStoragePath(demoHash, filename, 'v1')
+      return await this.objectStorage.getItem({ name: filePathV1 })
+    } catch (errorV1) {
+      // Fallback to v0 (legacy migrated data)
+      try {
+        const filePathV0 = getDemoStoragePath(demoHash, filename, 'v0')
+        logger.info(`[DemoStorage] File not found in v1, trying v0 fallback: ${filename}`)
+        return await this.objectStorage.getItem({ name: filePathV0 })
+      } catch (errorV0) {
+        logger.error(`[DemoStorage] Failed to get ${filename} for demo ${demoHash} in both v1 and v0: ${errorV0}`)
+        throw new Error(`Demo file not found: ${filename}`)
+      }
     }
   }
 
   /**
    * Stream a file from a demonstration
+   * Tries v1 first (current), then fallback to v0 (legacy migrated data)
    */
   async getDemoFileStream(demoHash: string, filename: string): Promise<NodeJS.ReadableStream> {
-    const filePath = getDemoStoragePath(demoHash, filename)
-
+    // Try v1 first (current production)
     try {
-      return await this.objectStorage.getItemStream({ name: filePath })
-    } catch (error) {
-      logger.error(`[DemoStorage] Failed to stream ${filename} for demo ${demoHash}: ${error}`)
-      throw new Error(`Demo file not found: ${filename}`)
+      const filePathV1 = getDemoStoragePath(demoHash, filename, 'v1')
+      return await this.objectStorage.getItemStream({ name: filePathV1 })
+    } catch (errorV1) {
+      // Fallback to v0 (legacy migrated data)
+      try {
+        const filePathV0 = getDemoStoragePath(demoHash, filename, 'v0')
+        logger.info(`[DemoStorage] File not found in v1, trying v0 fallback for stream: ${filename}`)
+        return await this.objectStorage.getItemStream({ name: filePathV0 })
+      } catch (errorV0) {
+        logger.error(`[DemoStorage] Failed to stream ${filename} for demo ${demoHash} in both v1 and v0: ${errorV0}`)
+        throw new Error(`Demo file not found: ${filename}`)
+      }
+    }
+  }
+
+  /**
+   * Stream a file from a demonstration with Range request support
+   * Tries v1 first (current), then fallback to v0 (legacy migrated data)
+   */
+  async getDemoFileStreamWithRange(
+    demoHash: string,
+    filename: string,
+    range?: string
+  ): Promise<{
+    stream: NodeJS.ReadableStream
+    contentLength: number
+    contentRange?: string
+    totalSize: number
+  }> {
+    // Try v1 first (current production)
+    try {
+      const filePathV1 = getDemoStoragePath(demoHash, filename, 'v1')
+      return await this.objectStorage.getItemStreamWithRange({
+        name: filePathV1,
+        range
+      })
+    } catch (errorV1) {
+      // Fallback to v0 (legacy migrated data)
+      try {
+        const filePathV0 = getDemoStoragePath(demoHash, filename, 'v0')
+        logger.info(`[DemoStorage] File not found in v1, trying v0 fallback for range stream: ${filename}`)
+        return await this.objectStorage.getItemStreamWithRange({
+          name: filePathV0,
+          range
+        })
+      } catch (errorV0) {
+        logger.error(`[DemoStorage] Failed to stream ${filename} with range for demo ${demoHash} in both v1 and v0: ${errorV0}`)
+        throw new Error(`Demo file not found: ${filename}`)
+      }
     }
   }
 
@@ -180,15 +233,25 @@ export class DemoStorageService {
 
   /**
    * Get demonstration integrity information
+   * Tries v1 first (current), then fallback to v0 (legacy migrated data)
    */
   async getDemoIntegrity(demoHash: string): Promise<DemoIntegrity | null> {
+    // Try v1 first (current production)
     try {
-      const integrityPath = getDemoStoragePath(demoHash, 'checksums.json')
-      const integrityBuffer = await this.objectStorage.getItem({ name: integrityPath })
+      const integrityPathV1 = getDemoStoragePath(demoHash, 'checksums.json', 'v1')
+      const integrityBuffer = await this.objectStorage.getItem({ name: integrityPathV1 })
       return JSON.parse(integrityBuffer.toString())
-    } catch (error) {
-      logger.error(`[DemoStorage] Failed to get integrity for demo ${demoHash}: ${error}`)
-      return null
+    } catch (errorV1) {
+      // Fallback to v0 (legacy migrated data)
+      try {
+        const integrityPathV0 = getDemoStoragePath(demoHash, 'checksums.json', 'v0')
+        logger.info(`[DemoStorage] Integrity not found in v1, trying v0 fallback`)
+        const integrityBuffer = await this.objectStorage.getItem({ name: integrityPathV0 })
+        return JSON.parse(integrityBuffer.toString())
+      } catch (errorV0) {
+        logger.error(`[DemoStorage] Failed to get integrity for demo ${demoHash} in both v1 and v0: ${errorV0}`)
+        return null
+      }
     }
   }
 
