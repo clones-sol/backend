@@ -157,7 +157,6 @@ describe('Forge Factories API', () => {
           decimals: 6,
           type: 'ERC20'
         },
-        // NEW: Tasks structure for testing
         tasks: [
           {
             id: 'task_1',
@@ -207,7 +206,6 @@ describe('Forge Factories API', () => {
           decimals: 18,
           type: 'ERC20'
         },
-        // NEW: Tasks structure for testing
         tasks: [
           {
             id: 'task_3',
