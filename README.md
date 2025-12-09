@@ -134,8 +134,7 @@ Next, open the `.env` file and provide the necessary values. Key variables inclu
 - **Storage Configuration**: Object storage credentials for file uploads and training data (see Object Storage section below).
 - **Clones Quality Agent (CQA) Configuration**:
   - `CQA_PATH`: Path to the Clones Quality Agent executable.
-  - `CQA_MODEL` (optional): Model for CQA chunk evaluation (e.g., `gpt-4o-mini`).
-  - `CQA_EVALUATION_MODEL` (optional): Model for CQA final evaluation for unbiased results (e.g., `gpt-4o-2024-08-06`). Defaults to `CQA_MODEL`.
+  - `CQA_MODEL` (optional): Model for CQA chunk evaluation (e.g., `gemini-2.0-flash`).
 
 Refer to the [Environment Setup section](https://docs.page/clones-ai/desktop/projects/backend#environment-setup) in the documentation for detailed instructions on all environment variables.
 

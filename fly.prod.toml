@@ -8,7 +8,7 @@ primary_region = 'lax'
 
 [env]
   NODE_ENV = "production"
-  LOG_LEVEL = "warn"
+  LOG_LEVEL = "debug"
   SERVICE_NAME = "clones-backend"
   LOG_PRETTY = "false"
 
