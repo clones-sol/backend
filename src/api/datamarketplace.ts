@@ -5,7 +5,7 @@ import { ApiError, successResponse } from '../middleware/types/errors.ts'
 import { validateBody, validateParams, validateQuery } from '../middleware/validator.ts'
 import { authRateLimit, generalRateLimit, strictRateLimit } from '../middleware/rateLimiter.ts'
 import { requireWalletAddress } from '../middleware/auth.ts'
-import { 
+import {
   getDatasetsSchema,
   datasetIdParamSchema,
   getDatasetTransactionsQuerySchema,
@@ -17,13 +17,15 @@ import {
   removeDemonstrationFromDatasetParamsSchema,
   createDatasetSchema,
   updateDatasetSchema,
-  updateDatasetDemosSchema
+  updateDatasetDemosSchema,
+  prepareDeploymentSchema,
+  confirmDeploymentSchema
 } from './schemas/datamarketplace.ts'
-import { DatasetMockService } from '../services/datamarketplace/datasetMockService.ts'
+import { DatasetService } from '../services/datamarketplace/datasetService.ts'
 import { logger } from '../services/logger.ts'
 
 const router: Router = express.Router()
-const datasetMockService = new DatasetMockService()
+const datasetService = new DatasetService()
 
 /**
  * @swagger
@@ -95,26 +97,28 @@ const datasetMockService = new DatasetMockService()
  *                     limit:
  *                       type: integer
  */
-router.get('/datasets', 
+router.get('/datasets',
   generalRateLimit,
   validateQuery(getDatasetsSchema),
   errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
-    const { page = 1, limit = 20, filter = 'all', category, search } = req.query
+    const { page = 1, limit = 20, filter = 'all', category, search, factoryId } = req.query
 
-    logger.info('Fetching datasets', { 
-      page: Number(page), 
-      limit: Number(limit), 
-      filter, 
-      category, 
-      search 
+    logger.info('Fetching datasets', {
+      page: Number(page),
+      limit: Number(limit),
+      filter,
+      category,
+      search,
+      factoryId
     })
 
-    const result = await datasetMockService.getDatasets({
+    const result = await datasetService.getDatasets({
       page: Number(page),
       limit: Number(limit),
       filter: filter as any,
       category: category as string,
-      search: search as string
+      search: search as string,
+      factoryId: factoryId as string
     })
 
     res.json(successResponse(result))
@@ -157,7 +161,7 @@ router.get('/datasets/:datasetId',
 
     logger.info('Fetching dataset details', { datasetId })
 
-    const dataset = await datasetMockService.getDatasetById(datasetId)
+    const dataset = await datasetService.getDatasetById(datasetId)
     
     if (!dataset) {
       throw ApiError.notFound('Dataset not found')
@@ -237,7 +241,7 @@ router.get('/datasets/:datasetId/transactions',
       address 
     })
 
-    const transactions = await datasetMockService.getDatasetTransactions({
+    const transactions = await datasetService.getDatasetTransactions({
       datasetId,
       page: Number(page),
       limit: Number(limit),
@@ -295,7 +299,7 @@ router.get('/datasets/:datasetId/holders',
 
     logger.info('Fetching dataset holders', { datasetId, limit: Number(limit) })
 
-    const holders = await datasetMockService.getDatasetHolders({
+    const holders = await datasetService.getDatasetHolders({
       datasetId,
       limit: Number(limit)
     })
@@ -349,7 +353,7 @@ router.get('/datasets/:datasetId/price-history',
 
     logger.info('Fetching price history', { datasetId, period })
 
-    const priceHistory = await datasetMockService.getPriceHistory({
+    const priceHistory = await datasetService.getPriceHistory({
       datasetId,
       period: period as any
     })
@@ -425,7 +429,7 @@ router.post('/burn-download',
       throw ApiError.forbidden('Address mismatch with authenticated wallet')
     }
 
-    const result = await datasetMockService.processBurnDownload({
+    const result = await datasetService.processBurnDownload({
       datasetId,
       txHash,
       address
@@ -499,7 +503,7 @@ router.get('/datasets/:datasetId/demonstrations',
       addedBy 
     })
 
-    const demonstrations = await datasetMockService.getDatasetDemonstrations({
+    const demonstrations = await datasetService.getDatasetDemonstrations({
       datasetId,
       page: Number(page),
       limit: Number(limit),
@@ -582,7 +586,7 @@ router.post('/datasets/:datasetId/demonstrations',
       walletAddress: req.walletAddress 
     })
 
-    const demonstration = await datasetMockService.addDemonstrationToDataset({
+    const demonstration = await datasetService.addDemonstrationToDataset({
       datasetId,
       demoHash,
       addedBy,
@@ -646,7 +650,7 @@ router.delete('/datasets/:datasetId/demonstrations/:demoHash',
       walletAddress: req.walletAddress 
     })
 
-    await datasetMockService.removeDemonstrationFromDataset({
+    await datasetService.removeDemonstrationFromDataset({
       datasetId,
       demoHash
     })
@@ -723,21 +727,24 @@ router.post('/datasets',
   requireWalletAddress,
   validateBody(createDatasetSchema),
   errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
-    const { name, symbol, description, category, demoHashes = [], burnThresholdPercentage = 5 } = req.body
+    const { name, symbol, description, category, demoHashes = [], factoryId, burnThresholdPercentage = 5 } = req.body
 
-    logger.info('Creating new dataset', { 
-      name, 
-      symbol, 
+    logger.info('Creating new dataset', {
+      name,
+      symbol,
       creatorAddress: req.walletAddress,
-      demoCount: demoHashes.length 
+      demoCount: demoHashes.length,
+      demoHashes,
+      factoryId
     })
 
-    const dataset = await datasetMockService.createDataset({
+    const dataset = await datasetService.createDataset({
       name,
       symbol,
       description,
       category,
       demoHashes,
+      factoryId,
       burnThresholdPercentage,
       creatorAddress: req.walletAddress!
     })
@@ -824,7 +831,7 @@ router.patch('/datasets/:datasetId',
       fields: Object.keys(updateData)
     })
 
-    const dataset = await datasetMockService.updateDataset({
+    const dataset = await datasetService.updateDataset({
       datasetId,
       updateData,
       updaterAddress: req.walletAddress!
@@ -908,7 +915,7 @@ router.patch('/datasets/:datasetId/demos',
       toRemove: demoHashesToRemove.length
     })
 
-    const result = await datasetMockService.updateDatasetDemos({
+    const result = await datasetService.updateDatasetDemos({
       datasetId,
       demoHashesToAdd,
       demoHashesToRemove,
@@ -966,14 +973,272 @@ router.post('/datasets/:datasetId/validate',
   errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
     const { datasetId } = req.params
 
-    logger.info('Validating dataset for blockchain creation', { 
+    logger.info('Validating dataset for blockchain creation', {
       datasetId,
-      validatorAddress: req.walletAddress 
+      validatorAddress: req.walletAddress
     })
 
-    const result = await datasetMockService.validateDataset({
+    const result = await datasetService.validateDataset({
       datasetId,
       validatorAddress: req.walletAddress!
+    })
+
+    res.json(successResponse(result))
+  })
+)
+
+/**
+ * @swagger
+ * /api/v1/datamarketplace/datasets/{datasetId}/deployment-info:
+ *   get:
+ *     summary: Get deployment info (fees and predicted address)
+ *     tags: [Data Marketplace]
+ *     security:
+ *       - WalletAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: datasetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Dataset ID
+ *     responses:
+ *       200:
+ *         description: Deployment information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     ethFee:
+ *                       type: string
+ *                       description: ETH launch fee (in ETH)
+ *                     clonesFee:
+ *                       type: string
+ *                       description: CLONES token launch fee (in CLONES)
+ *                     clonesTokenAddress:
+ *                       type: string
+ *                       description: CLONES token contract address
+ *                     predictedAddress:
+ *                       type: string
+ *                       description: Predicted dataset contract address (CREATE2)
+ *                     dataset:
+ *                       $ref: '#/components/schemas/DatasetToken'
+ *       403:
+ *         description: User not dataset creator
+ *       404:
+ *         description: Dataset not found
+ *       503:
+ *         description: Blockchain service not configured
+ */
+router.get('/datasets/:datasetId/deployment-info',
+  authRateLimit,
+  requireWalletAddress,
+  validateParams(datasetIdParamSchema),
+  errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+    const { datasetId } = req.params
+
+    logger.info('Fetching deployment info', {
+      datasetId,
+      creatorAddress: req.walletAddress
+    })
+
+    const result = await datasetService.getDeploymentInfo({
+      datasetId,
+      creatorAddress: req.walletAddress!
+    })
+
+    res.json(successResponse(result))
+  })
+)
+
+/**
+ * @swagger
+ * /api/v1/datamarketplace/datasets/{datasetId}/prepare-deployment:
+ *   post:
+ *     summary: Prepare dataset deployment transaction
+ *     tags: [Data Marketplace]
+ *     security:
+ *       - WalletAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: datasetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Dataset ID
+ *     responses:
+ *       200:
+ *         description: Transaction data prepared successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     transactionData:
+ *                       type: object
+ *                       properties:
+ *                         to:
+ *                           type: string
+ *                           description: Factory contract address
+ *                         data:
+ *                           type: string
+ *                           description: Encoded transaction data
+ *                         value:
+ *                           type: string
+ *                           description: ETH value to send (in wei)
+ *                         predictedAddress:
+ *                           type: string
+ *                           description: Predicted dataset token address
+ *                         ethFee:
+ *                           type: string
+ *                           description: ETH launch fee
+ *                         clonesFee:
+ *                           type: string
+ *                           description: CLONES token launch fee
+ *                         clonesTokenAddress:
+ *                           type: string
+ *                           description: CLONES token address for approval
+ *                     approvalData:
+ *                       type: object
+ *                       properties:
+ *                         to:
+ *                           type: string
+ *                           description: CLONES token address
+ *                         data:
+ *                           type: string
+ *                           description: Encoded approval transaction data
+ *                         value:
+ *                           type: string
+ *                           description: Always "0" for approval
+ *                     dataset:
+ *                       $ref: '#/components/schemas/DatasetToken'
+ *       400:
+ *         description: Dataset validation failed
+ *       403:
+ *         description: User not dataset creator
+ *       404:
+ *         description: Dataset not found
+ *       503:
+ *         description: Blockchain service not configured
+ */
+router.post('/datasets/:datasetId/prepare-deployment',
+  authRateLimit,
+  requireWalletAddress,
+  validateParams(datasetIdParamSchema),
+  validateBody(prepareDeploymentSchema),
+  errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+    const { datasetId } = req.params
+
+    logger.info('Preparing dataset deployment', {
+      datasetId,
+      deployerAddress: req.walletAddress
+    })
+
+    const result = await datasetService.prepareDatasetDeployment({
+      datasetId,
+      deployerAddress: req.walletAddress!
+    })
+
+    res.json(successResponse(result))
+  })
+)
+
+/**
+ * @swagger
+ * /api/v1/datamarketplace/datasets/{datasetId}/confirm-deployment:
+ *   post:
+ *     summary: Confirm dataset deployment after transaction broadcast
+ *     tags: [Data Marketplace]
+ *     security:
+ *       - WalletAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: datasetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Dataset ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - txHash
+ *             properties:
+ *               txHash:
+ *                 type: string
+ *                 description: Transaction hash from blockchain
+ *     responses:
+ *       200:
+ *         description: Deployment confirmed and dataset updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     dataset:
+ *                       $ref: '#/components/schemas/DatasetToken'
+ *                     onChainData:
+ *                       type: object
+ *                       properties:
+ *                         datasetTokenAddress:
+ *                           type: string
+ *                           description: Deployed dataset token address
+ *                         bondingCurveAddress:
+ *                           type: string
+ *                           description: Bonding curve contract address
+ *                         blockNumber:
+ *                           type: number
+ *                           description: Block number of deployment
+ *                         transactionHash:
+ *                           type: string
+ *                           description: Transaction hash
+ *       400:
+ *         description: Transaction failed or data mismatch
+ *       403:
+ *         description: User not dataset creator
+ *       404:
+ *         description: Dataset not found
+ *       503:
+ *         description: Blockchain service not configured
+ */
+router.post('/datasets/:datasetId/confirm-deployment',
+  authRateLimit,
+  requireWalletAddress,
+  validateParams(datasetIdParamSchema),
+  validateBody(confirmDeploymentSchema),
+  errorHandlerAsync(async (req: AuthenticatedRequest, res: Response) => {
+    const { datasetId } = req.params
+    const { txHash } = req.body
+
+    logger.info('Confirming dataset deployment', {
+      datasetId,
+      txHash,
+      deployerAddress: req.walletAddress
+    })
+
+    const result = await datasetService.confirmDatasetDeployment({
+      datasetId,
+      txHash,
+      deployerAddress: req.walletAddress!
     })
 
     res.json(successResponse(result))

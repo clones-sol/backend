@@ -12,6 +12,7 @@ import { validateBody, validateQuery } from '../middleware/validator.ts'
 import { TransactionSessionModel, WalletConnectionModel } from '../models/Models.ts'
 import { createFactoryService } from '../services/blockchain/factoryTransactionService.ts'
 import { createGasEstimationService } from '../services/blockchain/gasEstimationService.ts'
+import { createDataMarketplaceBlockchainService } from '../services/datamarketplace/blockchainService.ts'
 import { calculateFeeAmounts, getContractFeeConfig } from '../services/blockchain/contractConfigService.ts'
 import { getTokenContractAddress, getTokenInfo } from '../services/blockchain/tokens.ts'
 import { createFactory } from '../services/factory/factoryDatabaseService.ts'
@@ -34,6 +35,7 @@ interface PreparedTransactionData {
   abi: unknown
   functionName: string
   args: unknown[]
+  value?: string
   tokenInfo?: {
     address: string
     decimals: number
@@ -53,6 +55,16 @@ interface PreparedTransactionData {
     requiredAmount?: string
     alreadyClaimed?: number
     newClaimableAmount?: number
+    // Dataset creation specific validations
+    predictedAddress?: string
+    ethFee?: string
+    clonesFee?: string
+    clonesTokenAddress?: string
+    sufficientClonesAllowance?: boolean
+    currentClonesAllowance?: string
+    requiredClonesAmount?: string
+    demoHashesBytes32?: string[]
+    demoCount?: number
   }
 }
 
@@ -64,6 +76,10 @@ interface TransactionParams {
   poolAddress?: string
   tokenAddress?: string
   submissionId?: string
+  datasetId?: string
+  name?: string
+  symbol?: string
+  burnThresholdPercentage?: number
 }
 
 const router: Router = express.Router()
@@ -222,13 +238,26 @@ router.post(
         validateAddress(poolAddress, 'poolAddress')
         break
 
+      case 'createDataset': {
+        const { name, symbol, burnThresholdPercentage } = req.body
+
+        if (!name || !symbol) {
+          throw ApiError.badRequest('Name and symbol required for createDataset')
+        }
+
+        if (!burnThresholdPercentage || burnThresholdPercentage < 1 || burnThresholdPercentage > 10) {
+          throw ApiError.badRequest('burnThresholdPercentage must be between 1 and 10')
+        }
+        break
+      }
+
       default:
         throw ApiError.badRequest(`Unsupported transaction type: ${type}`)
     }
 
     // Additional security validation - ensure creator matches session user for creator-required operations
     if (
-      (type === 'createFactory' || type === 'createAndFundPool' || type === 'fundPool' || type === 'withdrawPool') &&
+      (type === 'createFactory' || type === 'createAndFundPool' || type === 'fundPool' || type === 'withdrawPool' || type === 'createDataset') &&
       creator
     ) {
       if (creator.toLowerCase() !== authenticatedAddress.toLowerCase()) {
@@ -390,6 +419,12 @@ router.post(
           gasLimit = BigInt(150000) // Single claim estimate - batch claims use separate endpoint
           break
 
+        case 'createDataset':
+          // Dataset creation involves deploying two contracts (token + bonding curve) via CREATE2
+          // Static estimate to avoid complex pre-deployment estimation
+          gasLimit = BigInt(800000) // Higher gas for complex contract deployment
+          break
+
         default:
           throw ApiError.badRequest(`Unsupported transaction type for gas estimation: ${type}`)
       }
@@ -459,7 +494,12 @@ router.post(
   authRateLimit,
   validateBody(prepareTransactionSchema),
   errorHandlerAsync(async (req: Request, res: Response) => {
-    const { type, sessionToken, creator, token, amount, poolAddress, submissionId } = req.body
+    const { type, sessionToken, creator, token, amount, poolAddress, submissionId, datasetId, name, symbol, burnThresholdPercentage } = req.body
+
+    // DEBUG: Log received params for createDataset
+    if (type === 'createDataset') {
+      logger.info(`[DEBUG createDataset] Received request - creator:${!!creator} datasetId:${!!datasetId} name:${!!name} symbol:${!!symbol} burnThreshold:${!!burnThresholdPercentage} | keys: ${Object.keys(req.body).join(',')}`)
+    }
 
     // Validate session token and get user address
     const connection = await WalletConnectionModel.findOne({
@@ -733,6 +773,30 @@ router.post(
         break
       }
 
+      case 'createDataset': {
+        const { datasetId, name, symbol, burnThresholdPercentage } = req.body
+
+        if (!datasetId || !name || !symbol || !creator) {
+          throw ApiError.badRequest('datasetId, name, symbol, and creator required for createDataset')
+        }
+
+        if (!burnThresholdPercentage || burnThresholdPercentage < 1 || burnThresholdPercentage > 10) {
+          throw ApiError.badRequest('burnThresholdPercentage must be between 1 and 10')
+        }
+
+        // Initialize blockchain service
+        const dataMarketplaceService = createDataMarketplaceBlockchainService()
+
+        // Prepare transaction data
+        transactionData = await dataMarketplaceService.prepareCreateDatasetTransaction({
+          name,
+          symbol,
+          burnThresholdPercentage: Number(burnThresholdPercentage),
+          creatorAddress: creator
+        })
+        break
+      }
+
       default:
         throw ApiError.badRequest(`Unsupported transaction type: ${type}`)
     }
@@ -758,6 +822,14 @@ router.post(
         transactionParams.submissionId = submissionId
       }
     }
+    // For createDataset, include dataset parameters
+    if (type === 'createDataset') {
+      const { datasetId, name, symbol, burnThresholdPercentage } = req.body
+      transactionParams.datasetId = datasetId
+      transactionParams.name = name
+      transactionParams.symbol = symbol
+      transactionParams.burnThresholdPercentage = burnThresholdPercentage
+    }
 
     const transactionSession = new TransactionSessionModel({
       sessionId,
@@ -769,6 +841,12 @@ router.post(
     })
 
     await transactionSession.save()
+
+    // DEBUG: Log saved transactionParams for createDataset
+    if (type === 'createDataset') {
+      const saved = transactionSession.transactionParams
+      logger.info(`[DEBUG createDataset] Saved session ${sessionId} - savedParams: ${JSON.stringify(saved)} | hasCreator:${!!saved?.creator}`)
+    }
 
     res.status(200).json(
       successResponse({
@@ -962,6 +1040,48 @@ router.post(
       } catch (updateError) {
         // Log but don't fail the request - session was already updated
         logger.error('Failed to update submission with txHash:', updateError)
+      }
+    }
+
+    // If this is a createDataset transaction, update the dataset document
+    if (
+      session.transactionType === 'createDataset' &&
+      session.transactionParams?.datasetId
+    ) {
+      const { Dataset } = await import('../models/Models.ts')
+      const datasetId = session.transactionParams.datasetId
+
+      try {
+        if (status === 'completed' && txHash) {
+          // SUCCESS: Update dataset with blockchain information
+          const result = await Dataset.findByIdAndUpdate(
+            datasetId,
+            {
+              $set: {
+                'blockchain.txHash': txHash,
+                'blockchain.deployedAt': Date.now(),
+                phase: 'bonding' // Move from draft to bonding phase
+              }
+            },
+            { new: true }
+          )
+
+          if (!result) {
+            logger.warn(
+              `Dataset ${datasetId} not found during blockchain update`
+            )
+          } else {
+            logger.info(`Successfully deployed dataset ${datasetId} on-chain: ${txHash}`)
+          }
+        } else if (status === 'failed' || status === 'cancelled') {
+          // FAILURE: Keep dataset in draft phase, user can retry
+          logger.info(
+            `Dataset ${datasetId} deployment ${status}, remaining in draft phase`
+          )
+        }
+      } catch (updateError) {
+        // Log but don't fail the request - session was already updated
+        logger.error('Failed to update dataset with txHash:', updateError)
       }
     }
 

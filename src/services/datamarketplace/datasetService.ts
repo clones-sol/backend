@@ -1,10 +1,10 @@
 import { randomUUID } from 'crypto'
-import { 
-  DatasetPhase, 
-  DatasetTransactionType, 
-  type DatasetToken, 
-  type DatasetTransaction, 
-  type DatasetHolder, 
+import {
+  DatasetPhase,
+  DatasetTransactionType,
+  type DatasetToken,
+  type DatasetTransaction,
+  type DatasetHolder,
   type DatasetPricePoint,
   type DatasetBurnRecord,
   type DatasetDemonstration,
@@ -21,13 +21,15 @@ import {
 } from '../../types/datamarketplace.ts'
 import { ApiError } from '../../middleware/types/errors.ts'
 import { logger } from '../logger.ts'
+import { Dataset } from '../../models/Dataset.ts'
+import { dataMarketplaceBlockchainService } from './blockchainService.ts'
 
 /**
- * Mock service for data marketplace operations
- * Simulates blockchain interactions without real Web3 calls
+ * Service for data marketplace operations
+ * Manages dataset lifecycle with MongoDB persistence
+ * Note: Blockchain token deployment will be added in future iterations
  */
-export class DatasetMockService {
-  private datasets: DatasetToken[] = []
+export class DatasetService {
   private transactions: DatasetTransaction[] = []
   private holders: Map<string, DatasetHolder[]> = new Map()
   private priceHistory: Map<string, DatasetPricePoint[]> = new Map()
@@ -35,154 +37,37 @@ export class DatasetMockService {
   private datasetDemonstrations: DatasetDemonstration[] = []
 
   constructor() {
-    this.initializeMockData()
+    // No initialization needed - datasets are in MongoDB
   }
 
   /**
-   * Initialize mock datasets with realistic data
+   * Convert MongoDB document to DatasetToken format
    */
-  private initializeMockData(): void {
-    // Create 8 diverse datasets with different phases and quality scores
-    const mockDatasets: Partial<DatasetToken>[] = [
-      {
-        name: 'E-commerce Customer Service',
-        symbol: 'ECUSTOM',
-        description: 'High-quality customer service interactions from major e-commerce platforms',
-        category: 'customer-service',
-        qualityScore: 92,
-        demonstrationCount: 1247,
-        phase: DatasetPhase.graduated,
-        burnThresholdPercentage: 5,
-        burnCount: 3,
-        totalBurned: 150000000
-      },
-      {
-        name: 'Financial Trading Assistant',
-        symbol: 'FTRADE',
-        description: 'Professional trading workflows and market analysis demonstrations',
-        category: 'finance',
-        qualityScore: 89,
-        demonstrationCount: 856,
-        phase: DatasetPhase.bonding,
-        burnThresholdPercentage: 3,
-        burnCount: 0,
-        totalBurned: 0
-      },
-      {
-        name: 'Healthcare Documentation',
-        symbol: 'HEALTH',
-        description: 'Medical record processing and healthcare administrative tasks',
-        category: 'healthcare',
-        qualityScore: 95,
-        demonstrationCount: 2134,
-        phase: DatasetPhase.graduated,
-        burnThresholdPercentage: 7,
-        burnCount: 8,
-        totalBurned: 560000000
-      },
-      {
-        name: 'Software Development',
-        symbol: 'DEVOPS',
-        description: 'Code review, debugging, and development workflow demonstrations',
-        category: 'technology',
-        qualityScore: 87,
-        demonstrationCount: 1892,
-        phase: DatasetPhase.bonding,
-        burnThresholdPercentage: 4,
-        burnCount: 0,
-        totalBurned: 0
-      },
-      {
-        name: 'Legal Document Analysis',
-        symbol: 'LEGAL',
-        description: 'Contract review and legal research workflow demonstrations',
-        category: 'legal',
-        qualityScore: 93,
-        demonstrationCount: 743,
-        phase: DatasetPhase.graduated,
-        burnThresholdPercentage: 6,
-        burnCount: 2,
-        totalBurned: 120000000
-      },
-      {
-        name: 'Creative Content Creation',
-        symbol: 'CREATIVE',
-        description: 'Design, writing, and creative workflow demonstrations',
-        category: 'creative',
-        qualityScore: 78,
-        demonstrationCount: 567,
-        phase: DatasetPhase.bonding,
-        burnThresholdPercentage: 2,
-        burnCount: 0,
-        totalBurned: 0
-      },
-      {
-        name: 'Real Estate Management',
-        symbol: 'REALESTATE',
-        description: 'Property management and real estate workflow demonstrations',
-        category: 'real-estate',
-        qualityScore: 91,
-        demonstrationCount: 934,
-        phase: DatasetPhase.bonding,
-        burnThresholdPercentage: 5,
-        burnCount: 0,
-        totalBurned: 0
-      },
-      {
-        name: 'Educational Content',
-        symbol: 'EDU',
-        description: 'Teaching and educational workflow demonstrations',
-        category: 'education',
-        qualityScore: 85,
-        demonstrationCount: 1456,
-        phase: DatasetPhase.graduated,
-        burnThresholdPercentage: 4,
-        burnCount: 5,
-        totalBurned: 200000000
-      }
-    ]
-
-    this.datasets = mockDatasets.map((dataset, index) => {
-      const basePrice = this.calculateBondingCurvePrice(dataset.phase === DatasetPhase.graduated)
-      const marketCap = basePrice * 1000000000 // 1B total supply
-      
-      return {
-        id: `dataset_${index + 1}`,
-        contractAddress: `0x${randomUUID().replace(/-/g, '').slice(0, 40)}`,
-        creatorAddress: `0x${randomUUID().replace(/-/g, '').slice(0, 40)}`,
-        totalSupply: 1000000000,
-        currentPrice: basePrice * (0.8 + Math.random() * 0.4), // Add price variation
-        marketCap,
-        volume24h: Math.random() * 50000,
-        bondingCurve: {
-          virtualETH: 1.3,
-          virtualTokens: 1073000000,
-          k: 1.3 * 1073000000
-        },
-        graduationInfo: dataset.phase === DatasetPhase.graduated ? {
-          timestamp: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-          finalPrice: basePrice,
-          lpPairAddress: `0x${randomUUID().replace(/-/g, '').slice(0, 40)}`
-        } : undefined,
-        createdAt: new Date(Date.now() - Math.random() * 60 * 24 * 60 * 60 * 1000),
-        updatedAt: new Date(),
-        ...dataset
-      } as DatasetToken
-    })
-
-    // Generate mock transactions, holders, price history, and demonstrations for each dataset
-    this.datasets.forEach(dataset => {
-      this.generateMockTransactions(dataset.id)
-      this.generateMockHolders(dataset.id)
-      this.generateMockPriceHistory(dataset.id)
-      this.generateMockDemonstrations(dataset.id)
-    })
-
-    logger.info('Mock data initialized', { 
-      datasets: this.datasets.length,
-      transactions: this.transactions.length,
-      demonstrations: this.datasetDemonstrations.length
-    })
+  private toDatasetToken(doc: any): DatasetToken {
+    return {
+      id: doc._id,
+      name: doc.name,
+      symbol: doc.symbol,
+      description: doc.description,
+      category: doc.category,
+      contractAddress: doc.contractAddress,
+      creatorAddress: doc.creatorAddress,
+      factoryId: doc.factoryId,
+      totalSupply: doc.totalSupply,
+      currentPrice: doc.currentPrice,
+      marketCap: doc.marketCap,
+      volume24h: doc.volume24h,
+      qualityScore: doc.qualityScore,
+      demonstrationCount: doc.demonstrationCount,
+      burnThresholdPercentage: doc.burnThresholdPercentage,
+      totalBurned: doc.totalBurned,
+      burnCount: doc.burnCount,
+      phase: doc.phase,
+      bondingCurve: doc.bondingCurve,
+      graduationInfo: doc.graduationInfo,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt
+    }
   }
 
   /**
@@ -202,13 +87,15 @@ export class DatasetMockService {
    * Generate mock transaction history for a dataset
    */
   private generateMockTransactions(datasetId: string): void {
+    if (this.transactions.some(t => t.datasetId === datasetId)) return
+
     const transactionCount = 50 + Math.floor(Math.random() * 100)
     const now = Date.now()
 
     for (let i = 0; i < transactionCount; i++) {
       const timestamp = new Date(now - Math.random() * 30 * 24 * 60 * 60 * 1000)
-      const type = Math.random() < 0.6 ? DatasetTransactionType.buy : 
-                   Math.random() < 0.8 ? DatasetTransactionType.sell : 
+      const type = Math.random() < 0.6 ? DatasetTransactionType.buy :
+                   Math.random() < 0.8 ? DatasetTransactionType.sell :
                    DatasetTransactionType.burn
 
       const tokenAmount = 1000 + Math.random() * 100000
@@ -235,6 +122,8 @@ export class DatasetMockService {
    * Generate mock holders for a dataset
    */
   private generateMockHolders(datasetId: string): void {
+    if (this.holders.has(datasetId)) return
+
     const holderCount = 20 + Math.floor(Math.random() * 80)
     const holders: DatasetHolder[] = []
     let totalBalance = 0
@@ -314,9 +203,8 @@ export class DatasetMockService {
       const addedAt = new Date(now - Math.random() * 60 * 24 * 60 * 60 * 1000) // Last 60 days
       const addedBy = Math.random() < 0.7 ? 'automatic' : 'manual' // 70% automatic, 30% manual
       
-      // Quality score - higher datasets tend to have higher quality demos
-      const dataset = this.datasets.find(d => d.id === datasetId)
-      const baseQuality = dataset ? dataset.qualityScore : 80
+      // Quality score - use default base quality for mock demonstrations
+      const baseQuality = 80
       const qualityScore = Math.max(30, Math.min(100, baseQuality + (Math.random() - 0.5) * 30))
 
       this.datasetDemonstrations.push({
@@ -335,53 +223,69 @@ export class DatasetMockService {
    * Get datasets with filtering and pagination
    */
   async getDatasets(request: GetDatasetsRequest): Promise<GetDatasetsResponse> {
-    let filteredDatasets = [...this.datasets]
+    const query: any = {}
 
     // Apply filters
     if (request.filter && request.filter !== 'all') {
       switch (request.filter) {
         case 'trending':
-          filteredDatasets = filteredDatasets.filter(d => d.volume24h > 15000)
+          query.volume24h = { $gt: 15000 }
           break
         case 'graduated':
-          filteredDatasets = filteredDatasets.filter(d => d.phase === DatasetPhase.graduated)
+          query.phase = DatasetPhase.graduated
           break
         case 'new':
-          const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000
-          filteredDatasets = filteredDatasets.filter(d => d.createdAt.getTime() > threeDaysAgo)
+          const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+          query.createdAt = { $gt: threeDaysAgo }
           break
         case 'high-quality':
-          filteredDatasets = filteredDatasets.filter(d => d.qualityScore >= 90)
+          query.qualityScore = { $gte: 90 }
           break
       }
     }
 
     // Apply category filter
     if (request.category) {
-      filteredDatasets = filteredDatasets.filter(d => d.category === request.category)
+      query.category = request.category
+    }
+
+    // Apply factoryId filter
+    if (request.factoryId) {
+      query.factoryId = request.factoryId
     }
 
     // Apply search filter
     if (request.search) {
-      const searchLower = request.search.toLowerCase()
-      filteredDatasets = filteredDatasets.filter(d => 
-        d.name.toLowerCase().includes(searchLower) ||
-        d.description?.toLowerCase().includes(searchLower) ||
-        d.category?.toLowerCase().includes(searchLower)
-      )
+      const searchRegex = new RegExp(request.search, 'i')
+      query.$or = [
+        { name: searchRegex },
+        { description: searchRegex },
+        { category: searchRegex }
+      ]
     }
+
+    // Count total matching documents
+    const total = await Dataset.countDocuments(query)
 
     // Apply pagination
     const page = request.page || 1
     const limit = request.limit || 20
-    const startIndex = (page - 1) * limit
-    const endIndex = startIndex + limit
+    const skip = (page - 1) * limit
 
-    const paginatedDatasets = filteredDatasets.slice(startIndex, endIndex)
+    // Fetch datasets with pagination
+    const docs = await Dataset
+      .find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec()
+
+    const datasets = docs.map(doc => this.toDatasetToken(doc))
 
     return {
-      datasets: paginatedDatasets,
-      total: filteredDatasets.length,
+      datasets,
+      total,
       page,
       limit
     }
@@ -391,7 +295,8 @@ export class DatasetMockService {
    * Get dataset by ID
    */
   async getDatasetById(datasetId: string): Promise<DatasetToken | null> {
-    return this.datasets.find(d => d.id === datasetId) || null
+    const doc = await Dataset.findById(datasetId).lean().exec()
+    return doc ? this.toDatasetToken(doc) : null
   }
 
   /**
@@ -567,13 +472,13 @@ export class DatasetMockService {
    */
   async addDemonstrationToDataset(request: AddDemonstrationToDatasetRequest): Promise<DatasetDemonstration> {
     // Check if dataset exists
-    const dataset = await this.getDatasetById(request.datasetId)
+    const dataset = await Dataset.findById(request.datasetId).exec()
     if (!dataset) {
       throw ApiError.notFound('Dataset not found')
     }
 
     // Check if demonstration is already in dataset
-    const existingDemo = this.datasetDemonstrations.find(d => 
+    const existingDemo = this.datasetDemonstrations.find(d =>
       d.datasetId === request.datasetId && d.demoHash === request.demoHash
     )
 
@@ -595,15 +500,13 @@ export class DatasetMockService {
     this.datasetDemonstrations.push(demonstration)
 
     // Update dataset demonstration count
-    const datasetIndex = this.datasets.findIndex(d => d.id === request.datasetId)
-    if (datasetIndex !== -1) {
-      this.datasets[datasetIndex].demonstrationCount += 1
-    }
+    dataset.demonstrationCount += 1
+    await dataset.save()
 
-    logger.info('Demonstration added to dataset', { 
+    logger.info('Demonstration added to dataset', {
       datasetId: request.datasetId,
       demoHash: request.demoHash,
-      addedBy: request.addedBy 
+      addedBy: request.addedBy
     })
 
     return demonstration
@@ -613,7 +516,7 @@ export class DatasetMockService {
    * Remove demonstration from dataset
    */
   async removeDemonstrationFromDataset(request: RemoveDemonstrationFromDatasetRequest): Promise<void> {
-    const demonstrationIndex = this.datasetDemonstrations.findIndex(d => 
+    const demonstrationIndex = this.datasetDemonstrations.findIndex(d =>
       d.datasetId === request.datasetId && d.demoHash === request.demoHash
     )
 
@@ -623,15 +526,16 @@ export class DatasetMockService {
 
     this.datasetDemonstrations.splice(demonstrationIndex, 1)
 
-    // Update dataset demonstration count
-    const datasetIndex = this.datasets.findIndex(d => d.id === request.datasetId)
-    if (datasetIndex !== -1) {
-      this.datasets[datasetIndex].demonstrationCount = Math.max(0, this.datasets[datasetIndex].demonstrationCount - 1)
+    // Update dataset demonstration count in MongoDB
+    const dataset = await Dataset.findById(request.datasetId).exec()
+    if (dataset) {
+      dataset.demonstrationCount = Math.max(0, dataset.demonstrationCount - 1)
+      await dataset.save()
     }
 
-    logger.info('Demonstration removed from dataset', { 
+    logger.info('Demonstration removed from dataset', {
       datasetId: request.datasetId,
-      demoHash: request.demoHash 
+      demoHash: request.demoHash
     })
   }
 
@@ -644,68 +548,93 @@ export class DatasetMockService {
     description?: string
     category?: string
     demoHashes?: string[]
+    factoryId?: string
     burnThresholdPercentage?: number
     creatorAddress: string
   }): Promise<DatasetToken> {
     // Check for duplicate name or symbol
-    const existingDataset = this.datasets.find(d => 
-      d.name.toLowerCase() === request.name.toLowerCase() || 
-      d.symbol.toLowerCase() === request.symbol.toLowerCase()
-    )
+    const existingDataset = await Dataset.findOne({
+      $or: [
+        { name: new RegExp(`^${request.name}$`, 'i') },
+        { symbol: new RegExp(`^${request.symbol}$`, 'i') }
+      ]
+    }).lean().exec()
 
     if (existingDataset) {
       throw ApiError.conflict('Dataset with same name or symbol already exists')
     }
 
+    // Calculate quality score from demonstrations if provided
+    let qualityScore = 0
+    if (request.demoHashes?.length) {
+      // Import DemonstrationSubmission model
+      const { DemonstrationSubmission } = await import('../../models/DemonstrationSubmission.ts')
+
+      // Fetch all demonstrations by their IDs (not demoHash)
+      // The frontend passes submission IDs (which are stored in _id field)
+      const demonstrations = await DemonstrationSubmission.find({
+        _id: { $in: request.demoHashes }
+      }).exec()
+
+      // Calculate average clampedScore from valid demonstrations
+      const validScores = demonstrations
+        .map(d => d.clampedScore)
+        .filter((score): score is number => score !== null && score !== undefined && !isNaN(score))
+
+      if (validScores.length > 0) {
+        qualityScore = validScores.reduce((sum, score) => sum + score, 0) / validScores.length
+        // Round to 2 decimal places
+        qualityScore = Math.round(qualityScore * 100) / 100
+      }
+
+      logger.info('Calculated quality score', {
+        requestedDemos: request.demoHashes.length,
+        foundDemos: demonstrations.length,
+        validScores: validScores.length,
+        qualityScore
+      })
+    }
+
     // Generate mock contract address for draft
     const contractAddress = `0x${Math.random().toString(16).substr(2, 40)}`
-    
-    const dataset: DatasetToken = {
-      id: `dataset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    const datasetId = `dataset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    // Create MongoDB document
+    const doc = new Dataset({
+      _id: datasetId,
       name: request.name,
       symbol: request.symbol,
       description: request.description,
       category: request.category,
       contractAddress,
       creatorAddress: request.creatorAddress.toLowerCase(),
-      
-      // Financial fields are null/undefined in draft phase
+      factoryId: request.factoryId,
       totalSupply: 0,
       currentPrice: 0,
       marketCap: 0,
       volume24h: 0,
-      
-      // Quality metrics
-      qualityScore: 0,
+      qualityScore,
       demonstrationCount: request.demoHashes?.length || 0,
-      
-      // Burn mechanics
       burnThresholdPercentage: request.burnThresholdPercentage || 5,
       totalBurned: 0,
       burnCount: 0,
-      
-      // Lifecycle - starts in draft phase
       phase: DatasetPhase.draft,
-      
-      // Bonding curve will be set during validation
       bondingCurve: {
         virtualETH: 0,
         virtualTokens: 0,
         k: 0
-      },
-      
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
+      }
+    })
 
-    this.datasets.push(dataset)
+    await doc.save()
+    const savedDataset = this.toDatasetToken(doc.toObject())
 
-    // Add demonstrations if provided
+    // Add demonstrations if provided (still in memory for now)
     if (request.demoHashes?.length) {
       for (const demoHash of request.demoHashes) {
         const demonstration: DatasetDemonstration = {
           id: `demo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          datasetId: dataset.id,
+          datasetId: savedDataset.id,
           demoHash,
           addedAt: new Date(),
           addedBy: 'manual'
@@ -714,15 +643,16 @@ export class DatasetMockService {
       }
     }
 
-    logger.info('Dataset created in draft phase', { 
-      datasetId: dataset.id,
-      name: dataset.name,
-      symbol: dataset.symbol,
+    logger.info('Dataset created in draft phase', {
+      datasetId: savedDataset.id,
+      name: savedDataset.name,
+      symbol: savedDataset.symbol,
       creatorAddress: request.creatorAddress,
-      demoCount: request.demoHashes?.length || 0
+      demoCount: request.demoHashes?.length || 0,
+      qualityScore
     })
 
-    return dataset
+    return savedDataset
   }
 
   /**
@@ -739,12 +669,10 @@ export class DatasetMockService {
     }>
     updaterAddress: string
   }): Promise<DatasetToken> {
-    const datasetIndex = this.datasets.findIndex(d => d.id === request.datasetId)
-    if (datasetIndex === -1) {
+    const dataset = await Dataset.findById(request.datasetId).exec()
+    if (!dataset) {
       throw ApiError.notFound('Dataset not found')
     }
-
-    const dataset = this.datasets[datasetIndex]
 
     // Check if dataset is in draft phase
     if (dataset.phase !== DatasetPhase.draft) {
@@ -758,29 +686,38 @@ export class DatasetMockService {
 
     // Check for name/symbol conflicts if updating these fields
     if (request.updateData.name || request.updateData.symbol) {
-      const existingDataset = this.datasets.find(d => 
-        d.id !== request.datasetId && (
-          (request.updateData.name && d.name.toLowerCase() === request.updateData.name.toLowerCase()) ||
-          (request.updateData.symbol && d.symbol.toLowerCase() === request.updateData.symbol.toLowerCase())
-        )
-      )
+      const conflictQuery: any = { _id: { $ne: request.datasetId } }
+      const orConditions: any[] = []
 
+      if (request.updateData.name) {
+        orConditions.push({ name: new RegExp(`^${request.updateData.name}$`, 'i') })
+      }
+      if (request.updateData.symbol) {
+        orConditions.push({ symbol: new RegExp(`^${request.updateData.symbol}$`, 'i') })
+      }
+
+      if (orConditions.length > 0) {
+        conflictQuery.$or = orConditions
+      }
+
+      const existingDataset = await Dataset.findOne(conflictQuery).lean().exec()
       if (existingDataset) {
         throw ApiError.conflict('Dataset with same name or symbol already exists')
       }
     }
 
     // Apply updates
-    Object.assign(dataset, request.updateData, { updatedAt: new Date() })
-    this.datasets[datasetIndex] = dataset
+    Object.assign(dataset, request.updateData)
+    dataset.updatedAt = new Date()
+    await dataset.save()
 
-    logger.info('Dataset metadata updated', { 
+    logger.info('Dataset metadata updated', {
       datasetId: request.datasetId,
       updatedFields: Object.keys(request.updateData),
       updaterAddress: request.updaterAddress
     })
 
-    return dataset
+    return this.toDatasetToken(dataset.toObject())
   }
 
   /**
@@ -796,12 +733,10 @@ export class DatasetMockService {
     addedCount: number
     removedCount: number
   }> {
-    const datasetIndex = this.datasets.findIndex(d => d.id === request.datasetId)
-    if (datasetIndex === -1) {
+    const dataset = await Dataset.findById(request.datasetId).exec()
+    if (!dataset) {
       throw ApiError.notFound('Dataset not found')
     }
-
-    const dataset = this.datasets[datasetIndex]
 
     // Check if dataset is in draft phase
     if (dataset.phase !== DatasetPhase.draft) {
@@ -816,11 +751,11 @@ export class DatasetMockService {
     let addedCount = 0
     let removedCount = 0
 
-    // Add new demonstrations
+    // Add new demonstrations (still in memory for now)
     if (request.demoHashesToAdd?.length) {
       for (const demoHash of request.demoHashesToAdd) {
         // Check if demonstration already exists
-        const existingDemo = this.datasetDemonstrations.find(d => 
+        const existingDemo = this.datasetDemonstrations.find(d =>
           d.datasetId === request.datasetId && d.demoHash === demoHash
         )
 
@@ -841,7 +776,7 @@ export class DatasetMockService {
     // Remove demonstrations
     if (request.demoHashesToRemove?.length) {
       for (const demoHash of request.demoHashesToRemove) {
-        const demoIndex = this.datasetDemonstrations.findIndex(d => 
+        const demoIndex = this.datasetDemonstrations.findIndex(d =>
           d.datasetId === request.datasetId && d.demoHash === demoHash
         )
 
@@ -854,10 +789,11 @@ export class DatasetMockService {
 
     // Update demonstration count
     const currentDemoCount = this.datasetDemonstrations.filter(d => d.datasetId === request.datasetId).length
-    this.datasets[datasetIndex].demonstrationCount = currentDemoCount
-    this.datasets[datasetIndex].updatedAt = new Date()
+    dataset.demonstrationCount = currentDemoCount
+    dataset.updatedAt = new Date()
+    await dataset.save()
 
-    logger.info('Dataset demonstrations updated', { 
+    logger.info('Dataset demonstrations updated', {
       datasetId: request.datasetId,
       addedCount,
       removedCount,
@@ -866,7 +802,7 @@ export class DatasetMockService {
     })
 
     return {
-      dataset: this.datasets[datasetIndex],
+      dataset: this.toDatasetToken(dataset.toObject()),
       addedCount,
       removedCount
     }
@@ -882,12 +818,10 @@ export class DatasetMockService {
     dataset: DatasetToken
     transactionHash: string
   }> {
-    const datasetIndex = this.datasets.findIndex(d => d.id === request.datasetId)
-    if (datasetIndex === -1) {
+    const dataset = await Dataset.findById(request.datasetId).exec()
+    if (!dataset) {
       throw ApiError.notFound('Dataset not found')
     }
-
-    const dataset = this.datasets[datasetIndex]
 
     // Check if dataset is in draft phase
     if (dataset.phase !== DatasetPhase.draft) {
@@ -917,29 +851,27 @@ export class DatasetMockService {
     const k = 1000 // Bonding curve constant
 
     // Update dataset to bonding phase
-    const updatedDataset: DatasetToken = {
-      ...dataset,
-      phase: DatasetPhase.bonding,
-      totalSupply,
-      currentPrice: initialPrice,
-      marketCap: initialMarketCap,
-      volume24h: 0,
-      qualityScore: Math.min(85, 50 + (demoCount * 5)), // Basic quality score based on demo count
-      bondingCurve: {
-        virtualETH: k / totalSupply,
-        virtualTokens: totalSupply,
-        k
-      },
-      contractAddress: `0x${Math.random().toString(16).substr(2, 40)}`, // New contract address
-      updatedAt: new Date()
+    dataset.phase = DatasetPhase.bonding
+    dataset.totalSupply = totalSupply
+    dataset.currentPrice = initialPrice
+    dataset.marketCap = initialMarketCap
+    dataset.volume24h = 0
+    dataset.qualityScore = Math.min(85, 50 + (demoCount * 5)) // Basic quality score based on demo count
+    dataset.bondingCurve = {
+      virtualETH: k / totalSupply,
+      virtualTokens: totalSupply,
+      k
     }
+    dataset.contractAddress = `0x${Math.random().toString(16).substr(2, 40)}` // New contract address
+    dataset.updatedAt = new Date()
 
-    this.datasets[datasetIndex] = updatedDataset
+    await dataset.save()
+    const updatedDataset = this.toDatasetToken(dataset.toObject())
 
     // Generate mock transaction hash
     const transactionHash = `0x${Math.random().toString(16).substr(2, 64)}`
 
-    logger.info('Dataset validated and transitioned to bonding phase', { 
+    logger.info('Dataset validated and transitioned to bonding phase', {
       datasetId: request.datasetId,
       validatorAddress: request.validatorAddress,
       transactionHash,
@@ -950,6 +882,271 @@ export class DatasetMockService {
     return {
       dataset: updatedDataset,
       transactionHash
+    }
+  }
+
+  /**
+   * Prepare dataset deployment transaction (blockchain integration)
+   * Prepares transaction data for client-side signing and broadcasting
+   */
+  async prepareDatasetDeployment(request: {
+    datasetId: string
+    deployerAddress: string
+  }): Promise<{
+    transactionData: {
+      contractAddress: string
+      abi: any[]
+      functionName: string
+      args: any[]
+      value: string
+      validations: {
+        predictedDatasetToken: string
+        predictedBondingCurve: string
+        ethFee: string
+        clonesFee: string
+        clonesTokenAddress: string
+        sufficientClonesAllowance: boolean
+        currentClonesAllowance: string
+        requiredClonesAmount: string
+        burnThresholdPercentage: number
+        isFactoryReady: boolean
+      }
+    }
+    approvalData: {
+      contractAddress: string
+      abi: any[]
+      functionName: string
+      args: any[]
+      validations: {
+        clonesTokenAddress: string
+        spenderAddress: string
+        approvalAmount: string
+        currentAllowance: string
+        sufficientAllowance: boolean
+      }
+    }
+    dataset: DatasetToken
+  }> {
+    // Check if blockchain service is configured
+    if (!dataMarketplaceBlockchainService) {
+      throw ApiError.serviceUnavailable('Blockchain service not configured')
+    }
+
+    // Fetch dataset from MongoDB
+    const dataset = await Dataset.findById(request.datasetId).exec()
+    if (!dataset) {
+      throw ApiError.notFound('Dataset not found')
+    }
+
+    // Check if dataset is in draft phase
+    if (dataset.phase !== DatasetPhase.draft) {
+      throw ApiError.badRequest('Dataset must be in draft phase for deployment')
+    }
+
+    // Check if user is the creator
+    if (dataset.creatorAddress.toLowerCase() !== request.deployerAddress.toLowerCase()) {
+      throw ApiError.forbidden('Only dataset creator can deploy dataset')
+    }
+
+    // Validate dataset has required data
+    if (!dataset.name || !dataset.symbol) {
+      throw ApiError.badRequest('Dataset must have name and symbol')
+    }
+
+    // Validate burnThresholdPercentage
+    if (!dataset.burnThresholdPercentage || dataset.burnThresholdPercentage < 1 || dataset.burnThresholdPercentage > 10) {
+      throw ApiError.badRequest('Dataset burnThresholdPercentage must be between 1 and 10')
+    }
+
+    // Prepare CLONES approval transaction
+    const approvalData = await dataMarketplaceBlockchainService.prepareClonesApprovalTransaction(
+      request.deployerAddress
+    )
+
+    // Prepare dataset creation transaction
+    const transactionData = await dataMarketplaceBlockchainService.prepareCreateDatasetTransaction({
+      name: dataset.name,
+      symbol: dataset.symbol,
+      burnThresholdPercentage: dataset.burnThresholdPercentage,
+      creatorAddress: request.deployerAddress
+    })
+
+    logger.info('Dataset deployment prepared', {
+      datasetId: request.datasetId,
+      predictedDatasetToken: transactionData.validations.predictedDatasetToken,
+      predictedBondingCurve: transactionData.validations.predictedBondingCurve,
+      ethFee: transactionData.validations.ethFee,
+      clonesFee: transactionData.validations.clonesFee,
+      burnThresholdPercentage: dataset.burnThresholdPercentage
+    })
+
+    return {
+      transactionData,
+      approvalData,
+      dataset: this.toDatasetToken(dataset.toObject())
+    }
+  }
+
+  /**
+   * Confirm dataset deployment (blockchain integration)
+   * Monitors transaction, parses events, and updates dataset to bonding phase
+   */
+  async confirmDatasetDeployment(request: {
+    datasetId: string
+    txHash: string
+    deployerAddress: string
+  }): Promise<{
+    dataset: DatasetToken
+    onChainData: {
+      datasetTokenAddress: string
+      bondingCurveAddress: string
+      blockNumber: number
+      transactionHash: string
+    }
+  }> {
+    // Check if blockchain service is configured
+    if (!dataMarketplaceBlockchainService) {
+      throw ApiError.serviceUnavailable('Blockchain service not configured')
+    }
+
+    // Fetch dataset from MongoDB
+    const dataset = await Dataset.findById(request.datasetId).exec()
+    if (!dataset) {
+      throw ApiError.notFound('Dataset not found')
+    }
+
+    // Check if dataset is in draft phase
+    if (dataset.phase !== DatasetPhase.draft) {
+      throw ApiError.badRequest('Dataset must be in draft phase')
+    }
+
+    // Check if user is the creator
+    if (dataset.creatorAddress.toLowerCase() !== request.deployerAddress.toLowerCase()) {
+      throw ApiError.forbidden('Only dataset creator can confirm deployment')
+    }
+
+    logger.info('Waiting for dataset creation transaction', {
+      datasetId: request.datasetId,
+      txHash: request.txHash,
+      deployerAddress: request.deployerAddress
+    })
+
+    // Wait for transaction confirmation and parse events
+    const creationEvent = await dataMarketplaceBlockchainService.waitForDatasetCreation(
+      request.txHash,
+      request.deployerAddress
+    )
+
+    // Verify name and symbol match
+    if (creationEvent.name !== dataset.name || creationEvent.symbol !== dataset.symbol) {
+      throw ApiError.badRequest('Dataset name/symbol mismatch with on-chain data')
+    }
+
+    // Fetch complete on-chain data
+    const onChainData = await dataMarketplaceBlockchainService.fetchDatasetOnChainData(
+      creationEvent.datasetTokenAddress
+    )
+
+    // Update dataset to bonding phase with real on-chain data
+    dataset.phase = DatasetPhase.bonding
+    dataset.contractAddress = creationEvent.datasetTokenAddress
+    dataset.totalSupply = parseFloat(onChainData.totalSupply)
+    dataset.currentPrice = parseFloat(onChainData.bondingCurve.currentPrice)
+    dataset.marketCap = parseFloat(onChainData.bondingCurve.marketCap)
+    dataset.volume24h = 0
+    dataset.bondingCurve = {
+      virtualETH: parseFloat(onChainData.bondingCurve.virtualETH),
+      virtualTokens: parseFloat(onChainData.bondingCurve.virtualTokens),
+      k: parseFloat(onChainData.bondingCurve.k)
+    }
+    dataset.updatedAt = new Date()
+
+    await dataset.save()
+
+    const updatedDataset = this.toDatasetToken(dataset.toObject())
+
+    logger.info('Dataset deployed and transitioned to bonding phase', {
+      datasetId: request.datasetId,
+      contractAddress: creationEvent.datasetTokenAddress,
+      bondingCurveAddress: creationEvent.bondingCurveAddress,
+      blockNumber: creationEvent.blockNumber,
+      transactionHash: request.txHash,
+      totalSupply: onChainData.totalSupply,
+      currentPrice: onChainData.bondingCurve.currentPrice
+    })
+
+    return {
+      dataset: updatedDataset,
+      onChainData: {
+        datasetTokenAddress: creationEvent.datasetTokenAddress,
+        bondingCurveAddress: creationEvent.bondingCurveAddress,
+        blockNumber: creationEvent.blockNumber,
+        transactionHash: request.txHash
+      }
+    }
+  }
+
+  /**
+   * Get deployment info (fees and predicted address)
+   * Used by frontend before initiating deployment
+   */
+  async getDeploymentInfo(request: {
+    datasetId: string
+    creatorAddress: string
+  }): Promise<{
+    ethFee: string
+    clonesFee: string
+    clonesTokenAddress: string
+    predictedAddress: string
+    dataset: DatasetToken
+  }> {
+    // Check if blockchain service is configured
+    if (!dataMarketplaceBlockchainService) {
+      throw ApiError.serviceUnavailable('Blockchain service not configured')
+    }
+
+    // Fetch dataset from MongoDB
+    const dataset = await Dataset.findById(request.datasetId).exec()
+    if (!dataset) {
+      throw ApiError.notFound('Dataset not found')
+    }
+
+    // Check if dataset is in draft phase
+    if (dataset.phase !== DatasetPhase.draft) {
+      throw ApiError.badRequest('Dataset must be in draft phase')
+    }
+
+    // Check if user is the creator
+    if (dataset.creatorAddress.toLowerCase() !== request.creatorAddress.toLowerCase()) {
+      throw ApiError.forbidden('Only dataset creator can view deployment info')
+    }
+
+    // Get launch fee
+    const feeInfo = await dataMarketplaceBlockchainService.getLaunchFee()
+
+    // Get CLONES token address
+    const clonesTokenAddress = await dataMarketplaceBlockchainService.getClonesTokenAddress()
+
+    // Predict dataset address
+    const { predicted } = await dataMarketplaceBlockchainService.predictDatasetAddress(
+      request.creatorAddress,
+      dataset.name,
+      dataset.symbol
+    )
+
+    logger.info('Deployment info retrieved', {
+      datasetId: request.datasetId,
+      ethFee: feeInfo.ethFee,
+      clonesFee: feeInfo.clonesFee,
+      predictedAddress: predicted
+    })
+
+    return {
+      ethFee: feeInfo.ethFee,
+      clonesFee: feeInfo.clonesFee,
+      clonesTokenAddress,
+      predictedAddress: predicted,
+      dataset: this.toDatasetToken(dataset.toObject())
     }
   }
 }

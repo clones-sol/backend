@@ -43,6 +43,14 @@ export const getDatasetsSchema: ValidationSchema = {
       ValidationRules.sanitizeString(),
       ValidationRules.maxLength(100)
     ]
+  },
+  factoryId: {
+    required: false,
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.matches(/^factory_0x[a-fA-F0-9]{40}$/, 'Invalid factory ID format')
+    ]
   }
 }
 
@@ -369,6 +377,14 @@ export const createDatasetSchema: ValidationSchema = {
       )
     ]
   },
+  factoryId: {
+    required: false,
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.matches(/^factory_0x[a-fA-F0-9]{40}$/, 'Invalid factory ID format')
+    ]
+  },
   burnThresholdPercentage: {
     required: false,
     rules: [
@@ -458,6 +474,26 @@ export const updateDatasetDemosSchema: ValidationSchema = {
         (value) => Array.isArray(value) && value.every(item => /^[a-zA-Z0-9_-]+$/.test(item)),
         'Invalid demo hash format'
       )
+    ]
+  }
+}
+
+/**
+ * Schema for preparing dataset deployment (blockchain integration)
+ * No body params needed - datasetId comes from URL params
+ */
+export const prepareDeploymentSchema: ValidationSchema = {}
+
+/**
+ * Schema for confirming dataset deployment (blockchain integration)
+ */
+export const confirmDeploymentSchema: ValidationSchema = {
+  txHash: {
+    required: true,
+    rules: [
+      ValidationRules.isString(),
+      ValidationRules.sanitizeString(),
+      ValidationRules.matches(/^0x[a-fA-F0-9]{64}$/, 'Invalid transaction hash format')
     ]
   }
 }

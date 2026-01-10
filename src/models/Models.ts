@@ -1,5 +1,6 @@
 export * from './App.ts'
 export * from './AppRelation.ts'
+export * from './Dataset.ts'
 export * from './DemonstrationSubmission.ts'
 export * from './Factory.ts'
 export * from './Referral.ts'

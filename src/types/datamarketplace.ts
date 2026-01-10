@@ -18,39 +18,40 @@ export interface DatasetToken {
   category?: string
   contractAddress: string
   creatorAddress: string
-  
+  factoryId?: string
+
   // Token economics
   totalSupply: number
   currentPrice: number
   marketCap: number
   volume24h: number
-  
+
   // Quality metrics
   qualityScore: number
   demonstrationCount: number
-  
+
   // Burn mechanics
   burnThresholdPercentage: number
   totalBurned: number
   burnCount: number
-  
+
   // Lifecycle
   phase: DatasetPhase
-  
+
   // Bonding curve parameters
   bondingCurve: {
     virtualETH: number
     virtualTokens: number
     k: number
   }
-  
+
   // Graduation info (if applicable)
   graduationInfo?: {
     timestamp: Date
     finalPrice: number
     lpPairAddress?: string
   }
-  
+
   createdAt: Date
   updatedAt: Date
 }
@@ -120,6 +121,7 @@ export interface GetDatasetsRequest {
   filter?: 'all' | 'trending' | 'graduated' | 'new' | 'high-quality'
   category?: string
   search?: string
+  factoryId?: string
 }
 
 export interface GetDatasetsResponse {
@@ -186,6 +188,7 @@ export interface CreateDatasetRequest {
   description?: string
   category?: string
   demoHashes?: string[]
+  factoryId?: string
   burnThresholdPercentage?: number
 }
 

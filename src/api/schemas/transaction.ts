@@ -5,7 +5,7 @@ export const validateTransactionSchema: ValidationSchema = {
     required: true,
     rules: [
       ValidationRules.isString(),
-      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundPool', 'withdrawPool'])
+      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundPool', 'withdrawPool', 'createDataset'])
     ]
   },
   sessionToken: {
@@ -55,7 +55,7 @@ export const estimateGasSchema: ValidationSchema = {
     required: true,
     rules: [
       ValidationRules.isString(),
-      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundPool', 'withdrawPool'])
+      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundPool', 'withdrawPool', 'createDataset'])
     ]
   },
   creator: {
@@ -81,7 +81,7 @@ export const prepareTransactionSchema: ValidationSchema = {
     required: true,
     rules: [
       ValidationRules.isString(),
-      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundPool', 'withdrawPool'])
+      ValidationRules.isIn(['createFactory', 'fundPool', 'claimRewards', 'createAndFundPool', 'withdrawPool', 'createDataset'])
     ]
   },
   sessionToken: {
@@ -107,6 +107,22 @@ export const prepareTransactionSchema: ValidationSchema = {
   submissionId: {
     required: false,
     rules: [ValidationRules.isString()]
+  },
+  datasetId: {
+    required: false,
+    rules: [ValidationRules.isString()]
+  },
+  name: {
+    required: false,
+    rules: [ValidationRules.isString()]
+  },
+  symbol: {
+    required: false,
+    rules: [ValidationRules.isString()]
+  },
+  burnThresholdPercentage: {
+    required: false,
+    rules: [ValidationRules.isNumber()]
   }
 }
 

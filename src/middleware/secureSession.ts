@@ -129,6 +129,7 @@ export function configureSecureSession(app: Application): void {
     '/api/v1/forge/recordings', // Recordings (POST)
     '/api/v1/forge/recordings/health', // Recordings health (GET)
     '/api/v1/forge/grading', // Forge grading endpoints
+    '/api/v1/datamarketplace/datasets', // Dataset creation from desktop (POST)
   ];
 
   // Apply CSRF protection to all routes except bootstrap endpoints
