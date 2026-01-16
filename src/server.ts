@@ -16,6 +16,7 @@ import { referralApi } from './api/referral.ts'
 import { transactionApi } from './api/transaction.ts'
 import { walletApi } from './api/wallet.ts'
 import { withdrawalApi } from './api/withdrawal.ts'
+import datamarketplaceApi from './api/datamarketplace.ts'
 import { catchErrors } from './hooks/errors.ts'
 import { errorHandler } from './middleware/errorHandler.ts'
 import { connectToDatabase } from './services/database.ts'
@@ -42,8 +43,8 @@ const __dirname = path.dirname(__filename)
 app.use(...createLoggingMiddleware())
 
 // Middlewares
-app.use(express.json({ limit: '10mb' })) // Reasonable limit for JSON payloads
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+app.use(express.json({ limit: '200mb' })) // Increased limit for large file uploads
+app.use(express.urlencoded({ extended: true, limit: '200mb' }))
 app.use(cookieParser()) // Parse cookies for CSRF protection
 app.use(helmet({
   contentSecurityPolicy: {
@@ -115,6 +116,7 @@ app.use('/api/v1/wallet', walletApi)
 app.use('/api/v1/referral', referralApi)
 app.use('/api/v1/transaction', transactionApi)
 app.use('/api/v1/withdrawal', withdrawalApi)
+app.use('/api/v1/datamarketplace', datamarketplaceApi)
 
 // Grading endpoints
 app.use('/api/v1/forge/grading', forgeGradingApi)

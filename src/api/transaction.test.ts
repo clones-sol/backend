@@ -204,3 +204,97 @@ describe('Transaction API - createAndFundPool', () => {
     expect(response.body.error.message).toBe('Invalid amount: -1. Must be a positive number.')
   })
 })
+
+describe('Transaction API - createDataset', () => {
+  const mockSessionToken = 'test-session-token'
+  const mockCreatorAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+  const mockDatasetName = 'Test Dataset'
+  const mockDatasetSymbol = 'TESTDS'
+  const mockBurnThresholdPercentage = 5
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    // Setup mocks
+    mockWalletConnectionModel.findOne.mockResolvedValue({
+      token: mockSessionToken,
+      address: mockCreatorAddress
+    })
+  })
+
+  it('should validate createDataset transaction type', async () => {
+    const response = await request(app).post('/api/v1/transaction/validate-tx').send({
+      type: 'createDataset',
+      sessionToken: mockSessionToken,
+      userAddress: mockCreatorAddress,
+      creator: mockCreatorAddress,
+      name: mockDatasetName,
+      symbol: mockDatasetSymbol,
+      burnThresholdPercentage: mockBurnThresholdPercentage,
+      timestamp: Date.now()
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.body.data.type).toBe('createDataset')
+    expect(response.body.data.valid).toBe(true)
+  })
+
+  it('should estimate gas for createDataset', async () => {
+    const response = await request(app).post('/api/v1/transaction/estimate-gas').send({
+      type: 'createDataset',
+      creator: mockCreatorAddress,
+      name: mockDatasetName,
+      symbol: mockDatasetSymbol,
+      burnThresholdPercentage: mockBurnThresholdPercentage
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.body.data.gasLimit).toBe('800000')
+  })
+
+  it('should reject createDataset without required fields', async () => {
+    const response = await request(app).post('/api/v1/transaction/validate-tx').send({
+      type: 'createDataset',
+      sessionToken: mockSessionToken,
+      userAddress: mockCreatorAddress,
+      creator: mockCreatorAddress,
+      timestamp: Date.now()
+      // Missing name, symbol, burnThresholdPercentage
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('Name and symbol required for createDataset')
+  })
+
+  it('should reject createDataset with invalid burnThresholdPercentage', async () => {
+    const response = await request(app).post('/api/v1/transaction/validate-tx').send({
+      type: 'createDataset',
+      sessionToken: mockSessionToken,
+      userAddress: mockCreatorAddress,
+      creator: mockCreatorAddress,
+      name: mockDatasetName,
+      symbol: mockDatasetSymbol,
+      burnThresholdPercentage: 0, // Invalid: must be 1-10
+      timestamp: Date.now()
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('burnThresholdPercentage must be between 1 and 10')
+  })
+
+  it('should reject createDataset with burnThresholdPercentage > 10', async () => {
+    const response = await request(app).post('/api/v1/transaction/validate-tx').send({
+      type: 'createDataset',
+      sessionToken: mockSessionToken,
+      userAddress: mockCreatorAddress,
+      creator: mockCreatorAddress,
+      name: mockDatasetName,
+      symbol: mockDatasetSymbol,
+      burnThresholdPercentage: 11, // Invalid: must be 1-10
+      timestamp: Date.now()
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('burnThresholdPercentage must be between 1 and 10')
+  })
+})
